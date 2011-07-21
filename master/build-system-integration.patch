@@ -1,0 +1,37 @@
+diff -r 604ec80ec4ac buildconfigs/Rules.mk
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/buildconfigs/Rules.mk	Mon Sep 15 11:38:36 2008 +0100
+@@ -0,0 +1,33 @@
++XEN_TARGET_ARCH     = x86_32
++XEN_TARGET_X86_PAE ?= y
++
++LINUX_SERIES = 2.6
++LINUX_VER    = 2.6.32
++
++EXTRAVERSION ?= xen
++
++LINUX_ARCH  ?= i386
++
++.PHONY: defconfig
++defconfig:
++	sh buildconfigs/create_config.sh .config $(EXTRAVERSION) $(XEN_TARGET_ARCH) $(XEN_SYSTYPE)
++	# See if we need to munge config to enable PAE
++ifeq ($(XEN_TARGET_X86_PAE),y)
++	sed -e 's!^CONFIG_HIGHMEM4G=y$$!\# CONFIG_HIGHMEM4G is not set!;s!^\# CONFIG_HIGHMEM64G is not set$$!CONFIG_HIGHMEM64G=y!' .config > .config- && mv .config- .config
++else
++	grep '^CONFIG_HIGHMEM64G=y' .config >/dev/null && ( sed -e 's!^CONFIG_HIGHMEM64G=y$$!\# CONFIG_HIGHMEM64G is not set!;s!^\# CONFIG_HIGHMEM4G is not set$$!CONFIG_HIGHMEM4G=y!' .config > .config- && mv .config- .config ) || true
++endif
++	$(MAKE) ARCH=$(LINUX_ARCH) oldconfig 2>&1 /dev/null
++
++.PHONY: config-update-pae
++config-update-pae:
++	# See if we need to munge config to enable PAE
++ifeq ($(XEN_TARGET_X86_PAE),y)
++	sed -e 's!^CONFIG_HIGHMEM4G=y$$!\# CONFIG_HIGHMEM4G is not set!;s!^\# CONFIG_HIGHMEM64G is not set$$!CONFIG_HIGHMEM64G=y!' $(CONFIG_FILE) > $(CONFIG_FILE)- && mv $(CONFIG_FILE)- $(CONFIG_FILE)
++else
++	grep '^CONFIG_HIGHMEM64G=y' $(CONFIG_FILE) >/dev/null && ( sed -e 's!^CONFIG_HIGHMEM64G=y$$!\# CONFIG_HIGHMEM64G is not set!;s!^\# CONFIG_HIGHMEM4G is not set$$!CONFIG_HIGHMEM4G=y!' $(CONFIG_FILE) > $(CONFIG_FILE)- && mv $(CONFIG_FILE)- $(CONFIG_FILE) ) || true
++endif
++
++.PHONY: baselinuxversion
++baselinuxversion:
++	@echo $(LINUX_VER)

@@ -1,0 +1,13 @@
+hgignore.patch
+
+#
+# Build system integration
+#
+build-system-integration.patch
+
+#
+# Kernel Configuration.
+#
+increase-maximum-number-of-loop-devices
+config-create_config-script
+kernel-configuration
