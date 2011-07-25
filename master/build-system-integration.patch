@@ -1,12 +1,16 @@
-diff -r 604ec80ec4ac buildconfigs/Rules.mk
+diff -r ed64d22b0ae9 buildconfigs/Rules.mk
 --- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/buildconfigs/Rules.mk	Mon Sep 15 11:38:36 2008 +0100
-@@ -0,0 +1,33 @@
++++ b/buildconfigs/Rules.mk	Mon Jul 25 18:41:10 2011 +0100
+@@ -0,0 +1,37 @@
 +XEN_TARGET_ARCH     = x86_32
 +XEN_TARGET_X86_PAE ?= y
 +
-+LINUX_SERIES = 2.6
-+LINUX_VER    = 2.6.32
++# LINUX_VER is the combination of VERSION, PATCHLEVEL, SUBLEVEL and
++# EXTRAVERSION from the kernel Makefile.
++#
++# Note: EXTRAVERSION must be set and have a leading dash or the RPM
++# spec file will get confused.
++LINUX_VER    = 3.0.0-0
 +
 +EXTRAVERSION ?= xen
 +
