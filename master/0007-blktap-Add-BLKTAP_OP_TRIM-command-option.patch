@@ -1,0 +1,216 @@
+From e37d7370c52af977be94ff56b0328eb93e785fe1 Mon Sep 17 00:00:00 2001
+From: Daniel Stodden <daniel.stodden@citrix.com>
+Date: Thu, 10 Mar 2011 14:45:58 -0800
+Subject: [PATCH 07/11] blktap: Add BLKTAP_OP_TRIM command option.
+
+Enabled by userspace with a device info flag. Enables DISCARD requests
+at the given granularity and alignment offset.
+
+Signed-off-by: Daniel Stodden <daniel.stodden@citrix.com>
+---
+ drivers/block/blktap/blktap.h |    2 ++
+ drivers/block/blktap/device.c |   30 ++++++++++++++++++++++++++++--
+ drivers/block/blktap/ring.c   |   25 +++++++++++++++++++++++++
+ include/linux/blktap.h        |   11 +++++++++++
+ 4 files changed, 66 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/block/blktap/blktap.h b/drivers/block/blktap/blktap.h
+index 1b63d0eb..ef23e25 100644
+--- a/drivers/block/blktap/blktap.h
++++ b/drivers/block/blktap/blktap.h
+@@ -61,10 +61,12 @@ struct blktap_statistics {
+ 	unsigned long                  st_print;
+ 	int                            st_rd_req;
+ 	int                            st_wr_req;
++	int                            st_tr_req;
+ 	int                            st_oo_req;
+ 	int                            st_fl_req;
+ 	int                            st_rd_sect;
+ 	int                            st_wr_sect;
++	int                            st_tr_sect;
+ 	s64                            st_rd_cnt;
+ 	s64                            st_rd_sum_usecs;
+ 	s64                            st_rd_max_usecs;
+diff --git a/drivers/block/blktap/device.c b/drivers/block/blktap/device.c
+index e403505..f9a466b 100644
+--- a/drivers/block/blktap/device.c
++++ b/drivers/block/blktap/device.c
+@@ -201,6 +201,12 @@ blktap_device_make_request(struct blktap *tap, struct request *rq)
+ 		goto fail;
+ 	}
+ 
++	if (blk_discard_rq(rq)) {
++		request->operation = BLKTAP_OP_TRIM;
++		request->nr_pages  = 0;
++		goto submit;
++	}
++
+ 	nsegs = blk_rq_map_sg(rq->q, rq, request->sg_table);
+ 
+ 	if (rq_data_dir(rq) == WRITE)
+@@ -326,6 +332,12 @@ blktap_device_configure(struct blktap *tap,
+ 				  blktap_device_prepare_flush);
+ 	else
+ 		blk_queue_ordered(rq, QUEUE_ORDERED_DRAIN, NULL);
++
++	/* Block discards */
++	if (info->flags & BLKTAP_DEVICE_FLAG_TRIM) {
++		blk_queue_max_discard_sectors(rq, UINT_MAX);
++		queue_flag_set_unlocked(QUEUE_FLAG_DISCARD, rq);
++	}
+ }
+ 
+ static int
+@@ -360,14 +372,27 @@ blktap_device_validate_info(struct blktap *tap,
+ 	    info->phys_block_offset >= info->phys_block_size)
+ 		goto fail;
+ 
++	/* trim info vs logical addressing */
++	if (info->flags & BLKTAP_DEVICE_FLAG_TRIM) {
++
++		if (info->trim_block_size < info->sector_size ||
++		    !is_power_of_2(info->trim_block_size))
++			goto fail;
++
++		if (info->trim_block_offset % info->sector_size ||
++		    info->trim_block_offset >= info->trim_block_size)
++			goto fail;
++	}
++
+ 	return 0;
+ 
+ fail:
+ 	dev_err(dev,
+ 		"capacity: %llu, sector-size: %u/%u+%u, "
+-		"flags: %#lx"
++		"trim: %u+%u flags: %#lx\n",
+ 		info->capacity, info->sector_size,
+ 		info->phys_block_size, info->phys_block_offset,
++		info->trim_block_size, info->trim_block_offset,
+ 		info->flags);
+ 	return -EINVAL;
+ }
+@@ -518,11 +543,12 @@ blktap_device_create(struct blktap *tap, struct blktap_device_info *info)
+ 
+ 	dev_info(disk_to_dev(gd),
+ 		 "sector-size: %u/%u+%u capacity: %llu"
+-		 " ordered: %#x\n",
++		 " discard: %d ordered: %#x\n",
+ 		 queue_logical_block_size(rq),
+ 		 queue_physical_block_size(rq),
+ 		 queue_alignment_offset(rq),
+ 		 (unsigned long long)get_capacity(gd),
++		 blk_queue_discard(rq),
+ 		 rq->ordered);
+ 
+ 	return 0;
+diff --git a/drivers/block/blktap/ring.c b/drivers/block/blktap/ring.c
+index a7568ab..bbe8730 100644
+--- a/drivers/block/blktap/ring.c
++++ b/drivers/block/blktap/ring.c
+@@ -267,6 +267,20 @@ blktap_ring_make_rw_request(struct blktap *tap,
+ 	return nsecs;
+ }
+ 
++static int
++blktap_ring_make_tr_request(struct blktap *tap,
++			    struct blktap_request *request,
++			    struct blktap_ring_request *breq)
++{
++	struct bio *bio = request->rq->bio;
++	unsigned int nsecs;
++
++	breq->u.tr.nr_sectors    = nsecs = bio_sectors(bio);
++	breq->u.tr.sector_number = bio->bi_sector;
++
++	return nsecs;
++}
++
+ void
+ blktap_ring_submit_request(struct blktap *tap,
+ 			   struct blktap_request *request)
+@@ -305,6 +319,12 @@ blktap_ring_submit_request(struct blktap *tap,
+ 		tap->stats.st_fl_req++;
+ 		break;
+ 
++	case BLKTAP_OP_TRIM:
++		nsecs = blktap_ring_make_tr_request(tap, request, breq);
++
++		tap->stats.st_tr_sect += nsecs;
++		tap->stats.st_tr_req++;
++		break;
+ 	default:
+ 		BUG();
+ 	}
+@@ -454,6 +474,8 @@ blktap_ring_ioctl(struct inode *inode, struct file *filp,
+ 		mask  = BLKTAP_DEVICE_FLAG_RO;
+ 		mask |= BLKTAP_DEVICE_FLAG_PSZ;
+ 		mask |= BLKTAP_DEVICE_FLAG_FLUSH;
++		mask |= BLKTAP_DEVICE_FLAG_TRIM;
++		mask |= BLKTAP_DEVICE_FLAG_TRIM_RZ;
+ 
+ 		memset(&info, 0, sizeof(info));
+ 		sz = base_sz = BLKTAP_INFO_SIZE_AT(flags);
+@@ -464,6 +486,9 @@ blktap_ring_ioctl(struct inode *inode, struct file *filp,
+ 		if ((info.flags & BLKTAP_DEVICE_FLAG_PSZ) != 0)
+ 			sz = BLKTAP_INFO_SIZE_AT(phys_block_offset);
+ 
++		if (info.flags & BLKTAP_DEVICE_FLAG_TRIM)
++			sz = BLKTAP_INFO_SIZE_AT(trim_block_offset);
++
+ 		if (sz > base_sz)
+ 			if (copy_from_user(&info, ptr, sz))
+ 				return -EFAULT;
+diff --git a/include/linux/blktap.h b/include/linux/blktap.h
+index feac06b..2cbefe9 100644
+--- a/include/linux/blktap.h
++++ b/include/linux/blktap.h
+@@ -19,6 +19,8 @@
+ #define BLKTAP_DEVICE_FLAG_RO       0x00000001UL /* disk is R/O */
+ #define BLKTAP_DEVICE_FLAG_PSZ      0x00000002UL /* physical sector size */
+ #define BLKTAP_DEVICE_FLAG_FLUSH    0x00000004UL /* supports FLUSH */
++#define BLKTAP_DEVICE_FLAG_TRIM     0x00000008UL /* supports TRIM */
++#define BLKTAP_DEVICE_FLAG_TRIM_RZ  0x00000010UL /* trimmed data reads zero */
+ 
+ struct blktap_info {
+ 	unsigned int            ring_major;
+@@ -32,6 +34,8 @@ struct blktap_device_info {
+ 	unsigned long           flags;
+ 	unsigned int            phys_block_size;
+ 	unsigned int            phys_block_offset;
++	unsigned int            trim_block_size;
++	unsigned int            trim_block_offset;
+ };
+ 
+ /*
+@@ -53,6 +57,7 @@ struct blktap_segment {
+ #define BLKTAP_OP_READ          0
+ #define BLKTAP_OP_WRITE         1
+ #define BLKTAP_OP_FLUSH         2
++#define BLKTAP_OP_TRIM          3
+ 
+ #define BLKTAP_SEGMENT_MAX      11
+ 
+@@ -61,6 +66,11 @@ struct blktap_ring_rw_request {
+ 	struct blktap_segment   seg[BLKTAP_SEGMENT_MAX];
+ };
+ 
++struct blktap_ring_tr_request {
++	uint64_t                sector_number;
++	uint64_t                nr_sectors;
++};
++
+ struct blktap_ring_request {
+ 	uint8_t                 operation;
+ 	uint8_t                 nr_segments;
+@@ -68,6 +78,7 @@ struct blktap_ring_request {
+ 	uint64_t                id;
+ 	union {
+ 		struct blktap_ring_rw_request   rw;
++		struct blktap_ring_tr_request   tr;
+ 	} u;
+ };
+ 
+-- 
+1.7.4.1
+

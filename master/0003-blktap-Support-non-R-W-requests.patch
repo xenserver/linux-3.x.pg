@@ -1,0 +1,224 @@
+From 34574a807cec4db9d5d29f6a5eb085e8fe10715f Mon Sep 17 00:00:00 2001
+From: Daniel Stodden <daniel.stodden@citrix.com>
+Date: Wed, 2 Mar 2011 19:38:24 -0800
+Subject: [PATCH 03/11] blktap: Support non-R/W requests
+
+Special cases segment vector writes on the blktap ring. Anticipate
+non-fs requests on the queue. Add some switches, for trim or flush
+operations to settle.
+
+Signed-off-by: Daniel Stodden <daniel.stodden@citrix.com>
+---
+ drivers/block/blktap/device.c |   24 ++++++--------
+ drivers/block/blktap/ring.c   |   68 +++++++++++++++++++++++++---------------
+ include/linux/blktap.h        |   10 +++++-
+ 3 files changed, 61 insertions(+), 41 deletions(-)
+
+diff --git a/drivers/block/blktap/device.c b/drivers/block/blktap/device.c
+index 7a6b079..863611b 100644
+--- a/drivers/block/blktap/device.c
++++ b/drivers/block/blktap/device.c
+@@ -167,7 +167,7 @@ blktap_device_make_request(struct blktap *tap, struct request *rq)
+ {
+ 	struct blktap_device *tapdev = &tap->device;
+ 	struct blktap_request *request;
+-	int write, nsegs;
++	int nsegs;
+ 	int err;
+ 
+ 	request = blktap_ring_make_request(tap);
+@@ -181,15 +181,17 @@ blktap_device_make_request(struct blktap *tap, struct request *rq)
+ 		goto fail;
+ 	}
+ 
+-	write = rq_data_dir(rq) == WRITE;
++	if (!blk_fs_request(rq)) {
++		err = -EOPNOTSUPP;
++		goto fail;
++	}
++
+ 	nsegs = blk_rq_map_sg(rq->q, rq, request->sg_table);
+ 
+-	dev_dbg(disk_to_dev(tapdev->gd),
+-		"make_request: op=%c bytes=%d nsegs=%d\n",
+-		write ? 'w' : 'r', blk_rq_bytes(rq), nsegs);
+-
+-	request->rq = rq;
+-	request->operation = write ? BLKTAP_OP_WRITE : BLKTAP_OP_READ;
++	if (rq_data_dir(rq) == WRITE)
++		request->operation = BLKTAP_OP_WRITE;
++	else
++		request->operation = BLKTAP_OP_READ;
+ 
+ 	err = blktap_request_get_pages(tap, request, nsegs);
+ 	if (err)
+@@ -199,6 +201,7 @@ blktap_device_make_request(struct blktap *tap, struct request *rq)
+ 	if (err)
+ 		goto fail;
+ 
++	request->rq = rq;
+ 	blktap_ring_submit_request(tap, request);
+ 
+ 	return 0;
+@@ -243,11 +246,6 @@ blktap_device_run_queue(struct blktap *tap)
+ 		if (!rq)
+ 			break;
+ 
+-		if (!blk_fs_request(rq)) {
+-			__blktap_end_queued_rq(rq, -EOPNOTSUPP);
+-			continue;
+-		}
+-
+ 		spin_unlock_irq(&tapdev->lock);
+ 
+ 		err = blktap_device_make_request(tap, rq);
+diff --git a/drivers/block/blktap/ring.c b/drivers/block/blktap/ring.c
+index 23400f6..de93b10 100644
+--- a/drivers/block/blktap/ring.c
++++ b/drivers/block/blktap/ring.c
+@@ -241,14 +241,39 @@ blktap_ring_make_request(struct blktap *tap)
+ 	return request;
+ }
+ 
++static int
++blktap_ring_make_rw_request(struct blktap *tap,
++			    struct blktap_request *request,
++			    struct blktap_ring_request *breq)
++{
++	struct scatterlist *sg;
++	unsigned int i, nsecs = 0;
++
++	blktap_for_each_sg(sg, request, i) {
++		struct blktap_segment *seg = &breq->u.rw.seg[i];
++		int first, count;
++
++		count = sg->length >> 9;
++		first = sg->offset >> 9;
++
++		seg->first_sect = first;
++		seg->last_sect  = first + count - 1;
++
++		nsecs += count;
++	}
++
++	breq->u.rw.sector_number = blk_rq_pos(request->rq);
++
++	return nsecs;
++}
++
+ void
+ blktap_ring_submit_request(struct blktap *tap,
+ 			   struct blktap_request *request)
+ {
+ 	struct blktap_ring *ring = &tap->ring;
+ 	struct blktap_ring_request *breq;
+-	struct scatterlist *sg;
+-	int i, nsecs = 0;
++	int nsecs;
+ 
+ 	dev_dbg(ring->dev,
+ 		"request %d [%p] submit\n", request->usr_idx, request);
+@@ -256,38 +281,31 @@ blktap_ring_submit_request(struct blktap *tap,
+ 	breq = RING_GET_REQUEST(&ring->ring, ring->ring.req_prod_pvt);
+ 
+ 	breq->id            = request->usr_idx;
+-	breq->sector_number = blk_rq_pos(request->rq);
+ 	breq->__pad         = 0;
+ 	breq->operation     = request->operation;
+ 	breq->nr_segments   = request->nr_pages;
+ 
+-	blktap_for_each_sg(sg, request, i) {
+-		struct blktap_segment *seg = &breq->seg[i];
+-		int first, count;
++	switch (breq->operation) {
++	case BLKTAP_OP_READ:
++		nsecs = blktap_ring_make_rw_request(tap, request, breq);
+ 
+-		count = sg->length >> 9;
+-		first = sg->offset >> 9;
++		tap->stats.st_rd_sect += nsecs;
++		tap->stats.st_rd_req++;
++		break;
+ 
+-		seg->first_sect = first;
+-		seg->last_sect  = first + count - 1;
++	case BLKTAP_OP_WRITE:
++		nsecs = blktap_ring_make_rw_request(tap, request, breq);
+ 
+-		nsecs += count;
++		tap->stats.st_wr_sect += nsecs;
++		tap->stats.st_wr_req++;
++		break;
++	default:
++		BUG();
+ 	}
+ 
+ 	ring->ring.req_prod_pvt++;
+ 
+ 	do_gettimeofday(&request->time);
+-
+-
+-	if (request->operation == BLKTAP_OP_WRITE) {
+-		tap->stats.st_wr_sect += nsecs;
+-		tap->stats.st_wr_req++;
+-	}
+-
+-	if (request->operation == BLKTAP_OP_READ) {
+-		tap->stats.st_rd_sect += nsecs;
+-		tap->stats.st_rd_req++;
+-	}
+ }
+ 
+ static int
+@@ -530,20 +548,18 @@ blktap_ring_debug(struct blktap *tap, char *buf, size_t size)
+ 	for (usr_idx = 0; usr_idx < BLKTAP_RING_SIZE; usr_idx++) {
+ 		struct blktap_request *request;
+ 		struct timeval *time;
+-		int write;
+ 
+ 		request = ring->pending[usr_idx];
+ 		if (!request)
+ 			continue;
+ 
+-		write = request->operation == BLKTAP_OP_WRITE;
+ 		time  = &request->time;
+ 
+ 		s += snprintf(s, end - s,
+ 			      "%02d: usr_idx:%02d "
+-			      "op:%c nr_pages:%02d time:%lu.%09lu\n",
++			      "op:%x nr_pages:%02d time:%lu.%09lu\n",
+ 			      usr_idx, request->usr_idx,
+-			      write ? 'W' : 'R', request->nr_pages,
++			      request->operation, request->nr_pages,
+ 			      time->tv_sec, time->tv_usec);
+ 	}
+ 
+diff --git a/include/linux/blktap.h b/include/linux/blktap.h
+index ac27b84..0c909e9 100644
+--- a/include/linux/blktap.h
++++ b/include/linux/blktap.h
+@@ -51,13 +51,19 @@ struct blktap_segment {
+ 
+ #define BLKTAP_SEGMENT_MAX      11
+ 
++struct blktap_ring_rw_request {
++	uint64_t                sector_number;
++	struct blktap_segment   seg[BLKTAP_SEGMENT_MAX];
++};
++
+ struct blktap_ring_request {
+ 	uint8_t                 operation;
+ 	uint8_t                 nr_segments;
+ 	uint16_t                __pad;
+ 	uint64_t                id;
+-	uint64_t                sector_number;
+-	struct blktap_segment   seg[BLKTAP_SEGMENT_MAX];
++	union {
++		struct blktap_ring_rw_request   rw;
++	} u;
+ };
+ 
+ #define BLKTAP_RSP_EOPNOTSUPP  -2
+-- 
+1.7.4.1
+

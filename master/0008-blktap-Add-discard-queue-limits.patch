@@ -1,0 +1,61 @@
+From 994a546463db084361cb7bcc27a7fedfe13906a9 Mon Sep 17 00:00:00 2001
+From: Daniel Stodden <daniel.stodden@citrix.com>
+Date: Tue, 15 Mar 2011 02:06:36 -0700
+Subject: [PATCH 08/11] blktap: Add discard queue limits.
+
+Set up discard queue limits:
+ - granularity (block size)
+ - alignment offset (first block LBA)
+ - zeroing (discarded blocks read zero)
+
+Signed-off-by: Daniel Stodden <daniel.stodden@citrix.com>
+---
+ drivers/block/blktap/device.c |   13 +++++++++++--
+ 1 files changed, 11 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/block/blktap/device.c b/drivers/block/blktap/device.c
+index f9a466b..585a27b 100644
+--- a/drivers/block/blktap/device.c
++++ b/drivers/block/blktap/device.c
+@@ -304,6 +304,7 @@ blktap_device_configure(struct blktap *tap,
+ 	struct blktap_device *tapdev = &tap->device;
+ 	struct gendisk *gd = tapdev->gd;
+ 	struct request_queue *rq = gd->queue;
++	struct queue_limits *limits = &rq->limits;
+ 
+ 	set_capacity(gd, info->capacity);
+ 	set_disk_ro(gd, !!(info->flags & BLKTAP_DEVICE_FLAG_RO));
+@@ -335,7 +336,14 @@ blktap_device_configure(struct blktap *tap,
+ 
+ 	/* Block discards */
+ 	if (info->flags & BLKTAP_DEVICE_FLAG_TRIM) {
++		int trz = !!(info->flags & BLKTAP_DEVICE_FLAG_TRIM_RZ);
++
+ 		blk_queue_max_discard_sectors(rq, UINT_MAX);
++
++		limits->discard_granularity = info->trim_block_size;
++		limits->discard_alignment   = info->trim_block_offset;
++		limits->discard_zeroes_data = trz;
++
+ 		queue_flag_set_unlocked(QUEUE_FLAG_DISCARD, rq);
+ 	}
+ }
+@@ -543,12 +551,13 @@ blktap_device_create(struct blktap *tap, struct blktap_device_info *info)
+ 
+ 	dev_info(disk_to_dev(gd),
+ 		 "sector-size: %u/%u+%u capacity: %llu"
+-		 " discard: %d ordered: %#x\n",
++		 " discard: %u+%u ordered: %#x\n",
+ 		 queue_logical_block_size(rq),
+ 		 queue_physical_block_size(rq),
+ 		 queue_alignment_offset(rq),
+ 		 (unsigned long long)get_capacity(gd),
+-		 blk_queue_discard(rq),
++		 rq->limits.discard_granularity,
++		 queue_discard_alignment(rq),
+ 		 rq->ordered);
+ 
+ 	return 0;
+-- 
+1.7.4.1
+

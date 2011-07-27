@@ -1,6 +1,6 @@
-diff -r 353281b73675 buildconfigs/conf.linux-kdump/kdump
+diff -r 64489cb0b740 buildconfigs/conf.linux-kdump/kdump
 --- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/buildconfigs/conf.linux-kdump/kdump	Mon Jul 25 18:28:55 2011 +0100
++++ b/buildconfigs/conf.linux-kdump/kdump	Wed Jul 27 11:38:19 2011 +0100
 @@ -0,0 +1,123 @@
 +# CONFIG_NO_HZ is not set
 +# CONFIG_HIGH_RES_TIMERS is not set
@@ -125,9 +125,9 @@ diff -r 353281b73675 buildconfigs/conf.linux-kdump/kdump
 +CONFIG_NODES_SHIFT=3
 +CONFIG_MIGRATION=y
 +CONFIG_ACPI_NUMA=n
-diff -r 353281b73675 buildconfigs/linux-defconfig_utility_x86_32
+diff -r 64489cb0b740 buildconfigs/linux-defconfig_utility_x86_32
 --- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/buildconfigs/linux-defconfig_utility_x86_32	Mon Jul 25 18:28:55 2011 +0100
++++ b/buildconfigs/linux-defconfig_utility_x86_32	Wed Jul 27 11:38:19 2011 +0100
 @@ -0,0 +1,4538 @@
 +#
 +# Automatically generated make config: don't edit
@@ -4667,13 +4667,13 @@ diff -r 353281b73675 buildconfigs/linux-defconfig_utility_x86_32
 +CONFIG_NLATTR=y
 +CONFIG_LRU_CACHE=m
 +CONFIG_AVERAGE=y
-diff -r 353281b73675 buildconfigs/linux-defconfig_xen_x86_32
+diff -r 64489cb0b740 buildconfigs/linux-defconfig_xen_x86_32
 --- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/buildconfigs/linux-defconfig_xen_x86_32	Mon Jul 25 18:28:55 2011 +0100
-@@ -0,0 +1,4539 @@
++++ b/buildconfigs/linux-defconfig_xen_x86_32	Wed Jul 27 11:38:19 2011 +0100
+@@ -0,0 +1,4540 @@
 +#
 +# Automatically generated make config: don't edit
-+# Linux/i386 3.0.0-rc7 Kernel Configuration
++# Linux/i386 3.0.0-0 Kernel Configuration
 +#
 +# CONFIG_64BIT is not set
 +CONFIG_X86_32=y
@@ -6234,6 +6234,7 @@ diff -r 353281b73675 buildconfigs/linux-defconfig_xen_x86_32
 +CONFIG_VIRTIO_BLK=y
 +# CONFIG_BLK_DEV_HD is not set
 +CONFIG_BLK_DEV_RBD=m
++CONFIG_BLK_DEV_TAP=m
 +CONFIG_SENSORS_LIS3LV02D=m
 +CONFIG_MISC_DEVICES=y
 +CONFIG_AD525X_DPOT=m
@@ -9210,9 +9211,9 @@ diff -r 353281b73675 buildconfigs/linux-defconfig_xen_x86_32
 +CONFIG_NLATTR=y
 +CONFIG_LRU_CACHE=m
 +CONFIG_AVERAGE=y
-diff -r 353281b73675 buildconfigs/linux-defconfig_xen_x86_64
+diff -r 64489cb0b740 buildconfigs/linux-defconfig_xen_x86_64
 --- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/buildconfigs/linux-defconfig_xen_x86_64	Mon Jul 25 18:28:55 2011 +0100
++++ b/buildconfigs/linux-defconfig_xen_x86_64	Wed Jul 27 11:38:19 2011 +0100
 @@ -0,0 +1,2592 @@
 +#
 +# Automatically generated make config: don't edit
