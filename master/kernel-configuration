@@ -1,6 +1,6 @@
 diff -r 64489cb0b740 buildconfigs/conf.linux-kdump/kdump
 --- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/buildconfigs/conf.linux-kdump/kdump	Thu Jul 28 17:00:08 2011 +0100
++++ b/buildconfigs/conf.linux-kdump/kdump	Thu Aug 04 17:30:33 2011 +0100
 @@ -0,0 +1,123 @@
 +# CONFIG_NO_HZ is not set
 +# CONFIG_HIGH_RES_TIMERS is not set
@@ -127,7 +127,7 @@ diff -r 64489cb0b740 buildconfigs/conf.linux-kdump/kdump
 +CONFIG_ACPI_NUMA=n
 diff -r 64489cb0b740 buildconfigs/linux-defconfig_utility_x86_32
 --- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/buildconfigs/linux-defconfig_utility_x86_32	Thu Jul 28 17:00:08 2011 +0100
++++ b/buildconfigs/linux-defconfig_utility_x86_32	Thu Aug 04 17:30:33 2011 +0100
 @@ -0,0 +1,4538 @@
 +#
 +# Automatically generated make config: don't edit
@@ -4669,8 +4669,8 @@ diff -r 64489cb0b740 buildconfigs/linux-defconfig_utility_x86_32
 +CONFIG_AVERAGE=y
 diff -r 64489cb0b740 buildconfigs/linux-defconfig_xen_x86_32
 --- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/buildconfigs/linux-defconfig_xen_x86_32	Thu Jul 28 17:00:08 2011 +0100
-@@ -0,0 +1,4540 @@
++++ b/buildconfigs/linux-defconfig_xen_x86_32	Thu Aug 04 17:30:33 2011 +0100
+@@ -0,0 +1,4535 @@
 +#
 +# Automatically generated make config: don't edit
 +# Linux/i386 3.0.0-0 Kernel Configuration
@@ -4815,8 +4815,7 @@ diff -r 64489cb0b740 buildconfigs/linux-defconfig_xen_x86_32
 +CONFIG_NET_NS=y
 +CONFIG_SCHED_AUTOGROUP=y
 +CONFIG_MM_OWNER=y
-+CONFIG_SYSFS_DEPRECATED=y
-+CONFIG_SYSFS_DEPRECATED_V2=y
++# CONFIG_SYSFS_DEPRECATED is not set
 +CONFIG_RELAY=y
 +CONFIG_BLK_DEV_INITRD=y
 +CONFIG_INITRAMFS_SOURCE=""
@@ -7793,13 +7792,13 @@ diff -r 64489cb0b740 buildconfigs/linux-defconfig_xen_x86_32
 +CONFIG_STUB_POULSBO=m
 +CONFIG_VGASTATE=m
 +CONFIG_VIDEO_OUTPUT_CONTROL=m
-+CONFIG_FB=y
++CONFIG_FB=m
 +CONFIG_FIRMWARE_EDID=y
 +CONFIG_FB_DDC=m
 +# CONFIG_FB_BOOT_VESA_SUPPORT is not set
-+CONFIG_FB_CFB_FILLRECT=y
-+CONFIG_FB_CFB_COPYAREA=y
-+CONFIG_FB_CFB_IMAGEBLIT=y
++CONFIG_FB_CFB_FILLRECT=m
++CONFIG_FB_CFB_COPYAREA=m
++CONFIG_FB_CFB_IMAGEBLIT=m
 +# CONFIG_FB_CFB_REV_PIXELS_IN_BYTE is not set
 +CONFIG_FB_SYS_FILLRECT=m
 +CONFIG_FB_SYS_COPYAREA=m
@@ -7824,12 +7823,8 @@ diff -r 64489cb0b740 buildconfigs/linux-defconfig_xen_x86_32
 +CONFIG_FB_CYBER2000=m
 +CONFIG_FB_CYBER2000_DDC=y
 +CONFIG_FB_ARC=m
-+CONFIG_FB_ASILIANT=y
-+CONFIG_FB_IMSTT=y
 +CONFIG_FB_VGA16=m
 +CONFIG_FB_UVESA=m
-+# CONFIG_FB_VESA is not set
-+CONFIG_FB_EFI=y
 +CONFIG_FB_N411=m
 +CONFIG_FB_HGA=m
 +CONFIG_FB_S1D13XXX=m
@@ -7946,7 +7941,7 @@ diff -r 64489cb0b740 buildconfigs/linux-defconfig_xen_x86_32
 +# CONFIG_VGACON_SOFT_SCROLLBACK is not set
 +CONFIG_MDA_CONSOLE=m
 +CONFIG_DUMMY_CONSOLE=y
-+CONFIG_FRAMEBUFFER_CONSOLE=y
++CONFIG_FRAMEBUFFER_CONSOLE=m
 +CONFIG_FRAMEBUFFER_CONSOLE_DETECT_PRIMARY=y
 +# CONFIG_FRAMEBUFFER_CONSOLE_ROTATION is not set
 +# CONFIG_FONTS is not set
@@ -9213,7 +9208,7 @@ diff -r 64489cb0b740 buildconfigs/linux-defconfig_xen_x86_32
 +CONFIG_AVERAGE=y
 diff -r 64489cb0b740 buildconfigs/linux-defconfig_xen_x86_64
 --- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/buildconfigs/linux-defconfig_xen_x86_64	Thu Jul 28 17:00:08 2011 +0100
++++ b/buildconfigs/linux-defconfig_xen_x86_64	Thu Aug 04 17:30:33 2011 +0100
 @@ -0,0 +1,2592 @@
 +#
 +# Automatically generated make config: don't edit
