@@ -1,6 +1,6 @@
-diff -r 64489cb0b740 buildconfigs/conf.linux-kdump/kdump
+diff -r dbc5fdd326a4 buildconfigs/conf.linux-kdump/kdump
 --- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/buildconfigs/conf.linux-kdump/kdump	Thu Aug 04 17:30:33 2011 +0100
++++ b/buildconfigs/conf.linux-kdump/kdump	Mon Aug 08 15:15:38 2011 +0100
 @@ -0,0 +1,123 @@
 +# CONFIG_NO_HZ is not set
 +# CONFIG_HIGH_RES_TIMERS is not set
@@ -125,9 +125,9 @@ diff -r 64489cb0b740 buildconfigs/conf.linux-kdump/kdump
 +CONFIG_NODES_SHIFT=3
 +CONFIG_MIGRATION=y
 +CONFIG_ACPI_NUMA=n
-diff -r 64489cb0b740 buildconfigs/linux-defconfig_utility_x86_32
+diff -r dbc5fdd326a4 buildconfigs/linux-defconfig_utility_x86_32
 --- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/buildconfigs/linux-defconfig_utility_x86_32	Thu Aug 04 17:30:33 2011 +0100
++++ b/buildconfigs/linux-defconfig_utility_x86_32	Mon Aug 08 15:15:38 2011 +0100
 @@ -0,0 +1,4538 @@
 +#
 +# Automatically generated make config: don't edit
@@ -4667,9 +4667,9 @@ diff -r 64489cb0b740 buildconfigs/linux-defconfig_utility_x86_32
 +CONFIG_NLATTR=y
 +CONFIG_LRU_CACHE=m
 +CONFIG_AVERAGE=y
-diff -r 64489cb0b740 buildconfigs/linux-defconfig_xen_x86_32
+diff -r dbc5fdd326a4 buildconfigs/linux-defconfig_xen_x86_32
 --- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/buildconfigs/linux-defconfig_xen_x86_32	Thu Aug 04 17:30:33 2011 +0100
++++ b/buildconfigs/linux-defconfig_xen_x86_32	Mon Aug 08 15:15:38 2011 +0100
 @@ -0,0 +1,4535 @@
 +#
 +# Automatically generated make config: don't edit
@@ -6228,12 +6228,12 @@ diff -r 64489cb0b740 buildconfigs/linux-defconfig_xen_x86_32
 +CONFIG_CDROM_PKTCDVD_BUFFERS=8
 +# CONFIG_CDROM_PKTCDVD_WCACHE is not set
 +CONFIG_ATA_OVER_ETH=m
-+CONFIG_XEN_BLKDEV_FRONTEND=m
-+CONFIG_XEN_BLKDEV_BACKEND=m
++CONFIG_XEN_BLKDEV_FRONTEND=y
++CONFIG_XEN_BLKDEV_BACKEND=y
 +CONFIG_VIRTIO_BLK=y
 +# CONFIG_BLK_DEV_HD is not set
 +CONFIG_BLK_DEV_RBD=m
-+CONFIG_BLK_DEV_TAP=m
++CONFIG_BLK_DEV_TAP=y
 +CONFIG_SENSORS_LIS3LV02D=m
 +CONFIG_MISC_DEVICES=y
 +CONFIG_AD525X_DPOT=m
@@ -6893,8 +6893,8 @@ diff -r 64489cb0b740 buildconfigs/linux-defconfig_xen_x86_32
 +#
 +# CONFIG_CAIF_TTY is not set
 +# CONFIG_CAIF_SPI_SLAVE is not set
-+CONFIG_XEN_NETDEV_FRONTEND=m
-+CONFIG_XEN_NETDEV_BACKEND=m
++CONFIG_XEN_NETDEV_FRONTEND=y
++CONFIG_XEN_NETDEV_BACKEND=y
 +CONFIG_FDDI=y
 +CONFIG_DEFXX=m
 +# CONFIG_DEFXX_MMIO is not set
@@ -8463,15 +8463,15 @@ diff -r 64489cb0b740 buildconfigs/linux-defconfig_xen_x86_32
 +#
 +CONFIG_XEN_BALLOON=y
 +CONFIG_XEN_SCRUB_PAGES=y
-+CONFIG_XEN_DEV_EVTCHN=m
++CONFIG_XEN_DEV_EVTCHN=y
 +CONFIG_XEN_BACKEND=y
-+CONFIG_XENFS=m
++CONFIG_XENFS=y
 +CONFIG_XEN_COMPAT_XENFS=y
 +CONFIG_XEN_SYS_HYPERVISOR=y
-+CONFIG_XEN_XENBUS_FRONTEND=m
-+CONFIG_XEN_GNTDEV=m
-+CONFIG_XEN_GRANT_DEV_ALLOC=m
-+CONFIG_XEN_PLATFORM_PCI=m
++CONFIG_XEN_XENBUS_FRONTEND=y
++CONFIG_XEN_GNTDEV=y
++CONFIG_XEN_GRANT_DEV_ALLOC=y
++CONFIG_XEN_PLATFORM_PCI=y
 +CONFIG_SWIOTLB_XEN=y
 +# CONFIG_STAGING is not set
 +CONFIG_X86_PLATFORM_DEVICES=y
@@ -9206,9 +9206,9 @@ diff -r 64489cb0b740 buildconfigs/linux-defconfig_xen_x86_32
 +CONFIG_NLATTR=y
 +CONFIG_LRU_CACHE=m
 +CONFIG_AVERAGE=y
-diff -r 64489cb0b740 buildconfigs/linux-defconfig_xen_x86_64
+diff -r dbc5fdd326a4 buildconfigs/linux-defconfig_xen_x86_64
 --- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/buildconfigs/linux-defconfig_xen_x86_64	Thu Aug 04 17:30:33 2011 +0100
++++ b/buildconfigs/linux-defconfig_xen_x86_64	Mon Aug 08 15:15:38 2011 +0100
 @@ -0,0 +1,2592 @@
 +#
 +# Automatically generated make config: don't edit
