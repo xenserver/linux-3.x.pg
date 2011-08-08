@@ -22,6 +22,11 @@ build-system-integration.patch
 0011-blktap-Drop-some-debug-output-on-2.6.39.patch
 
 #
+# Debugging/hacks
+#
+xen-disable-memory-ballooning-hack.patch
+
+#
 # Kernel Configuration.
 #
 increase-maximum-number-of-loop-devices

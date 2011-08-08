@@ -1,0 +1,23 @@
+xen: disable memory balloining (hack)
+
+Current xapi in XenServer is ballooing dom0 down too low and it
+completely wedging it.  Disable all memory ballooning as a hacky
+workaround.
+
+diff -r 78e9b9170ea8 drivers/xen/balloon.c
+--- a/drivers/xen/balloon.c	Wed Jul 27 11:28:11 2011 +0100
++++ b/drivers/xen/balloon.c	Mon Aug 08 14:20:07 2011 +0100
+@@ -364,9 +364,13 @@ static void balloon_process(struct work_
+ /* Resets the Xen limit, sets new target, and kicks off processing. */
+ void balloon_set_new_target(unsigned long target)
+ {
++	printk(KERN_DEBUG "balloon: new target %d pages (%d MiB)\n",
++	       target, (target << PAGE_SHIFT)/1024/1024);
++#if 0
+ 	/* No need for lock. Not read-modify-write updates. */
+ 	balloon_stats.target_pages = target;
+ 	schedule_delayed_work(&balloon_worker, 0);
++#endif
+ }
+ EXPORT_SYMBOL_GPL(balloon_set_new_target);
+ 
