@@ -22,6 +22,11 @@ build-system-integration.patch
 0011-blktap-Drop-some-debug-output-on-2.6.39.patch
 
 #
+# MM
+#
+mm-sync-vmalloc-address-space-page-tables-in-alloc_v.patch
+
+#
 # Debugging/hacks
 #
 xen-disable-memory-ballooning-hack.patch
