@@ -1,133 +1,9 @@
-diff -r dbc5fdd326a4 buildconfigs/conf.linux-kdump/kdump
---- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/buildconfigs/conf.linux-kdump/kdump	Mon Aug 08 15:15:38 2011 +0100
-@@ -0,0 +1,123 @@
-+# CONFIG_NO_HZ is not set
-+# CONFIG_HIGH_RES_TIMERS is not set
-+# CONFIG_PARAVIRT_GUEST is not set
-+# CONFIG_MEMTEST is not set
-+# CONFIG_X86_RESERVE_LOW_64K is not set
-+# CONFIG_MTRR_SANITIZER is not set
-+# CONFIG_RELOCATABLE is not set
-+# CONFIG_PERFMON is not set
-+# CONFIG_HIBERNATION is not set
-+CONFIG_CPU_IDLE=y
-+CONFIG_HT_IRQ=y
-+# CONFIG_KGDB is not set
-+CONFIG_X86_VERBOSE_BOOTUP=y
-+# CONFIG_MMIOTRACE is not set
-+# CONFIG_VIRTUALIZATION is not set
-+# CONFIG_HPET_TIMER is not set
-+# CONFIG_SCHED_SMT is not set
-+# CONFIG_X86_MSR is not set
-+# CONFIG_EDD is not set
-+CONFIG_ARCH_FLATMEM_ENABLE=y
-+CONFIG_ARCH_SPARSEMEM_ENABLE=y
-+CONFIG_ARCH_SELECT_MEMORY_MODEL=y
-+CONFIG_SPARSEMEM_STATIC=y
-+CONFIG_SPLIT_PTLOCK_CPUS=4
-+# CONFIG_HIGHPTE is not set
-+# CONFIG_MATH_EMULATION is not set
-+# CONFIG_EFI is not set
-+CONFIG_IRQBALANCE=y
-+# CONFIG_KEXEC is not set
-+CONFIG_DOUBLEFAULT=y
-+CONFIG_PM_LEGACY=y
-+# CONFIG_PM_DEBUG is not set
-+# CONFIG_SOFTWARE_SUSPEND is not set
-+CONFIG_SUSPEND_SMP=y
-+CONFIG_ACPI_SLEEP=y
-+CONFIG_ACPI_SLEEP_PROC_FS=y
-+# CONFIG_ACPI_SLEEP_PROC_SLEEP is not set
-+CONFIG_X86_PM_TIMER=y
-+# CONFIG_APM is not set
-+CONFIG_PCI_BIOS=y
-+# CONFIG_XEN_PCIDEV_FRONTEND is not set
-+# CONFIG_XEN_PCIDEV_FE_DEBUG is not set
-+# CONFIG_ISA is not set
-+# CONFIG_MCA is not set
-+# CONFIG_HOTPLUG_PCI_COMPAQ is not set
-+# CONFIG_HOTPLUG_PCI_IBM is not set
-+# CONFIG_I2O_EXT_ADAPTEC_DMA64 is not set
-+CONFIG_SERIAL_8250=y
-+CONFIG_SERIAL_8250_CONSOLE=y
-+CONFIG_SERIAL_CORE=y
-+CONFIG_SERIAL_CORE_CONSOLE=y
-+CONFIG_PARPORT_SERIAL=m
-+# CONFIG_SERIAL_8250_CS is not set
-+CONFIG_SERIAL_8250_NR_UARTS=4
-+CONFIG_SERIAL_8250_RUNTIME_UARTS=4
-+# CONFIG_SERIAL_8250_EXTENDED is not set
-+# CONFIG_USB_STORAGE_ONETOUCH is not set
-+# CONFIG_TCG_XEN is not set
-+# CONFIG_HUGETLBFS is not set
-+# CONFIG_XEN is not set
-+# CONFIG_XEN_INTERFACE_VERSION is not set
-+# CONFIG_XEN_PRIVILEGED_GUEST is not set
-+# CONFIG_XEN_UNPRIVILEGED_GUEST is not set
-+# CONFIG_XEN_BACKEND is not set
-+# CONFIG_XEN_PCIDEV_BACKEND is not set
-+# CONFIG_XEN_PCIDEV_BACKEND_VPCI is not set
-+# CONFIG_XEN_PCIDEV_BACKEND_PASS is not set
-+# CONFIG_XEN_PCIDEV_BE_DEBUG is not set
-+# CONFIG_XEN_BLKDEV_BACKEND is not set
-+# CONFIG_XEN_BLKDEV_TAP_BE is not set
-+# CONFIG_XEN_NETDEV_BACKEND is not set
-+# CONFIG_XEN_NETDEV_PIPELINED_TRANSMITTER is not set
-+# CONFIG_XEN_NETDEV_LOOPBACK is not set
-+# CONFIG_XEN_TPMDEV_BACKEND is not set
-+# CONFIG_XEN_BLKDEV_FRONTEND is not set
-+# CONFIG_XEN_NETDEV_FRONTEND is not set
-+# CONFIG_XEN_BLKDEV_TAP is not set
-+# CONFIG_XEN_SCRUB_PAGES is not set
-+# CONFIG_XEN_DISABLE_SERIAL is not set
-+# CONFIG_XEN_SYSFS is not set
-+# CONFIG_XEN_COMPAT_030002_AND_LATER is not set
-+# CONFIG_XEN_COMPAT_LATEST_ONLY is not set
-+# CONFIG_XEN_COMPAT_030002 is not set
-+# CONFIG_HAVE_ARCH_ALLOC_SKB is not set
-+# CONFIG_HAVE_ARCH_DEV_ALLOC_SKB is not set
-+# CONFIG_NO_IDLE_HZ is not set
-+CONFIG_X86_HT=y
-+# CONFIG_X86_NO_TSS is not set
-+# CONFIG_X86_NO_IDT is not set
-+# CONFIG_SCHED_MC is not set
-+# CONFIG_COMPAT_VDSO is not set
-+CONFIG_MTD_NAND_CS553X=m
-+CONFIG_X86_PC=y
-+# CONFIG_X86_XEN is not set
-+# CONFIG_X86_MCE is not set
-+CONFIG_PHYSICAL_START=0x2000000
-+CONFIG_PROC_VMCORE=y
-+CONFIG_CRASH_DUMP=y
-+# CONFIG_X86_REBOOTFIXUPS is not set
-+# CONFIG_CPU_FREQ is not set
-+# CONFIG_VIRTIO_PCI is not set
-+CONFIG_SCx200HR_TIMER=m
-+# CONFIG_HPET is not set
-+# CONFIG_KALLSYMS_ALL is not set
-+# CONFIG_DEBUG_INFO is not set
-+# CONFIG_KDB is not set
-+# CONFIG_PERF_EVENTS is not set
-+# CONFIG_PERF_COUNTERS is not set
-+CONFIG_X86_BIGSMP=y
-+CONFIG_NR_CPUS=256
-+# CONFIG_X86_EXTENDED_PLATFORM is not set
-+# CONFIG_X86_REROUTE_FOR_BROKEN_BOOT_IRQS is not set
-+CONFIG_MICROCODE_INTEL=y
-+CONFIG_MICROCODE_AMD=y
-+# CONFIG_X86_CHECK_BIOS_CORRUPTION is not set
-+# CONFIG_VMWARE_PVSCSI is not set
-+# CONFIG_VMXNET3 is not set
-+# CONFIG_DMAR is not set
-+CONFIG_SPARSE_IRQ=y
-+CONFIG_NUMA=y
-+CONFIG_NODES_SHIFT=3
-+CONFIG_MIGRATION=y
-+CONFIG_ACPI_NUMA=n
-diff -r dbc5fdd326a4 buildconfigs/linux-defconfig_utility_x86_32
---- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/buildconfigs/linux-defconfig_utility_x86_32	Mon Aug 08 15:15:38 2011 +0100
+diff --git a/buildconfigs/conf.linux-kdump/kdump b/buildconfigs/conf.linux-kdump/kdump
+new file mode 100644
+diff --git a/buildconfigs/linux-defconfig_utility_x86_32 b/buildconfigs/linux-defconfig_utility_x86_32
+new file mode 100644
+--- /dev/null
++++ b/buildconfigs/linux-defconfig_utility_x86_32
 @@ -0,0 +1,4538 @@
 +#
 +# Automatically generated make config: don't edit
@@ -4667,9 +4543,10 @@ diff -r dbc5fdd326a4 buildconfigs/linux-defconfig_utility_x86_32
 +CONFIG_NLATTR=y
 +CONFIG_LRU_CACHE=m
 +CONFIG_AVERAGE=y
-diff -r dbc5fdd326a4 buildconfigs/linux-defconfig_xen_x86_32
---- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/buildconfigs/linux-defconfig_xen_x86_32	Mon Aug 08 15:15:38 2011 +0100
+diff --git a/buildconfigs/linux-defconfig_xen_x86_32 b/buildconfigs/linux-defconfig_xen_x86_32
+new file mode 100644
+--- /dev/null
++++ b/buildconfigs/linux-defconfig_xen_x86_32
 @@ -0,0 +1,4535 @@
 +#
 +# Automatically generated make config: don't edit
@@ -9206,9 +9083,10 @@ diff -r dbc5fdd326a4 buildconfigs/linux-defconfig_xen_x86_32
 +CONFIG_NLATTR=y
 +CONFIG_LRU_CACHE=m
 +CONFIG_AVERAGE=y
-diff -r dbc5fdd326a4 buildconfigs/linux-defconfig_xen_x86_64
---- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/buildconfigs/linux-defconfig_xen_x86_64	Mon Aug 08 15:15:38 2011 +0100
+diff --git a/buildconfigs/linux-defconfig_xen_x86_64 b/buildconfigs/linux-defconfig_xen_x86_64
+new file mode 100644
+--- /dev/null
++++ b/buildconfigs/linux-defconfig_xen_x86_64
 @@ -0,0 +1,2592 @@
 +#
 +# Automatically generated make config: don't edit
