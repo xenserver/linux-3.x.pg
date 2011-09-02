@@ -25,11 +25,15 @@ build-system-integration.patch
 # MM
 #
 mm-sync-vmalloc-address-space-page-tables-in-alloc_v.patch
+0001-xen-use-maximum-reservation-to-limit-amount-of-usabl.patch
+0002-xen-balloon-account-for-pages-released-during-memory.patch
+0003-xen-allow-balloon-driver-to-use-more-than-one-memory.patch
+0004-xen-allow-extra-memory-to-be-in-multiple-regions.patch
+0005-xen-release-all-pages-within-1-1-p2m-mappings.patch
 
 #
 # Debugging/hacks
 #
-xen-disable-memory-ballooning-hack.patch
 
 #
 # Kernel Configuration.
