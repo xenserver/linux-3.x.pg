@@ -32,6 +32,11 @@ mm-sync-vmalloc-address-space-page-tables-in-alloc_v.patch
 0005-xen-release-all-pages-within-1-1-p2m-mappings.patch
 
 #
+# Netback
+#
+net-xen-netback-correctly-restart-Tx-after-a-VM-restore.patch
+
+#
 # Debugging/hacks
 #
 

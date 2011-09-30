@@ -1,0 +1,44 @@
+From 695cbc96e8ca14cca6167e35e44422b0c601499e Mon Sep 17 00:00:00 2001
+From: David Vrabel <david.vrabel@citrix.com>
+Date: Fri, 30 Sep 2011 16:26:06 +0100
+Subject: [PATCH] net: xen-netback: correctly restart Tx after a VM restore/migrate
+
+If a VM is saved and restored (or migrated) the netback driver will no
+longer process any Tx packets from the frontend.  xenvif_up() does not
+schedule the processing of any pending Tx requests from the front end
+because the carrier is off.  Without this initial kick the frontend
+just adds Tx requests to the ring without raising an event (until the
+ring is full).
+
+This was caused by 47103041e91794acdbc6165da0ae288d844c820b (net:
+xen-netback: convert to hw_features) which reordered the calls to
+xenvif_up() and netif_carrier_on() in xenvif_connect().
+
+Signed-off-by: David Vrabel <david.vrabel@citrix.com>
+Cc: Ian Campbell <ian.campbell@citrix.com>
+---
+ drivers/net/xen-netback/interface.c |    4 ++--
+ 1 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/net/xen-netback/interface.c b/drivers/net/xen-netback/interface.c
+index 0ca86f9..1825629 100644
+--- a/drivers/net/xen-netback/interface.c
++++ b/drivers/net/xen-netback/interface.c
+@@ -327,12 +327,12 @@ int xenvif_connect(struct xenvif *vif, unsigned long tx_ring_ref,
+ 	xenvif_get(vif);
+ 
+ 	rtnl_lock();
+-	if (netif_running(vif->dev))
+-		xenvif_up(vif);
+ 	if (!vif->can_sg && vif->dev->mtu > ETH_DATA_LEN)
+ 		dev_set_mtu(vif->dev, ETH_DATA_LEN);
+ 	netdev_update_features(vif->dev);
+ 	netif_carrier_on(vif->dev);
++	if (netif_running(vif->dev))
++		xenvif_up(vif);
+ 	rtnl_unlock();
+ 
+ 	return 0;
+-- 
+1.7.2.5
+
