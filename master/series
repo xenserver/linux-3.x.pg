@@ -30,6 +30,10 @@ mm-sync-vmalloc-address-space-page-tables-in-alloc_v.patch
 0003-xen-allow-balloon-driver-to-use-more-than-one-memory.patch
 0004-xen-allow-extra-memory-to-be-in-multiple-regions.patch
 0005-xen-release-all-pages-within-1-1-p2m-mappings.patch
+0001-xen-use-generic-functions-instead-of-xen_-alloc-free.patch
+0002-block-xen-blkback-use-API-provided-by-xenbus-module-.patch
+0003-net-xen-netback-use-API-provided-by-xenbus-module-to.patch
+0004-xen-map-foreign-pages-for-shared-rings-by-updating-t.patch
 
 #
 # Netback
