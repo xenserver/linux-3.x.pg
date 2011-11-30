@@ -1,0 +1,54 @@
+From f611ac65405f0b4194340e37a3ccc1075bec6009 Mon Sep 17 00:00:00 2001
+From: Kevin Tian <kevin.tian@intel.com>
+Date: Tue, 22 Nov 2011 15:18:26 +0800
+Subject: [PATCH 4/8] ACPI: processor: Don't setup cpu idle driver and handler when we do not want them.
+
+This patch inhibits processing of the CPU idle handler if it is not
+set to the appropiate one. This is needed by the Xen processor driver
+which, while still needing processor details, wants to use the default_idle
+call (which makes a yield hypercall).
+
+Signed-off-by: Yu Ke <ke.yu@intel.com>
+Signed-off-by: Tian Kevin <kevin.tian@intel.com>
+Signed-off-by: Tang Liang <liang.tang@oracle.com>
+Signed-off-by: Konrad Rzeszutek Wilk <konrad.wilk@oracle.com>
+---
+ drivers/acpi/processor_idle.c |    8 +++++---
+ 1 files changed, 5 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/acpi/processor_idle.c b/drivers/acpi/processor_idle.c
+index d88974a..0ad347f 100644
+--- a/drivers/acpi/processor_idle.c
++++ b/drivers/acpi/processor_idle.c
+@@ -1127,7 +1127,7 @@ int acpi_processor_hotplug(struct acpi_processor *pr)
+ 	cpuidle_pause_and_lock();
+ 	cpuidle_disable_device(&pr->power.dev);
+ 	acpi_processor_get_power_info(pr);
+-	if (pr->flags.power) {
++	if (pr->flags.power  && (cpuidle_get_driver() == &acpi_idle_driver)) {
+ 		acpi_processor_setup_cpuidle_cx(pr);
+ 		ret = cpuidle_enable_device(&pr->power.dev);
+ 	}
+@@ -1183,7 +1183,8 @@ int acpi_processor_cst_has_changed(struct acpi_processor *pr)
+ 			if (!_pr || !_pr->flags.power_setup_done)
+ 				continue;
+ 			acpi_processor_get_power_info(_pr);
+-			if (_pr->flags.power) {
++			if (_pr->flags.power && (cpuidle_get_driver()
++						== &acpi_idle_driver)) {
+ 				acpi_processor_setup_cpuidle_cx(_pr);
+ 				cpuidle_enable_device(&_pr->power.dev);
+ 			}
+@@ -1237,7 +1238,8 @@ int __cpuinit acpi_processor_power_init(struct acpi_processor *pr,
+ 	 * Note that we use previously set idle handler will be used on
+ 	 * platforms that only support C1.
+ 	 */
+-	if (pr->flags.power) {
++	if (pr->flags.power && (__acpi_processor_register_driver ==
++				acpi_processor_register_driver)) {
+ 		/* Register acpi_idle_driver if not already registered */
+ 		if (!acpi_processor_registered) {
+ 			acpi_processor_setup_cpuidle_states(pr);
+-- 
+1.7.2.5
+

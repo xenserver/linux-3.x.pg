@@ -1,5 +1,8 @@
 hgignore.patch
-extraversion
+# The XenServer kernel build system doesn't like a kernel version
+# without a '-' in it (it expects it when generating the various bits
+# of the RPM package version).
+#extraversion
 
 #
 # Build system integration
@@ -20,25 +23,21 @@ build-system-integration.patch
 0009-blktap-Forward-port-to-2.6.36.patch
 0010-blktap-Forward-port-to-2.6.37.patch
 0011-blktap-Drop-some-debug-output-on-2.6.39.patch
+blktap-include-linux-export.h.patch
 
 #
-# MM
+# ACPI cpufreq
 #
-mm-sync-vmalloc-address-space-page-tables-in-alloc_v.patch
-0001-xen-use-maximum-reservation-to-limit-amount-of-usabl.patch
-0002-xen-balloon-account-for-pages-released-during-memory.patch
-0003-xen-allow-balloon-driver-to-use-more-than-one-memory.patch
-0004-xen-allow-extra-memory-to-be-in-multiple-regions.patch
-0005-xen-release-all-pages-within-1-1-p2m-mappings.patch
-0001-xen-use-generic-functions-instead-of-xen_-alloc-free.patch
-0002-block-xen-blkback-use-API-provided-by-xenbus-module-.patch
-0003-net-xen-netback-use-API-provided-by-xenbus-module-to.patch
-0004-xen-map-foreign-pages-for-shared-rings-by-updating-t.patch
-
+# git://git.kernel.org/pub/scm/linux/kernel/git/konrad/xen.git devel/acpi-cpufreq.v4
 #
-# Netback
-#
-net-xen-netback-correctly-restart-Tx-after-a-VM-restore.patch
+0001-ACPI-processor-export-necessary-interfaces.patch
+0002-ACPI-processor-cache-acpi_power_register-in-cx-struc.patch
+0003-ACPI-processor-add-__acpi_processor_-un-register_dri.patch
+0004-ACPI-processor-Don-t-setup-cpu-idle-driver-and-handl.patch
+0005-ACPI-add-processor-driver-for-Xen-virtual-CPUs.patch
+0006-ACPI-processor-override-the-interface-of-register-ac.patch
+0007-ACPI-xen-processor-add-PM-notification-interfaces.patch
+0008-ACPI-xen-processor-set-ignore_ppc-to-handle-PPC-even.patch
 
 #
 # Debugging/hacks
@@ -47,6 +46,5 @@ net-xen-netback-correctly-restart-Tx-after-a-VM-restore.patch
 #
 # Kernel Configuration.
 #
-increase-maximum-number-of-loop-devices
 config-create_config-script
 kernel-configuration
