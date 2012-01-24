@@ -38,6 +38,7 @@ blktap-include-linux-export.h.patch
 0006-ACPI-processor-override-the-interface-of-register-ac.patch
 0007-ACPI-xen-processor-add-PM-notification-interfaces.patch
 0008-ACPI-xen-processor-set-ignore_ppc-to-handle-PPC-even.patch
+0001-x86-xen-size-struct-xen_spinlock-to-always-fit-in-ar.patch
 
 #
 # Debugging/hacks
