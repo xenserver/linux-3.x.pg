@@ -33,11 +33,10 @@ Signed-off-by: Daniel Stodden <daniel.stodden@citrix.com>
  create mode 100644 drivers/block/blktap/sysfs.c
  create mode 100644 include/linux/blktap.h
 
-diff --git a/drivers/block/Kconfig b/drivers/block/Kconfig
-index 1d886e0..43b9af3 100644
---- a/drivers/block/Kconfig
-+++ b/drivers/block/Kconfig
-@@ -486,4 +486,13 @@ config BLK_DEV_HD
+diff -r af9e0ca95ee2 drivers/block/Kconfig
+--- a/drivers/block/Kconfig	Wed Feb 15 16:58:44 2012 +0000
++++ b/drivers/block/Kconfig	Wed Feb 15 16:59:37 2012 +0000
+@@ -555,4 +555,13 @@ config BLK_DEV_RBD
  
  	  If unsure, say N.
  
@@ -51,11 +50,10 @@ index 1d886e0..43b9af3 100644
 +         as files, in memory, or on other hosts across the network.
 +
  endif # BLK_DEV
-diff --git a/drivers/block/Makefile b/drivers/block/Makefile
-index cdaa3f8..c6114bc 100644
---- a/drivers/block/Makefile
-+++ b/drivers/block/Makefile
-@@ -29,6 +29,7 @@ obj-$(CONFIG_BLK_DEV_UMEM)	+= umem.o
+diff -r af9e0ca95ee2 drivers/block/Makefile
+--- a/drivers/block/Makefile	Wed Feb 15 16:58:44 2012 +0000
++++ b/drivers/block/Makefile	Wed Feb 15 16:59:37 2012 +0000
+@@ -30,6 +30,7 @@ obj-$(CONFIG_BLK_DEV_UMEM)	+= umem.o
  obj-$(CONFIG_BLK_DEV_NBD)	+= nbd.o
  obj-$(CONFIG_BLK_DEV_CRYPTOLOOP) += cryptoloop.o
  obj-$(CONFIG_VIRTIO_BLK)	+= virtio_blk.o
@@ -63,20 +61,16 @@ index cdaa3f8..c6114bc 100644
  
  obj-$(CONFIG_VIODASD)		+= viodasd.o
  obj-$(CONFIG_BLK_DEV_SX8)	+= sx8.o
-diff --git a/drivers/block/blktap/Makefile b/drivers/block/blktap/Makefile
-new file mode 100644
-index 0000000..923a7c5
---- /dev/null
-+++ b/drivers/block/blktap/Makefile
+diff -r af9e0ca95ee2 drivers/block/blktap/Makefile
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/drivers/block/blktap/Makefile	Wed Feb 15 16:59:37 2012 +0000
 @@ -0,0 +1,3 @@
 +obj-$(CONFIG_BLK_DEV_TAP) := blktap.o
 +
 +blktap-objs := control.o ring.o device.o request.o sysfs.o
-diff --git a/drivers/block/blktap/blktap.h b/drivers/block/blktap/blktap.h
-new file mode 100644
-index 0000000..794e676
---- /dev/null
-+++ b/drivers/block/blktap/blktap.h
+diff -r af9e0ca95ee2 drivers/block/blktap/blktap.h
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/drivers/block/blktap/blktap.h	Wed Feb 15 16:59:37 2012 +0000
 @@ -0,0 +1,161 @@
 +#ifndef _BLKTAP_H_
 +#define _BLKTAP_H_
@@ -239,11 +233,9 @@ index 0000000..794e676
 +
 +
 +#endif
-diff --git a/drivers/block/blktap/control.c b/drivers/block/blktap/control.c
-new file mode 100644
-index 0000000..9294a13
---- /dev/null
-+++ b/drivers/block/blktap/control.c
+diff -r af9e0ca95ee2 drivers/block/blktap/control.c
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/drivers/block/blktap/control.c	Wed Feb 15 16:59:37 2012 +0000
 @@ -0,0 +1,316 @@
 +#include <linux/module.h>
 +#include <linux/sched.h>
@@ -561,11 +553,9 @@ index 0000000..9294a13
 +module_init(blktap_init);
 +module_exit(blktap_exit);
 +MODULE_LICENSE("Dual BSD/GPL");
-diff --git a/drivers/block/blktap/device.c b/drivers/block/blktap/device.c
-new file mode 100644
-index 0000000..5597b0a
---- /dev/null
-+++ b/drivers/block/blktap/device.c
+diff -r af9e0ca95ee2 drivers/block/blktap/device.c
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/drivers/block/blktap/device.c	Wed Feb 15 16:59:37 2012 +0000
 @@ -0,0 +1,551 @@
 +#include <linux/fs.h>
 +#include <linux/blkdev.h>
@@ -1118,11 +1108,9 @@ index 0000000..5597b0a
 +	if (blktap_device_major)
 +		unregister_blkdev(blktap_device_major, "tapdev");
 +}
-diff --git a/drivers/block/blktap/request.c b/drivers/block/blktap/request.c
-new file mode 100644
-index 0000000..e799d08
---- /dev/null
-+++ b/drivers/block/blktap/request.c
+diff -r af9e0ca95ee2 drivers/block/blktap/request.c
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/drivers/block/blktap/request.c	Wed Feb 15 16:59:37 2012 +0000
 @@ -0,0 +1,419 @@
 +#include <linux/mempool.h>
 +#include <linux/spinlock.h>
@@ -1543,11 +1531,9 @@ index 0000000..e799d08
 +		request_cache = NULL;
 +	}
 +}
-diff --git a/drivers/block/blktap/ring.c b/drivers/block/blktap/ring.c
-new file mode 100644
-index 0000000..23400f6
---- /dev/null
-+++ b/drivers/block/blktap/ring.c
+diff -r af9e0ca95ee2 drivers/block/blktap/ring.c
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/drivers/block/blktap/ring.c	Wed Feb 15 16:59:37 2012 +0000
 @@ -0,0 +1,595 @@
 +
 +#include <linux/device.h>
@@ -2144,11 +2130,9 @@ index 0000000..23400f6
 +
 +	blktap_ring_major = 0;
 +}
-diff --git a/drivers/block/blktap/sysfs.c b/drivers/block/blktap/sysfs.c
-new file mode 100644
-index 0000000..ca331ee
---- /dev/null
-+++ b/drivers/block/blktap/sysfs.c
+diff -r af9e0ca95ee2 drivers/block/blktap/sysfs.c
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/drivers/block/blktap/sysfs.c	Wed Feb 15 16:59:37 2012 +0000
 @@ -0,0 +1,288 @@
 +#include <linux/types.h>
 +#include <linux/device.h>
@@ -2438,11 +2422,9 @@ index 0000000..ca331ee
 +
 +	return err;
 +}
-diff --git a/include/linux/blktap.h b/include/linux/blktap.h
-new file mode 100644
-index 0000000..ac27b84
---- /dev/null
-+++ b/include/linux/blktap.h
+diff -r af9e0ca95ee2 include/linux/blktap.h
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/include/linux/blktap.h	Wed Feb 15 16:59:37 2012 +0000
 @@ -0,0 +1,98 @@
 +/*
 + * Copyright (c) 2011, XenSource Inc.
@@ -2542,18 +2524,14 @@ index 0000000..ac27b84
 +};
 +
 +#endif /* _LINUX_BLKTAP_H */
-diff --git a/mm/memory.c b/mm/memory.c
-index 6ab19dd..508677c 100644
---- a/mm/memory.c
-+++ b/mm/memory.c
-@@ -1100,6 +1100,7 @@ unsigned long zap_page_range(struct vm_area_struct *vma, unsigned long address,
- 		tlb_finish_mmu(tlb, address, end);
+diff -r af9e0ca95ee2 mm/memory.c
+--- a/mm/memory.c	Wed Feb 15 16:58:44 2012 +0000
++++ b/mm/memory.c	Wed Feb 15 16:59:37 2012 +0000
+@@ -1404,6 +1404,7 @@ unsigned long zap_page_range(struct vm_a
+ 	tlb_finish_mmu(&tlb, address, end);
  	return end;
  }
 +EXPORT_SYMBOL_GPL(zap_page_range);
  
  /**
   * zap_vma_ptes - remove ptes mapping the vma
--- 
-1.7.4.1
-

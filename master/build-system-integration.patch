@@ -1,6 +1,6 @@
-diff -r c1fbbd6a4261 buildconfigs/Rules.mk
+diff -r d8d5bb78bd5d buildconfigs/Rules.mk
 --- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/buildconfigs/Rules.mk	Wed Nov 30 17:12:45 2011 +0000
++++ b/buildconfigs/Rules.mk	Tue Mar 06 17:39:20 2012 +0000
 @@ -0,0 +1,37 @@
 +XEN_TARGET_ARCH     = x86_32
 +XEN_TARGET_X86_PAE ?= y
@@ -10,7 +10,7 @@ diff -r c1fbbd6a4261 buildconfigs/Rules.mk
 +#
 +# Note: EXTRAVERSION must be set and have a leading dash or the RPM
 +# spec file will get confused.
-+LINUX_VER    = 3.2.0-rc3
++LINUX_VER    = 3.3.0-rc3
 +
 +EXTRAVERSION ?= xen
 +
