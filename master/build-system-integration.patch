@@ -1,41 +1,427 @@
-diff -r d8d5bb78bd5d buildconfigs/Rules.mk
+diff -r 17a9cde24f35 mk/Makefile
 --- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/buildconfigs/Rules.mk	Tue Mar 06 17:39:20 2012 +0000
-@@ -0,0 +1,37 @@
-+XEN_TARGET_ARCH     = x86_32
-+XEN_TARGET_X86_PAE ?= y
++++ b/mk/Makefile	Fri Mar 30 13:14:12 2012 +0100
+@@ -0,0 +1,106 @@
++USE_BRANDING := yes
++IMPORT_BRANDING := yes
++REPONAME=linux-3.x
++include /b/common.mk
++include /b/rpmbuild.mk
 +
-+# LINUX_VER is the combination of VERSION, PATCHLEVEL, SUBLEVEL and
-+# EXTRAVERSION from the kernel Makefile.
++RPM_BUILT_COOKIE  = $(MY_OBJ_DIR)/.pvops_rpm_built_cookie
++REPO              = $(call pq_loc,$(REPONAME))
++REPOSTAMP         = $(call pq_req,$(REPONAME))
++
++-include $(MY_OBJ_DIR)/pvops_version.inc
++$(MY_OBJ_DIR)/pvops_version.inc: $(REPOSTAMP)
++	$(call version-makefile) > $@
++	awk -F. '{ print "REPO_VERSION=" $$0; }' \
++		< $(REPOSTAMP) >> $@
++	awk '/(^VERSION)|(^PATCHLEVEL)|(^SUBLEVEL)|(^EXTRAVERSION)/ { print "KERNEL_"$$_ }' ../Makefile >> $@
++	echo LINUX_VERSION := '$$(KERNEL_VERSION).$$(KERNEL_PATCHLEVEL).$$(KERNEL_SUBLEVEL)$$(KERNEL_EXTRAVERSION)' >> $@
++	$(call pq_cset_number,$(REPONAME)) >> $@
++	echo XS_RELEASE := '.xs$$(PLATFORM_VERSION).$$(CSET_NUMBER)' >> $@
++
++SOURCES = $(RPM_SOURCESDIR)/linux-$(LINUX_VERSION)$(XS_RELEASE).tar.bz2 \
++          $(RPM_SOURCESDIR)/kernel-$(LINUX_VERSION)$(XS_RELEASE)-$(DOMAIN0_ARCH_OPTIMIZED).config \
++          $(RPM_SPECSDIR)/kernel.spec
++
++SRPM = $(RPM_SRPMSDIR)/kernel-$(LINUX_VERSION)$(XS_RELEASE).src.rpm
++
++.PHONY: build
++build: $(RPM_BUILT_COOKIE) $(MY_OUTPUT_DIR)/kernel.inc $(BRANDING) $(MY_SOURCES)/MANIFEST
++	@ :
++
++.PHONY: clean
++clean:
++	rm -f $(RPM_BUILT_COOKIE)
++	rm -f $(SOURCES)
++	rm -f $(SRPM)
++	-rm -f $(MY_OBJ_DIR)/version.inc
++	$(call component_clean,$(COMPONENT))
++
++$(RPM_SOURCESDIR)/linux-$(LINUX_VERSION)$(XS_RELEASE).tar.bz2: $(RPM_DIRECTORIES)
++	hg -R $(call pq_loc,$(REPONAME)) archive -t tbz2 $@
++
++$(RPM_SOURCESDIR)/kernel-$(LINUX_VERSION)$(XS_RELEASE)-i686.config: ../buildconfigs/linux-defconfig_xen_x86_32 $(RPM_DIRECTORIES)
++	cp -f $< $@
++
++$(RPM_SPECSDIR)/kernel.spec: kernel.spec.in $(RPM_DIRECTORIES)
++# RPM can't cope with - in Version: so strip the later half of the
++# version off and place it in Release:. Skank!
++	PKG_VERSION=$$(echo $(LINUX_VERSION) | cut -f 1  -d -); \
++	PKG_RELEASE=$$(echo $(LINUX_VERSION)$(XS_RELEASE) | cut -f 2- -d -); \
++	echo "Version: $${PKG_VERSION} Release: $${PKG_RELEASE}"; \
++	$(call brand,kernel.spec.in) | \
++	sed -e s\,@REPO_VERSION@,$(REPO_VERSION),g   \
++	    -e s\,@LINUX_VERSION@,$(LINUX_VERSION)$(XS_RELEASE),g \
++	    -e s\,@XS_RELEASE@,$(XS_RELEASE),g       \
++	    -e s\,@KERNEL_MAJOR@,$(KERNEL_VERSION).$(KERNEL_PATCHLEVEL),g       \
++	    -e s\,@PKG_VERSION@,$${PKG_VERSION},g    \
++	    -e s\,@PKG_RELEASE@,$${PKG_RELEASE},g    \
++	> $@
++
++$(SRPM): $(SOURCES)
++	mkdir -p $(RPM_SRPMSDIR)
++	$(RPMBUILD) -bs $(RPM_SPECSDIR)/kernel.spec
++
++$(RPM_BUILT_COOKIE): $(RPM_DIRECTORIES) $(SRPM)
++	$(RPMBUILD) --target $(DOMAIN0_ARCH_OPTIMIZED) --rebuild $(SRPM)
++	@touch $@
++
++OUTPUT_RPM = kernel-$(LINUX_VERSION)$(XS_RELEASE).$(DOMAIN0_ARCH_OPTIMIZED).rpm
++OUTPUT_FIRMWARE_RPM = kernel-firmware-$(LINUX_VERSION)$(XS_RELEASE).$(DOMAIN0_ARCH_OPTIMIZED).rpm
++OUTPUT_DEBUG_RPM = kernel-debuginfo-$(LINUX_VERSION)$(XS_RELEASE).$(DOMAIN0_ARCH_OPTIMIZED).rpm
++
++OUTPUT64_RPM = kernel-xen64-$(LINUX_VERSION)$(XS_RELEASE).$(DOMAIN0_ARCH_OPTIMIZED).rpm
++
++$(MY_OUTPUT_DIR)/kernel.inc: $(MY_OUTPUT_DIR)/.dirstamp
++	( echo KERNEL_PKG_NAME := kernel ;\
++	  echo KERNEL_PKG_VERSION := $(LINUX_VERSION)$(XS_RELEASE) ;\
++	  echo KERNEL_PKG_ARCH := $(DOMAIN0_ARCH_OPTIMIZED) ;\
++	  echo KERNEL_PKG_FILE := RPMS/$(DOMAIN0_ARCH_OPTIMIZED)/$(OUTPUT_RPM) ;\
++	  echo KERNEL_VERSION := \$$\(KERNEL_PKG_VERSION\) ;\
++	) >$@
++
++$(BRANDING):
++	( echo KERNEL_VERSION := $(LINUX_VERSION)$(XS_RELEASE)xen ; \
++	  echo KDUMP_VERSION := $(LINUX_VERSION)$(XS_RELEASE)kdump ; \
++	) >$(BRANDING)
++
++$(MY_SOURCES)/MANIFEST: $(MY_SOURCES_DIRSTAMP)
++	echo "$(COMPONENT) gpl file $(SRPM)" >$@
++
++.PHONY: sources
++sources: $(MY_SOURCES)/MANIFEST
++	@ :
++
++# Target for development use. This will setup the tree in dom0.hg so
++# that the resultant kernel/modules will match a Rio target built from
++# the same manifest. e.g.
++#    make prepare-source-xen
++#    make prepare-source-kdump
 +#
-+# Note: EXTRAVERSION must be set and have a leading dash or the RPM
-+# spec file will get confused.
-+LINUX_VER    = 3.3.0-rc3
++.PHONY: prepare-source
++prepare-source-%:
++prepare-source-%: $(RPM_SOURCESDIR)/kernel-$(LINUX_VERSION)$(XS_RELEASE)-$(DOMAIN0_ARCH_OPTIMIZED)-%.config
++	@echo Configuring source tree in $(REPO) as $* kernel...
++	cp $< $(REPO)/.config
++	echo $(XS_RELEASE)$* > $(REPO)/localversion
++	@echo Done. Now "cd $(REPO) ; make oldconfig"
+diff -r 17a9cde24f35 mk/kernel.spec.in
+--- /dev/null	Thu Jan 01 00:00:00 1970 +0000
++++ b/mk/kernel.spec.in	Fri Mar 30 13:14:12 2012 +0100
+@@ -0,0 +1,313 @@
++# -*- rpm-spec -*-
 +
-+EXTRAVERSION ?= xen
++%define buildsource  0
++%define buildfirmware 1
++%define buildextradevel 1
 +
-+LINUX_ARCH  ?= i386
++# The full kernel uname version
++%define uname         @LINUX_VERSION@
 +
-+.PHONY: defconfig
-+defconfig:
-+	sh buildconfigs/create_config.sh .config $(EXTRAVERSION) $(XEN_TARGET_ARCH) $(XEN_SYSTYPE)
-+	# See if we need to munge config to enable PAE
-+ifeq ($(XEN_TARGET_X86_PAE),y)
-+	sed -e 's!^CONFIG_HIGHMEM4G=y$$!\# CONFIG_HIGHMEM4G is not set!;s!^\# CONFIG_HIGHMEM64G is not set$$!CONFIG_HIGHMEM64G=y!' .config > .config- && mv .config- .config
++%ifarch %{ix86}
++%define target       %{_target_cpu}
++
++%define target64     x86_64
++%define cross64      x86_64-linux-
++%endif
++
++%ifarch x86_64
++%define target       %{_target_cpu}
++
++%define buildxen64   0
++%define buildkdump64 0
++%endif
++
++%define COMMON_MAKEOPTS %{?_smp_mflags}
++
++# Expects ${flavour} set in the including function and sets
++# ${CROSS_COMPILE}, ${TARGET} and ${MAKEOPTS}.
++%define DEFINE_MAKEOPTS \
++ 	case ${flavour} in \
++	    *64) CROSS_COMPILE=%{cross64} ; \
++                 TARGET=%{target64} ;; \
++	    *)   CROSS_COMPILE= ; \
++                 TARGET=%{target} ;; \
++	esac ; \
++	MAKEOPTS="%{COMMON_MAKEOPTS} CROSS_COMPILE=${CROSS_COMPILE}"
++
++
++#
++# First the general kernel required versions as per
++# Documentation/Changes
++#
++#%define kernel_dot_org_conflicts  ppp < 2.4.0, pcmciautils < 004, isdn4k-utils < 3.1pre1, nfs-utils < 1.0.5, e2fsprogs < 1.41.4, util-linux < 2.10, jfsutils < 1.1.3, reiserfsprogs < 3.6.3, xfsprogs < 2.6.0, procps < 3.2.0, oprofile < 0.9
++%define kernel_dot_org_conflicts  ppp < 2.4.0, pcmciautils < 004, isdn4k-utils < 3.1pre1, nfs-utils < 1.0.5, e2fsprogs < 1.39.33, util-linux < 2.10, jfsutils < 1.1.3, reiserfsprogs < 3.6.3, xfsprogs < 2.6.0, procps < 3.2.0, oprofile < 0.9
++
++#
++# Then a series of requirements that are distribution specific, either
++# because we add patches for something, or the older versions have
++# problems with the newer kernel or lack certain things that make
++# integration in the distro harder than needed.
++#
++%define package_conflicts  initscripts < 7.23, udev < 063-6, iptables < 1.3.2.1-1-1, ipw2200-firmware < 2.2
++
++#
++# Packages that need to be installed before the kernel is, because the %post
++# scripts use them.
++#
++%define kernel_prereq  fileutils, module-init-tools, initscripts >= 8.11.1-1, mkinitrd >= 4.2.21-1
++
++#
++# don't use RPM's internal dependency generator, instead
++# just use our magic one that finds the versions of kernel modules for
++# provides and don't do any requires
++# (we used to just turn off AutoReqProv on all packages)
++#
++%define _use_internal_dependency_generator 0
++%define __find_provides %{nil}
++%define __find_requires %{nil}
++
++Name: kernel
++Vendor: @COMPANY_NAME@
++Group: System Environment/Kernel
++License: GPLv2
++Version: @PKG_VERSION@
++Release: @PKG_RELEASE@
++ExclusiveArch: noarch i686 x86_64
++ExclusiveOS: Linux
++Summary: The Linux kernel built for Xen.
++BuildPreReq: module-init-tools, patch >= 2.5.4, bash >= 2.03, sh-utils, tar
++BuildPreReq: bzip2, findutils, gzip, m4, perl, make >= 3.78, gnupg
++BuildRequires: gcc >= 2.96-98, binutils >= 2.12, redhat-rpm-config >= 8.0.32.1
++Provides: kernel = %{uname}
++Autoreqprov: no
++Prereq: %{kernel_prereq}
++Conflicts: %{kernel_dot_org_conflicts}
++Conflicts: %{package_conflicts}
++
++Source0: linux-%{uname}.tar.bz2
++Source1: kernel-%{uname}-i686.config
++
++BuildRoot: %{_tmppath}/kernel-%{version}-root
++
++%description
++This package provides the Linux kernel for privileged and unprivileged domains.
++
++@REPO_VERSION@
++
++%package devel
++Summary: Development package for building kernel modules to match the xen kernel.
++Group: System Environment/Kernel
++AutoReqProv: no
++Provides: kernel-devel = %{uname}
++
++%description devel
++This package provides kernel headers and makefiles sufficient to build modules
++against the %{uname} kernel.
++
++@REPO_VERSION@
++
++
++%package sourcecode
++Summary: The source code for the Linux kernel.
++Group: Development/System
++Prereq: fileutils
++Requires: make >= 3.78
++Requires: gcc >= 3.2
++Requires: /usr/bin/strip
++# for xconfig and gconfig
++#Requires: qt-devel, gtk2-devel
++Requires: readline-devel ncurses-devel
++Provides: kernel-source
++
++%description sourcecode 
++The kernel-sourcecode package contains the source code files for the
++Linux kernel.
++
++This package is neither needed nor usable for building external
++kernel modules for linking such modules into the default operating
++system kernels. For this purpose you require the -devel package.
++
++@REPO_VERSION@
++
++#%package doc
++#Summary: Various documentation bits found in the kernel source.
++#Group: Documentation
++#
++#%description doc
++#This package contains documentation files from the kernel
++#source. Various bits of information about the Linux kernel and the
++#device drivers shipped with it are documented in these files.
++#
++#You'll want to install this package if you need a reference to the
++#options that can be passed to Linux kernel modules at load time.
++
++%package firmware
++Summary: Firmware required by kernel modules
++Group: System Environment/Kernel
++Provides: kernel-firmware
++
++%description firmware
++The kernel-firmware package contains firmware for various hardware devices supported by the
++Linux kernel.
++
++%package extra-devel
++Summary: Additional kernel header files
++Group: System Environment/Kernel
++
++%description extra-devel
++The extra-devel package contains header files that are found down a path other than include.
++
++%prep 
++
++%setup -q -n %{name}-%{version} -c
++cd linux-%{uname}
++%{DEFINE_MAKEOPTS}
++echo @XS_RELEASE@ > localversion
++make ${MAKEOPTS} mrproper
++cp -f %{_sourcedir}/kernel-%{uname}-${TARGET}.config .config
++
++%build
++
++cd linux-%{uname}
++%{DEFINE_MAKEOPTS}
++make ${MAKEOPTS} silentoldconfig
++if grep -q ^CONFIG_MODULES=y$ .config ; then
++    mkmodules=modules
 +else
-+	grep '^CONFIG_HIGHMEM64G=y' .config >/dev/null && ( sed -e 's!^CONFIG_HIGHMEM64G=y$$!\# CONFIG_HIGHMEM64G is not set!;s!^\# CONFIG_HIGHMEM4G is not set$$!CONFIG_HIGHMEM4G=y!' .config > .config- && mv .config- .config ) || true
-+endif
-+	$(MAKE) ARCH=$(LINUX_ARCH) oldconfig 2>&1 /dev/null
++    mkmodules=
++fi
 +
-+.PHONY: config-update-pae
-+config-update-pae:
-+	# See if we need to munge config to enable PAE
-+ifeq ($(XEN_TARGET_X86_PAE),y)
-+	sed -e 's!^CONFIG_HIGHMEM4G=y$$!\# CONFIG_HIGHMEM4G is not set!;s!^\# CONFIG_HIGHMEM64G is not set$$!CONFIG_HIGHMEM64G=y!' $(CONFIG_FILE) > $(CONFIG_FILE)- && mv $(CONFIG_FILE)- $(CONFIG_FILE)
-+else
-+	grep '^CONFIG_HIGHMEM64G=y' $(CONFIG_FILE) >/dev/null && ( sed -e 's!^CONFIG_HIGHMEM64G=y$$!\# CONFIG_HIGHMEM64G is not set!;s!^\# CONFIG_HIGHMEM4G is not set$$!CONFIG_HIGHMEM4G=y!' $(CONFIG_FILE) > $(CONFIG_FILE)- && mv $(CONFIG_FILE)- $(CONFIG_FILE) ) || true
-+endif
++make ${MAKEOPTS} bzImage $mkmodules
 +
-+.PHONY: baselinuxversion
-+baselinuxversion:
-+	@echo $(LINUX_VER)
++%install
++
++cd linux-%{uname}
++%{DEFINE_MAKEOPTS}
++# Install kernel
++install -d -m 755 $RPM_BUILD_ROOT/boot
++install -m 644 .config $RPM_BUILD_ROOT/boot/config-%{uname}
++install -m 644 System.map $RPM_BUILD_ROOT/boot/System.map-%{uname}
++install -m 644 arch/x86/boot/bzImage $RPM_BUILD_ROOT/boot/vmlinuz-%{uname}
++
++install -d -m 755 $RPM_BUILD_ROOT/lib/modules/%{uname}
++if grep -q ^CONFIG_MODULES=y$ .config ; then
++    # Install modules
++    make ${MAKEOPTS} INSTALL_MOD_PATH=$RPM_BUILD_ROOT modules_install
++    # mark modules executable so that strip-to-file can strip them
++    find $RPM_BUILD_ROOT/lib/modules/%{uname} -name "*.ko" -type f | xargs chmod u+x
++    
++    # Remove files created by depmod. These are recreated at install time.
++    rm -f $RPM_BUILD_ROOT/lib/modules/%{uname}/modules.*
++fi
++
++# Save debuginfo
++install -d -m 755 $RPM_BUILD_ROOT/usr/lib/debug/lib/modules/%{uname}
++install -m 644 vmlinux $RPM_BUILD_ROOT/usr/lib/debug/lib/modules/%{uname}
++
++# Install -devel files
++install -d -m 755 $RPM_BUILD_ROOT/usr/src/kernels/%{uname}-${TARGET}
++
++# Setup -devel links correctly
++SOURCE=/usr/src/kernels/%{uname}-${TARGET}
++rm -f $RPM_BUILD_ROOT/lib/modules/%{uname}/build
++rm -f $RPM_BUILD_ROOT/lib/modules/%{uname}/source
++ln -sf $SOURCE $RPM_BUILD_ROOT/lib/modules/%{uname}/source
++ln -sf $SOURCE $RPM_BUILD_ROOT/lib/modules/%{uname}/build
++
++install -d -m 755 $RPM_BUILD_ROOT${SOURCE}/arch/x86/kernel
++
++cp --parents `find  -type f -name "Makefile*" -o -name "Kconfig*"` $RPM_BUILD_ROOT${SOURCE}
++install -m 644 localversion $RPM_BUILD_ROOT${SOURCE}
++if [ -e Module.symvers ]; then
++    install -m 644 Module.symvers $RPM_BUILD_ROOT${SOURCE}
++fi
++# then drop all but the needed Makefiles/Kconfig files
++rm -rf $RPM_BUILD_ROOT${SOURCE}/Documentation
++rm -rf $RPM_BUILD_ROOT${SOURCE}/scripts
++rm -rf $RPM_BUILD_ROOT${SOURCE}/include
++install -m 644 arch/x86/kernel/asm-offsets.s $RPM_BUILD_ROOT${SOURCE}/arch/x86/kernel || :
++install -m 644 .config $RPM_BUILD_ROOT${SOURCE}
++install -m 644 .kernelrelease $RPM_BUILD_ROOT${SOURCE} || :
++cp -a scripts $RPM_BUILD_ROOT${SOURCE}
++cp -a arch/x86/scripts $RPM_BUILD_ROOT${SOURCE}/arch/x86 || :
++cp -a arch/x86/*lds $RPM_BUILD_ROOT${SOURCE}/arch/x86 || :
++rm -f $RPM_BUILD_ROOT${SOURCE}/scripts/*.o
++rm -f $RPM_BUILD_ROOT${SOURCE}/scripts/*/*.o
++
++install -d -m 755 $RPM_BUILD_ROOT${SOURCE}/arch/x86/include
++if [ -d arch/x86/include ] ; then
++    cp -a arch/x86/include/asm $RPM_BUILD_ROOT${SOURCE}/arch/x86/include
++fi
++
++install -d -m 755 $RPM_BUILD_ROOT${SOURCE}/include
++dirs=$(find include -mindepth 1 -maxdepth 1 -path include/asm-\* -prune -o -type d -print)
++cp -a ${dirs} include/asm-generic $RPM_BUILD_ROOT${SOURCE}/include
++if [ ! -d arch/x86/include ] ; then
++    cp -a `readlink include/asm` $RPM_BUILD_ROOT${SOURCE}/include
++fi
++
++# Make sure the Makefile and version.h have a matching timestamp so that
++# external modules can be built
++touch -r $RPM_BUILD_ROOT${SOURCE}/Makefile $RPM_BUILD_ROOT${SOURCE}/include/linux/version.h
++touch -r $RPM_BUILD_ROOT${SOURCE}/.config $RPM_BUILD_ROOT${SOURCE}/include/linux/autoconf.h
++
++%if %{buildsource}
++install -d -m 755 $RPM_BUILD_ROOT/usr/src/linux-%{uname}
++tar -cf - . | tar -C $RPM_BUILD_ROOT/usr/src/linux-%{uname} -xf -
++%endif
++
++%if %{buildextradevel}
++install -d -m 755 $RPM_BUILD_ROOT/usr/src/linux-%{uname}
++tar -cf - drivers/base/base.h | tar -C $RPM_BUILD_ROOT/usr/src/linux-%{uname} -xf -
++%endif
++
++%clean
++rm -rf $RPM_BUILD_ROOT
++
++%post
++[ -x /usr/sbin/module_upgrade ] && /usr/sbin/module_upgrade
++[ -x /sbin/new-kernel-pkg ] && /sbin/new-kernel-pkg --package kernel-xen --mkinitrd \
++	--depmod --install --multiboot=/boot/xen.gz %{uname}
++
++ln -sf vmlinuz-%{uname} /boot/vmlinuz-@KERNEL_MAJOR@-xen
++[ -e /boot/initrd-%{uname}.img ] && ln -sf initrd-%{uname}.img /boot/initrd-@KERNEL_MAJOR@-xen.img
++
++%preun
++rm -f /boot/initrd-%{uname}.img
++rm -f /lib/modules/%{uname}/modules.*
++
++%files
++%defattr(-,root,root)
++/boot/vmlinuz-%{uname}
++/boot/System.map-%{uname}
++/boot/config-%{uname}
++%dir /lib/modules/%{uname}
++/lib/modules/%{uname}/kernel
++
++%files devel
++%defattr(-,root,root)
++/lib/modules/%{uname}/build
++/lib/modules/%{uname}/source
++%verify(not mtime) /usr/src/kernels/%{uname}-%{target}
++
++%if %{buildsource}
++%files sourcecode
++%defattr(-,root,root)
++/usr/src/linux-%{uname}
++%endif
++
++%if %{buildfirmware}
++%files firmware
++%defattr(-,root,root)
++/lib/firmware/
++%endif
++
++%if %{buildextradevel}
++%files extra-devel
++%defattr(-,root,root)
++/usr/src/linux-%{uname}
++%endif
++
++%changelog
++* Thu Mar 29 2012 Simon Rowe <simon.rowe@eu.citrix.com> - 3.3.0-rc3
++- Packaged for XenServer
