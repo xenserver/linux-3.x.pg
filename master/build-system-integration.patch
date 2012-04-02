@@ -1,6 +1,6 @@
 diff -r 17a9cde24f35 mk/Makefile
 --- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/mk/Makefile	Mon Apr 02 08:29:30 2012 +0100
++++ b/mk/Makefile	Mon Apr 02 13:08:42 2012 +0100
 @@ -0,0 +1,106 @@
 +USE_BRANDING := yes
 +IMPORT_BRANDING := yes
@@ -110,13 +110,12 @@ diff -r 17a9cde24f35 mk/Makefile
 +	@echo Done. Now "cd $(REPO) ; make oldconfig"
 diff -r 17a9cde24f35 mk/kernel.spec.in
 --- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/mk/kernel.spec.in	Mon Apr 02 08:29:30 2012 +0100
-@@ -0,0 +1,313 @@
++++ b/mk/kernel.spec.in	Mon Apr 02 13:08:42 2012 +0100
+@@ -0,0 +1,294 @@
 +# -*- rpm-spec -*-
 +
 +%define buildsource  0
 +%define buildfirmware 1
-+%define buildextradevel 1
 +
 +# The full kernel uname version
 +%define uname         @LINUX_VERSION@
@@ -264,13 +263,6 @@ diff -r 17a9cde24f35 mk/kernel.spec.in
 +The kernel-firmware package contains firmware for various hardware devices supported by the
 +Linux kernel.
 +
-+%package extra-devel
-+Summary: Additional kernel header files
-+Group: System Environment/Kernel
-+
-+%description extra-devel
-+The extra-devel package contains header files that are found down a path other than include.
-+
 +%prep 
 +
 +%setup -q -n %{name}-%{version} -c
@@ -370,11 +362,6 @@ diff -r 17a9cde24f35 mk/kernel.spec.in
 +tar -cf - . | tar -C $RPM_BUILD_ROOT/usr/src/linux-%{uname} -xf -
 +%endif
 +
-+%if %{buildextradevel}
-+install -d -m 755 $RPM_BUILD_ROOT/usr/src/linux-%{uname}
-+tar -cf - drivers/base/base.h | tar -C $RPM_BUILD_ROOT/usr/src/linux-%{uname} -xf -
-+%endif
-+
 +%clean
 +rm -rf $RPM_BUILD_ROOT
 +
@@ -414,12 +401,6 @@ diff -r 17a9cde24f35 mk/kernel.spec.in
 +%files firmware
 +%defattr(-,root,root)
 +/lib/firmware/
-+%endif
-+
-+%if %{buildextradevel}
-+%files extra-devel
-+%defattr(-,root,root)
-+/usr/src/linux-%{uname}
 +%endif
 +
 +%changelog
