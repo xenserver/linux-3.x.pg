@@ -40,6 +40,11 @@ blktap-include-linux-export.h.patch
 #0008-ACPI-xen-processor-set-ignore_ppc-to-handle-PPC-even.patch
 
 #
+# x86
+#
+x86-pci-do-not-use-pci-bios-under-xen.patch
+
+#
 # Debugging/hacks
 #
 
