@@ -1,8 +1,4 @@
 hgignore.patch
-# The XenServer kernel build system doesn't like a kernel version
-# without a '-' in it (it expects it when generating the various bits
-# of the RPM package version).
-#extraversion
 
 #
 # Build system integration
@@ -26,20 +22,6 @@ build-system-integration.patch
 blktap-include-linux-export.h.patch
 
 #
-# ACPI cpufreq
-#
-# git://git.kernel.org/pub/scm/linux/kernel/git/konrad/xen.git devel/acpi-cpufreq.v4
-#
-#0001-ACPI-processor-export-necessary-interfaces.patch
-#0002-ACPI-processor-cache-acpi_power_register-in-cx-struc.patch
-#0003-ACPI-processor-add-__acpi_processor_-un-register_dri.patch
-#0004-ACPI-processor-Don-t-setup-cpu-idle-driver-and-handl.patch
-#0005-ACPI-add-processor-driver-for-Xen-virtual-CPUs.patch
-#0006-ACPI-processor-override-the-interface-of-register-ac.patch
-#0007-ACPI-xen-processor-add-PM-notification-interfaces.patch
-#0008-ACPI-xen-processor-set-ignore_ppc-to-handle-PPC-even.patch
-
-#
 # x86
 #
 x86-pci-do-not-use-pci-bios-under-xen.patch
@@ -51,5 +33,4 @@ x86-pci-do-not-use-pci-bios-under-xen.patch
 #
 # Kernel Configuration.
 #
-config-create_config-script
 kernel-configuration

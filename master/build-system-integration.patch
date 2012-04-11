@@ -1,7 +1,7 @@
-diff -r 17a9cde24f35 mk/Makefile
+diff -r e86a9c824ac1 mk/Makefile
 --- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/mk/Makefile	Tue Apr 03 12:51:33 2012 +0100
-@@ -0,0 +1,105 @@
++++ b/mk/Makefile	Wed Apr 11 09:49:28 2012 +0100
+@@ -0,0 +1,100 @@
 +USE_BRANDING := yes
 +IMPORT_BRANDING := yes
 +REPONAME=linux-3.x
@@ -22,11 +22,24 @@ diff -r 17a9cde24f35 mk/Makefile
 +	$(call pq_cset_number,$(REPONAME)) >> $@
 +	echo XS_RELEASE := '.xs$$(PLATFORM_VERSION).$$(CSET_NUMBER)' >> $@
 +
++# RPM package Version and Release.
++#
++# This is a bit messy as if EXTRAVERSION is set it will start with a
++# dash so it needs to end up in PKG_RELEASE (but without the leading
++# dash).
++ifeq ($(KERNEL_EXTRAVERSION),)
++release_prefix := 1
++else
++release_prefix := $(KERNEL_EXTRAVERSION:-%=%)
++endif
++PKG_VERSION := $(KERNEL_VERSION).$(KERNEL_PATCHLEVEL).$(KERNEL_SUBLEVEL)
++PKG_RELEASE := $(release_prefix)$(XS_RELEASE)
++
 +SOURCES = $(RPM_SOURCESDIR)/linux-$(LINUX_VERSION)$(XS_RELEASE).tar.bz2 \
 +          $(RPM_SOURCESDIR)/kernel-$(LINUX_VERSION)$(XS_RELEASE)-$(DOMAIN0_ARCH_OPTIMIZED).config \
 +          $(RPM_SPECSDIR)/kernel.spec
 +
-+SRPM = $(RPM_SRPMSDIR)/kernel-$(LINUX_VERSION)$(XS_RELEASE).src.rpm
++SRPM = $(RPM_SRPMSDIR)/kernel-$(PKG_VERSION)-$(PKG_RELEASE).src.rpm
 +
 +.PHONY: build
 +build: $(RPM_BUILT_COOKIE) $(MY_OUTPUT_DIR)/kernel.inc $(BRANDING) $(MY_SOURCES)/MANIFEST
@@ -47,17 +60,13 @@ diff -r 17a9cde24f35 mk/Makefile
 +	cp -f $< $@
 +
 +$(RPM_SPECSDIR)/kernel.spec: kernel.spec.in $(RPM_DIRECTORIES)
-+# RPM can't cope with - in Version: so strip the later half of the
-+# version off and place it in Release:. Skank!
-+	PKG_VERSION=$$(echo $(LINUX_VERSION) | cut -f 1  -d -); \
-+	PKG_RELEASE=$$(echo $(LINUX_VERSION)$(XS_RELEASE) | cut -f 2- -d -); \
-+	echo "Version: $${PKG_VERSION} Release: $${PKG_RELEASE}"; \
++	echo "Version: $(PKG_VERSION) Release: $(PKG_RELEASE)"; \
 +	$(call brand,kernel.spec.in) | \
 +	sed -e s\,@REPO_VERSION@,$(REPO_VERSION),g   \
 +	    -e s\,@LINUX_VERSION@,$(LINUX_VERSION)$(XS_RELEASE),g \
 +	    -e s\,@XS_RELEASE@,$(XS_RELEASE),g       \
-+	    -e s\,@PKG_VERSION@,$${PKG_VERSION},g    \
-+	    -e s\,@PKG_RELEASE@,$${PKG_RELEASE},g    \
++	    -e s\,@PKG_VERSION@,$(PKG_VERSION),g    \
++	    -e s\,@PKG_RELEASE@,$(PKG_RELEASE),g    \
 +	> $@
 +
 +$(SRPM): $(SOURCES)
@@ -68,11 +77,11 @@ diff -r 17a9cde24f35 mk/Makefile
 +	$(RPMBUILD) --target $(DOMAIN0_ARCH_OPTIMIZED) --rebuild $(SRPM)
 +	@touch $@
 +
-+OUTPUT_RPM = kernel-$(LINUX_VERSION)$(XS_RELEASE).$(DOMAIN0_ARCH_OPTIMIZED).rpm
-+OUTPUT_FIRMWARE_RPM = kernel-firmware-$(LINUX_VERSION)$(XS_RELEASE).$(DOMAIN0_ARCH_OPTIMIZED).rpm
-+OUTPUT_DEBUG_RPM = kernel-debuginfo-$(LINUX_VERSION)$(XS_RELEASE).$(DOMAIN0_ARCH_OPTIMIZED).rpm
++OUTPUT_RPM = kernel-$(PKG_VERSION)-$(PKG_RELEASE).$(DOMAIN0_ARCH_OPTIMIZED).rpm
++OUTPUT_FIRMWARE_RPM = kernel-firmware-$(PKG_VERSION)-$(PKG_RELEASE).$(DOMAIN0_ARCH_OPTIMIZED).rpm
++OUTPUT_DEBUG_RPM = kernel-debuginfo-$(PKG_VERSION)-$(PKG_RELEASE).$(DOMAIN0_ARCH_OPTIMIZED).rpm
 +
-+OUTPUT64_RPM = kernel-xen64-$(LINUX_VERSION)$(XS_RELEASE).$(DOMAIN0_ARCH_OPTIMIZED).rpm
++OUTPUT64_RPM = kernel-xen64-$(PKG_VERSION)-$(PKG_RELEASE).$(DOMAIN0_ARCH_OPTIMIZED).rpm
 +
 +$(MY_OUTPUT_DIR)/kernel.inc: $(MY_OUTPUT_DIR)/.dirstamp
 +	( echo KERNEL_PKG_NAME := kernel ;\
@@ -93,23 +102,9 @@ diff -r 17a9cde24f35 mk/Makefile
 +.PHONY: sources
 +sources: $(MY_SOURCES)/MANIFEST
 +	@ :
-+
-+# Target for development use. This will setup the tree in dom0.hg so
-+# that the resultant kernel/modules will match a Rio target built from
-+# the same manifest. e.g.
-+#    make prepare-source-xen
-+#    make prepare-source-kdump
-+#
-+.PHONY: prepare-source
-+prepare-source-%:
-+prepare-source-%: $(RPM_SOURCESDIR)/kernel-$(LINUX_VERSION)$(XS_RELEASE)-$(DOMAIN0_ARCH_OPTIMIZED)-%.config
-+	@echo Configuring source tree in $(REPO) as $* kernel...
-+	cp $< $(REPO)/.config
-+	echo $(XS_RELEASE)$* > $(REPO)/localversion
-+	@echo Done. Now "cd $(REPO) ; make oldconfig"
-diff -r 17a9cde24f35 mk/kernel.spec.in
+diff -r e86a9c824ac1 mk/kernel.spec.in
 --- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/mk/kernel.spec.in	Tue Apr 03 12:51:33 2012 +0100
++++ b/mk/kernel.spec.in	Wed Apr 11 09:49:28 2012 +0100
 @@ -0,0 +1,290 @@
 +# -*- rpm-spec -*-
 +

@@ -4544,10 +4544,10 @@ diff --git a/buildconfigs/linux-defconfig_xen_x86_32 b/buildconfigs/linux-defcon
 new file mode 100644
 --- /dev/null
 +++ b/buildconfigs/linux-defconfig_xen_x86_32
-@@ -0,0 +1,3905 @@
+@@ -0,0 +1,3908 @@
 +#
 +# Automatically generated file; DO NOT EDIT.
-+# Linux/i386 3.3.0-rc3 Kernel Configuration
++# Linux/i386 3.3.0 Kernel Configuration
 +#
 +# CONFIG_64BIT is not set
 +CONFIG_X86_32=y
@@ -5784,8 +5784,11 @@ new file mode 100644
 +# CONFIG_BLK_DEV_HD is not set
 +# CONFIG_BLK_DEV_RBD is not set
 +CONFIG_BLK_DEV_TAP=y
++
++#
++# Misc devices
++#
 +# CONFIG_SENSORS_LIS3LV02D is not set
-+CONFIG_MISC_DEVICES=y
 +# CONFIG_AD525X_DPOT is not set
 +# CONFIG_IBM_ASM is not set
 +# CONFIG_PHANTOM is not set
@@ -7085,6 +7088,7 @@ new file mode 100644
 +# CONFIG_MFD_TPS65910 is not set
 +# CONFIG_MFD_TPS65912_I2C is not set
 +# CONFIG_MFD_TPS65912_SPI is not set
++# CONFIG_TWL4030_CORE is not set
 +CONFIG_MFD_STMPE=y
 +
 +#
@@ -7382,8 +7386,6 @@ new file mode 100644
 +CONFIG_USB_SL811_HCD=m
 +# CONFIG_USB_SL811_HCD_ISO is not set
 +CONFIG_USB_R8A66597_HCD=m
-+# CONFIG_USB_WHCI_HCD is not set
-+# CONFIG_USB_HWA_HCD is not set
 +# CONFIG_USB_MUSB_HDRC is not set
 +# CONFIG_USB_RENESAS_USBHS is not set
 +
@@ -7784,6 +7786,7 @@ new file mode 100644
 +# CONFIG_DELL_WMI is not set
 +# CONFIG_DELL_WMI_AIO is not set
 +# CONFIG_FUJITSU_LAPTOP is not set
++# CONFIG_FUJITSU_TABLET is not set
 +# CONFIG_TC1100_WMI is not set
 +# CONFIG_HP_ACCEL is not set
 +# CONFIG_HP_WMI is not set
