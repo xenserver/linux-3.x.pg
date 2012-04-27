@@ -27,6 +27,11 @@ blktap-include-linux-export.h.patch
 x86-pci-do-not-use-pci-bios-under-xen.patch
 
 #
+# Xen
+# 
+0001-xen-correctly-check-for-pending-events-when-restorin.patch
+
+#
 # Debugging/hacks
 #
 
