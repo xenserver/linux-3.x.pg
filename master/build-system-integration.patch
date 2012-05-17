@@ -1,6 +1,6 @@
-diff -r e86a9c824ac1 mk/Makefile
+diff -r 412e933614bc mk/Makefile
 --- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/mk/Makefile	Wed Apr 11 09:49:28 2012 +0100
++++ b/mk/Makefile	Thu May 17 14:28:34 2012 +0100
 @@ -0,0 +1,100 @@
 +USE_BRANDING := yes
 +IMPORT_BRANDING := yes
@@ -102,14 +102,13 @@ diff -r e86a9c824ac1 mk/Makefile
 +.PHONY: sources
 +sources: $(MY_SOURCES)/MANIFEST
 +	@ :
-diff -r e86a9c824ac1 mk/kernel.spec.in
+diff -r 412e933614bc mk/kernel.spec.in
 --- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/mk/kernel.spec.in	Wed Apr 11 09:49:28 2012 +0100
-@@ -0,0 +1,290 @@
++++ b/mk/kernel.spec.in	Thu May 17 14:28:34 2012 +0100
+@@ -0,0 +1,277 @@
 +# -*- rpm-spec -*-
 +
 +%define buildsource  0
-+%define buildfirmware 1
 +
 +# The full kernel uname version
 +%define uname         @LINUX_VERSION@
@@ -248,15 +247,6 @@ diff -r e86a9c824ac1 mk/kernel.spec.in
 +#You'll want to install this package if you need a reference to the
 +#options that can be passed to Linux kernel modules at load time.
 +
-+%package firmware
-+Summary: Firmware required by kernel modules
-+Group: System Environment/Kernel
-+Provides: kernel-firmware
-+
-+%description firmware
-+The kernel-firmware package contains firmware for various hardware devices supported by the
-+Linux kernel.
-+
 +%prep 
 +
 +%setup -q -n %{name}-%{version} -c
@@ -356,6 +346,9 @@ diff -r e86a9c824ac1 mk/kernel.spec.in
 +tar -cf - . | tar -C $RPM_BUILD_ROOT/usr/src/linux-%{uname} -xf -
 +%endif
 +
++# Firmware is provided by the linux-firmware package.
++rm -rf $RPM_BUILD_ROOT/lib/firmware
++
 +%clean
 +rm -rf $RPM_BUILD_ROOT
 +
@@ -385,12 +378,6 @@ diff -r e86a9c824ac1 mk/kernel.spec.in
 +%files sourcecode
 +%defattr(-,root,root)
 +/usr/src/linux-%{uname}
-+%endif
-+
-+%if %{buildfirmware}
-+%files firmware
-+%defattr(-,root,root)
-+/lib/firmware/
 +%endif
 +
 +%changelog
