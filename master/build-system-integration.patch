@@ -1,7 +1,7 @@
-diff -r 412e933614bc mk/Makefile
+diff -r 2d437261d0d5 mk/Makefile
 --- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/mk/Makefile	Thu May 17 14:28:34 2012 +0100
-@@ -0,0 +1,100 @@
++++ b/mk/Makefile	Wed May 23 14:48:06 2012 +0100
+@@ -0,0 +1,104 @@
 +USE_BRANDING := yes
 +IMPORT_BRANDING := yes
 +REPONAME=linux-3.x
@@ -34,9 +34,10 @@ diff -r 412e933614bc mk/Makefile
 +endif
 +PKG_VERSION := $(KERNEL_VERSION).$(KERNEL_PATCHLEVEL).$(KERNEL_SUBLEVEL)
 +PKG_RELEASE := $(release_prefix)$(XS_RELEASE)
++ARCHS := $(DOMAIN0_ARCH_OPTIMIZED) x86_64
 +
 +SOURCES = $(RPM_SOURCESDIR)/linux-$(LINUX_VERSION)$(XS_RELEASE).tar.bz2 \
-+          $(RPM_SOURCESDIR)/kernel-$(LINUX_VERSION)$(XS_RELEASE)-$(DOMAIN0_ARCH_OPTIMIZED).config \
++	  $(ARCHS:%=$(RPM_SOURCESDIR)/kernel-$(LINUX_VERSION)$(XS_RELEASE)-%.config) \
 +          $(RPM_SPECSDIR)/kernel.spec
 +
 +SRPM = $(RPM_SRPMSDIR)/kernel-$(PKG_VERSION)-$(PKG_RELEASE).src.rpm
@@ -59,6 +60,9 @@ diff -r 412e933614bc mk/Makefile
 +$(RPM_SOURCESDIR)/kernel-$(LINUX_VERSION)$(XS_RELEASE)-i686.config: ../buildconfigs/linux-defconfig_xen_x86_32 $(RPM_DIRECTORIES)
 +	cp -f $< $@
 +
++$(RPM_SOURCESDIR)/kernel-$(LINUX_VERSION)$(XS_RELEASE)-x86_64.config: ../buildconfigs/linux-defconfig_xen_x86_64 $(RPM_DIRECTORIES)
++	cp -f $< $@
++
 +$(RPM_SPECSDIR)/kernel.spec: kernel.spec.in $(RPM_DIRECTORIES)
 +	echo "Version: $(PKG_VERSION) Release: $(PKG_RELEASE)"; \
 +	$(call brand,kernel.spec.in) | \
@@ -74,14 +78,14 @@ diff -r 412e933614bc mk/Makefile
 +	$(RPMBUILD) -bs $(RPM_SPECSDIR)/kernel.spec
 +
 +$(RPM_BUILT_COOKIE): $(RPM_DIRECTORIES) $(SRPM)
-+	$(RPMBUILD) --target $(DOMAIN0_ARCH_OPTIMIZED) --rebuild $(SRPM)
++	for arch in $(ARCHS); do \
++		$(RPMBUILD) --target $$arch --rebuild $(SRPM); \
++	done
 +	@touch $@
 +
 +OUTPUT_RPM = kernel-$(PKG_VERSION)-$(PKG_RELEASE).$(DOMAIN0_ARCH_OPTIMIZED).rpm
 +OUTPUT_FIRMWARE_RPM = kernel-firmware-$(PKG_VERSION)-$(PKG_RELEASE).$(DOMAIN0_ARCH_OPTIMIZED).rpm
 +OUTPUT_DEBUG_RPM = kernel-debuginfo-$(PKG_VERSION)-$(PKG_RELEASE).$(DOMAIN0_ARCH_OPTIMIZED).rpm
-+
-+OUTPUT64_RPM = kernel-xen64-$(PKG_VERSION)-$(PKG_RELEASE).$(DOMAIN0_ARCH_OPTIMIZED).rpm
 +
 +$(MY_OUTPUT_DIR)/kernel.inc: $(MY_OUTPUT_DIR)/.dirstamp
 +	( echo KERNEL_PKG_NAME := kernel ;\
@@ -102,10 +106,10 @@ diff -r 412e933614bc mk/Makefile
 +.PHONY: sources
 +sources: $(MY_SOURCES)/MANIFEST
 +	@ :
-diff -r 412e933614bc mk/kernel.spec.in
+diff -r 2d437261d0d5 mk/kernel.spec.in
 --- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/mk/kernel.spec.in	Thu May 17 14:28:34 2012 +0100
-@@ -0,0 +1,277 @@
++++ b/mk/kernel.spec.in	Wed May 23 14:48:06 2012 +0100
+@@ -0,0 +1,270 @@
 +# -*- rpm-spec -*-
 +
 +%define buildsource  0
@@ -115,30 +119,22 @@ diff -r 412e933614bc mk/kernel.spec.in
 +
 +%ifarch %{ix86}
 +%define target       %{_target_cpu}
-+
-+%define target64     x86_64
-+%define cross64      x86_64-linux-
++%define arch	     i386
 +%endif
 +
 +%ifarch x86_64
 +%define target       %{_target_cpu}
-+
-+%define buildxen64   0
-+%define buildkdump64 0
++%define arch         %{_target_cpu}
 +%endif
 +
 +%define COMMON_MAKEOPTS %{?_smp_mflags}
-+
-+# Expects ${flavour} set in the including function and sets
-+# ${CROSS_COMPILE}, ${TARGET} and ${MAKEOPTS}.
 +%define DEFINE_MAKEOPTS \
-+ 	case ${flavour} in \
-+	    *64) CROSS_COMPILE=%{cross64} ; \
-+                 TARGET=%{target64} ;; \
-+	    *)   CROSS_COMPILE= ; \
-+                 TARGET=%{target} ;; \
++	ARCH=%{arch}; \
++	unset CROSS_COMPILE; \
++ 	case ${ARCH} in \
++	    *64) [ $(uname -m) = ${ARCH} ] || CROSS_COMPILE=x86_64-linux- ;; \
 +	esac ; \
-+	MAKEOPTS="%{COMMON_MAKEOPTS} CROSS_COMPILE=${CROSS_COMPILE}"
++	MAKEOPTS="%{COMMON_MAKEOPTS} ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE}"
 +
 +
 +#
@@ -192,6 +188,7 @@ diff -r 412e933614bc mk/kernel.spec.in
 +
 +Source0: linux-%{uname}.tar.bz2
 +Source1: kernel-%{uname}-i686.config
++Source2: kernel-%{uname}-x86_64.config
 +
 +BuildRoot: %{_tmppath}/kernel-%{version}-root
 +
@@ -254,7 +251,7 @@ diff -r 412e933614bc mk/kernel.spec.in
 +%{DEFINE_MAKEOPTS}
 +echo @XS_RELEASE@ > localversion
 +make ${MAKEOPTS} mrproper
-+cp -f %{_sourcedir}/kernel-%{uname}-${TARGET}.config .config
++cp -f %{_sourcedir}/kernel-%{uname}-%{target}.config .config
 +
 +%build
 +
@@ -295,10 +292,10 @@ diff -r 412e933614bc mk/kernel.spec.in
 +install -m 644 vmlinux $RPM_BUILD_ROOT/usr/lib/debug/lib/modules/%{uname}
 +
 +# Install -devel files
-+install -d -m 755 $RPM_BUILD_ROOT/usr/src/kernels/%{uname}-${TARGET}
++install -d -m 755 $RPM_BUILD_ROOT/usr/src/kernels/%{uname}-%{target}
 +
 +# Setup -devel links correctly
-+SOURCE=/usr/src/kernels/%{uname}-${TARGET}
++SOURCE=/usr/src/kernels/%{uname}-%{target}
 +rm -f $RPM_BUILD_ROOT/lib/modules/%{uname}/build
 +rm -f $RPM_BUILD_ROOT/lib/modules/%{uname}/source
 +ln -sf $SOURCE $RPM_BUILD_ROOT/lib/modules/%{uname}/source
