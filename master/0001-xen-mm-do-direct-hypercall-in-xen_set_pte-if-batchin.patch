@@ -1,0 +1,56 @@
+From f59c2cc29f4ac62c30dffcb2dae4ba34445885c4 Mon Sep 17 00:00:00 2001
+From: David Vrabel <david.vrabel@citrix.com>
+Date: Fri, 1 Jun 2012 15:02:16 +0100
+Subject: [PATCH] xen/mm: do direct hypercall in xen_set_pte() if batching is unavailable
+
+In xen_set_pte() if batching is unavailable (because the caller is in
+an interrupt context such as handling a page fault) it would fall back
+to using native_set_pte() and trapping and emulating the PTE write.
+
+On 32-bit guests this requires two traps for each PTE write (one for
+each dword of the PTE).  Instead, do one mmu_update hypercall
+directly.
+
+This significantly improves page fault performance in 32-bit PV
+guests.
+
+lmbench3 test  Before    After     Improvement
+----------------------------------------------
+lat_pagefault  3.18 us   2.32 us   27%
+lat_proc fork  356 us    313.3 us  11%
+
+Signed-off-by: David Vrabel <david.vrabel@citrix.com>
+---
+ arch/x86/xen/mmu.c |   16 ++++++++++++++--
+ 1 files changed, 14 insertions(+), 2 deletions(-)
+
+diff --git a/arch/x86/xen/mmu.c b/arch/x86/xen/mmu.c
+index b8e2794..3bf5dfa 100644
+--- a/arch/x86/xen/mmu.c
++++ b/arch/x86/xen/mmu.c
+@@ -308,8 +308,20 @@ static bool xen_batched_set_pte(pte_t *ptep, pte_t pteval)
+ 
+ static inline void __xen_set_pte(pte_t *ptep, pte_t pteval)
+ {
+-	if (!xen_batched_set_pte(ptep, pteval))
+-		native_set_pte(ptep, pteval);
++	if (!xen_batched_set_pte(ptep, pteval)) {
++		/*
++		 * Could call native_set_pte() here and trap and
++		 * emulate the PTE write but with 32-bit guests this
++		 * needs two traps (one for each of the two 32-bit
++		 * words in the PTE) so do one hypercall directly
++		 * instead.
++		 */
++		struct mmu_update u;
++
++		u.ptr = virt_to_machine(ptep).maddr | MMU_NORMAL_PT_UPDATE;
++		u.val = pte_val_ma(pteval);
++		HYPERVISOR_mmu_update(&u, 1, NULL, DOMID_SELF);
++	}
+ }
+ 
+ static void xen_set_pte(pte_t *ptep, pte_t pteval)
+-- 
+1.7.2.5
+
