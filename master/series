@@ -31,6 +31,7 @@ x86-pci-do-not-use-pci-bios-under-xen.patch
 # 
 0001-xen-correctly-check-for-pending-events-when-restorin.patch
 0001-xen-mm-do-direct-hypercall-in-xen_set_pte-if-batchin.patch
+0001-x86-xen-avoid-updating-TLS-descriptors-if-they-haven.patch
 
 #
 # Debugging/hacks
