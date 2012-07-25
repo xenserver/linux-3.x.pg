@@ -1,7 +1,7 @@
-diff -r 3e50b1b1d4ca buildconfigs/linux-defconfig_xen_x86_32
+diff -r 64b7dc6739b0 buildconfigs/linux-defconfig_xen_x86_32
 --- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/buildconfigs/linux-defconfig_xen_x86_32	Wed May 23 12:22:57 2012 +0100
-@@ -0,0 +1,3897 @@
++++ b/buildconfigs/linux-defconfig_xen_x86_32	Wed Jul 25 11:58:06 2012 +0100
+@@ -0,0 +1,3896 @@
 +#
 +# Automatically generated file; DO NOT EDIT.
 +# Linux/i386 3.3.0 Kernel Configuration
@@ -205,7 +205,6 @@ diff -r 3e50b1b1d4ca buildconfigs/linux-defconfig_xen_x86_32
 +CONFIG_OPTPROBES=y
 +CONFIG_HAVE_EFFICIENT_UNALIGNED_ACCESS=y
 +CONFIG_KRETPROBES=y
-+CONFIG_USER_RETURN_NOTIFIER=y
 +CONFIG_HAVE_IOREMAP_PROT=y
 +CONFIG_HAVE_KPROBES=y
 +CONFIG_HAVE_KRETPROBES=y
@@ -281,7 +280,6 @@ diff -r 3e50b1b1d4ca buildconfigs/linux-defconfig_xen_x86_32
 +CONFIG_DEFAULT_CFQ=y
 +# CONFIG_DEFAULT_NOOP is not set
 +CONFIG_DEFAULT_IOSCHED="cfq"
-+CONFIG_PREEMPT_NOTIFIERS=y
 +CONFIG_PADATA=y
 +# CONFIG_INLINE_SPIN_TRYLOCK is not set
 +# CONFIG_INLINE_SPIN_TRYLOCK_BH is not set
@@ -438,9 +436,9 @@ diff -r 3e50b1b1d4ca buildconfigs/linux-defconfig_xen_x86_32
 +CONFIG_PAGE_OFFSET=0xC0000000
 +CONFIG_HIGHMEM=y
 +CONFIG_X86_PAE=y
-+# CONFIG_NUMA is not set
 +CONFIG_ARCH_PHYS_ADDR_T_64BIT=y
 +CONFIG_ARCH_DMA_ADDR_T_64BIT=y
++# CONFIG_NUMA is not set
 +CONFIG_ARCH_FLATMEM_ENABLE=y
 +CONFIG_ARCH_SPARSEMEM_ENABLE=y
 +CONFIG_ARCH_SELECT_MEMORY_MODEL=y
@@ -3334,9 +3332,12 @@ diff -r 3e50b1b1d4ca buildconfigs/linux-defconfig_xen_x86_32
 +CONFIG_XFS_POSIX_ACL=y
 +CONFIG_XFS_RT=y
 +# CONFIG_XFS_DEBUG is not set
-+CONFIG_GFS2_FS=m
-+CONFIG_GFS2_FS_LOCKING_DLM=y
-+# CONFIG_OCFS2_FS is not set
++# CONFIG_GFS2_FS is not set
++CONFIG_OCFS2_FS=m
++CONFIG_OCFS2_FS_O2CB=m
++CONFIG_OCFS2_FS_STATS=y
++CONFIG_OCFS2_DEBUG_MASKLOG=y
++# CONFIG_OCFS2_DEBUG_FS is not set
 +CONFIG_BTRFS_FS=m
 +CONFIG_BTRFS_FS_POSIX_ACL=y
 +# CONFIG_BTRFS_FS_CHECK_INTEGRITY is not set
@@ -3359,7 +3360,7 @@ diff -r 3e50b1b1d4ca buildconfigs/linux-defconfig_xen_x86_32
 +CONFIG_QUOTACTL=y
 +CONFIG_AUTOFS4_FS=m
 +CONFIG_FUSE_FS=y
-+CONFIG_CUSE=m
++# CONFIG_CUSE is not set
 +CONFIG_GENERIC_ACL=y
 +
 +#
@@ -3413,7 +3414,7 @@ diff -r 3e50b1b1d4ca buildconfigs/linux-defconfig_xen_x86_32
 +CONFIG_MISC_FILESYSTEMS=y
 +# CONFIG_ADFS_FS is not set
 +# CONFIG_AFFS_FS is not set
-+CONFIG_ECRYPT_FS=m
++# CONFIG_ECRYPT_FS is not set
 +# CONFIG_HFS_FS is not set
 +# CONFIG_HFSPLUS_FS is not set
 +# CONFIG_BEFS_FS is not set
@@ -3440,9 +3441,7 @@ diff -r 3e50b1b1d4ca buildconfigs/linux-defconfig_xen_x86_32
 +CONFIG_UFS_FS=m
 +# CONFIG_UFS_FS_WRITE is not set
 +# CONFIG_UFS_DEBUG is not set
-+CONFIG_EXOFS_FS=m
-+# CONFIG_EXOFS_DEBUG is not set
-+CONFIG_ORE=m
++# CONFIG_EXOFS_FS is not set
 +CONFIG_NETWORK_FILESYSTEMS=y
 +CONFIG_NFS_FS=m
 +CONFIG_NFS_V3=y
@@ -3521,8 +3520,7 @@ diff -r 3e50b1b1d4ca buildconfigs/linux-defconfig_xen_x86_32
 +CONFIG_NLS_KOI8_R=m
 +CONFIG_NLS_KOI8_U=m
 +CONFIG_NLS_UTF8=m
-+CONFIG_DLM=m
-+# CONFIG_DLM_DEBUG is not set
++# CONFIG_DLM is not set
 +
 +#
 +# Kernel hacking
@@ -3843,6 +3841,7 @@ diff -r 3e50b1b1d4ca buildconfigs/linux-defconfig_xen_x86_32
 +CONFIG_CRYPTO_DEV_PADLOCK_AES=m
 +CONFIG_CRYPTO_DEV_PADLOCK_SHA=m
 +CONFIG_CRYPTO_DEV_GEODE=m
++CONFIG_HAVE_KVM=y
 +CONFIG_VIRTUALIZATION=y
 +# CONFIG_KVM is not set
 +# CONFIG_VHOST_NET is not set
@@ -3899,9 +3898,9 @@ diff -r 3e50b1b1d4ca buildconfigs/linux-defconfig_xen_x86_32
 +CONFIG_LRU_CACHE=m
 +CONFIG_AVERAGE=y
 +# CONFIG_CORDIC is not set
-diff -r 3e50b1b1d4ca buildconfigs/linux-defconfig_xen_x86_64
+diff -r 64b7dc6739b0 buildconfigs/linux-defconfig_xen_x86_64
 --- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/buildconfigs/linux-defconfig_xen_x86_64	Wed May 23 12:22:57 2012 +0100
++++ b/buildconfigs/linux-defconfig_xen_x86_64	Wed Jul 25 11:58:06 2012 +0100
 @@ -0,0 +1,3781 @@
 +#
 +# Automatically generated file; DO NOT EDIT.
