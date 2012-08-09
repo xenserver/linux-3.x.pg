@@ -36,6 +36,12 @@ x86-pci-do-not-use-pci-bios-under-xen.patch
 0002-x86-xen-avoid-updating-TLS-descriptors-if-they-haven.patch
 
 #
+# Local patches.
+#
+drivers-misc-uklog.patch
+
+
+#
 # Debugging/hacks
 #
 
