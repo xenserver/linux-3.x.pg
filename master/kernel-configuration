@@ -1,7 +1,7 @@
-diff -r 64b7dc6739b0 buildconfigs/linux-defconfig_xen_x86_32
+diff -r 6696a94cd5b7 buildconfigs/linux-defconfig_xen_x86_32
 --- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/buildconfigs/linux-defconfig_xen_x86_32	Wed Jul 25 11:58:06 2012 +0100
-@@ -0,0 +1,3896 @@
++++ b/buildconfigs/linux-defconfig_xen_x86_32	Fri Aug 10 09:25:14 2012 +0100
+@@ -0,0 +1,3897 @@
 +#
 +# Automatically generated file; DO NOT EDIT.
 +# Linux/i386 3.3.0 Kernel Configuration
@@ -1289,6 +1289,7 @@ diff -r 64b7dc6739b0 buildconfigs/linux-defconfig_xen_x86_32
 +# Altera FPGA firmware download module
 +#
 +# CONFIG_ALTERA_STAPL is not set
++CONFIG_UKLOG=y
 +CONFIG_HAVE_IDE=y
 +# CONFIG_IDE is not set
 +
@@ -3898,10 +3899,10 @@ diff -r 64b7dc6739b0 buildconfigs/linux-defconfig_xen_x86_32
 +CONFIG_LRU_CACHE=m
 +CONFIG_AVERAGE=y
 +# CONFIG_CORDIC is not set
-diff -r 64b7dc6739b0 buildconfigs/linux-defconfig_xen_x86_64
+diff -r 6696a94cd5b7 buildconfigs/linux-defconfig_xen_x86_64
 --- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/buildconfigs/linux-defconfig_xen_x86_64	Wed Jul 25 11:58:06 2012 +0100
-@@ -0,0 +1,3781 @@
++++ b/buildconfigs/linux-defconfig_xen_x86_64	Fri Aug 10 09:25:14 2012 +0100
+@@ -0,0 +1,3775 @@
 +#
 +# Automatically generated file; DO NOT EDIT.
 +# Linux/x86_64 3.3.0 Kernel Configuration
@@ -4107,7 +4108,6 @@ diff -r 64b7dc6739b0 buildconfigs/linux-defconfig_xen_x86_64
 +CONFIG_OPTPROBES=y
 +CONFIG_HAVE_EFFICIENT_UNALIGNED_ACCESS=y
 +CONFIG_KRETPROBES=y
-+CONFIG_USER_RETURN_NOTIFIER=y
 +CONFIG_HAVE_IOREMAP_PROT=y
 +CONFIG_HAVE_KPROBES=y
 +CONFIG_HAVE_KRETPROBES=y
@@ -4143,7 +4143,6 @@ diff -r 64b7dc6739b0 buildconfigs/linux-defconfig_xen_x86_64
 +CONFIG_MODULE_SRCVERSION_ALL=y
 +CONFIG_STOP_MACHINE=y
 +CONFIG_BLOCK=y
-+CONFIG_LBDAF=y
 +CONFIG_BLK_DEV_BSG=y
 +CONFIG_BLK_DEV_BSGLIB=y
 +CONFIG_BLK_DEV_INTEGRITY=y
@@ -4184,7 +4183,6 @@ diff -r 64b7dc6739b0 buildconfigs/linux-defconfig_xen_x86_64
 +CONFIG_DEFAULT_CFQ=y
 +# CONFIG_DEFAULT_NOOP is not set
 +CONFIG_DEFAULT_IOSCHED="cfq"
-+CONFIG_PREEMPT_NOTIFIERS=y
 +CONFIG_PADATA=y
 +# CONFIG_INLINE_SPIN_TRYLOCK is not set
 +# CONFIG_INLINE_SPIN_TRYLOCK_BH is not set
@@ -4228,10 +4226,7 @@ diff -r 64b7dc6739b0 buildconfigs/linux-defconfig_xen_x86_64
 +CONFIG_GENERIC_CLOCKEVENTS_MIN_ADJUST=y
 +CONFIG_SMP=y
 +CONFIG_X86_MPPARSE=y
-+CONFIG_X86_BIGSMP=y
 +# CONFIG_X86_EXTENDED_PLATFORM is not set
-+# CONFIG_X86_32_IRIS is not set
-+CONFIG_X86_VSMP=y
 +CONFIG_X86_SUPPORTS_MEMORY_FAILURE=y
 +CONFIG_SCHED_OMIT_FRAME_POINTER=y
 +CONFIG_PARAVIRT_GUEST=y
@@ -4245,7 +4240,6 @@ diff -r 64b7dc6739b0 buildconfigs/linux-defconfig_xen_x86_64
 +# CONFIG_XEN_DEBUG_FS is not set
 +# CONFIG_KVM_CLOCK is not set
 +# CONFIG_KVM_GUEST is not set
-+# CONFIG_LGUEST_GUEST is not set
 +CONFIG_PARAVIRT=y
 +CONFIG_PARAVIRT_SPINLOCKS=y
 +CONFIG_PARAVIRT_CLOCK=y
@@ -4257,7 +4251,7 @@ diff -r 64b7dc6739b0 buildconfigs/linux-defconfig_xen_x86_64
 +# CONFIG_MCORE2 is not set
 +# CONFIG_MATOM is not set
 +CONFIG_GENERIC_CPU=y
-+CONFIG_X86_INTERNODE_CACHE_SHIFT=12
++CONFIG_X86_INTERNODE_CACHE_SHIFT=7
 +CONFIG_X86_CMPXCHG=y
 +CONFIG_X86_L1_CACHE_SHIFT=6
 +CONFIG_X86_XADD=y
@@ -5147,6 +5141,7 @@ diff -r 64b7dc6739b0 buildconfigs/linux-defconfig_xen_x86_64
 +# Altera FPGA firmware download module
 +#
 +# CONFIG_ALTERA_STAPL is not set
++CONFIG_UKLOG=y
 +CONFIG_HAVE_IDE=y
 +# CONFIG_IDE is not set
 +
@@ -7628,10 +7623,10 @@ diff -r 64b7dc6739b0 buildconfigs/linux-defconfig_xen_x86_64
 +CONFIG_CRYPTO_DEV_PADLOCK=y
 +CONFIG_CRYPTO_DEV_PADLOCK_AES=m
 +CONFIG_CRYPTO_DEV_PADLOCK_SHA=m
++CONFIG_HAVE_KVM=y
 +CONFIG_VIRTUALIZATION=y
 +# CONFIG_KVM is not set
 +# CONFIG_VHOST_NET is not set
-+# CONFIG_LGUEST is not set
 +CONFIG_BINARY_PRINTF=y
 +
 +#
