@@ -38,7 +38,7 @@ x86-pci-do-not-use-pci-bios-under-xen.patch
 #
 # Local patches.
 #
-drivers-misc-uklog.patch
+#drivers-misc-uklog.patch
 
 
 #
