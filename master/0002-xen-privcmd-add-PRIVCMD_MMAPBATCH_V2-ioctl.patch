@@ -1,0 +1,229 @@
+From afccc293b2c11896a0f84fdc4b5d49e161f9624e Mon Sep 17 00:00:00 2001
+From: David Vrabel <david.vrabel@citrix.com>
+Date: Thu, 23 Aug 2012 17:37:13 +0100
+Subject: [PATCH 2/2] xen/privcmd: add PRIVCMD_MMAPBATCH_V2 ioctl
+
+PRIVCMD_MMAPBATCH_V2 extends PRIVCMD_MMAPBATCH with an additional
+field for reporting the error code for every frame that could not be
+mapped.  libxc prefers PRIVCMD_MMAPBATCH_V2 over PRIVCMD_MMAPBATCH.
+
+Signed-off-by: David Vrabel <david.vrabel@citrix.com>
+---
+ drivers/xen/privcmd.c |   99 +++++++++++++++++++++++++++++++++++++++---------
+ include/xen/privcmd.h |   23 +++++++++++-
+ 2 files changed, 102 insertions(+), 20 deletions(-)
+
+diff --git a/drivers/xen/privcmd.c b/drivers/xen/privcmd.c
+index ccee0f1..c0e89e7 100644
+--- a/drivers/xen/privcmd.c
++++ b/drivers/xen/privcmd.c
+@@ -76,7 +76,7 @@ static void free_page_list(struct list_head *pages)
+  */
+ static int gather_array(struct list_head *pagelist,
+ 			unsigned nelem, size_t size,
+-			void __user *data)
++			const void __user *data)
+ {
+ 	unsigned pageidx;
+ 	void *pagedata;
+@@ -248,18 +248,37 @@ struct mmap_batch_state {
+ 	struct vm_area_struct *vma;
+ 	int err;
+ 
+-	xen_pfn_t __user *user;
++	xen_pfn_t __user *user_mfn;
++	int __user *user_err;
+ };
+ 
+ static int mmap_batch_fn(void *data, void *state)
+ {
+ 	xen_pfn_t *mfnp = data;
+ 	struct mmap_batch_state *st = state;
++	int ret;
+ 
+-	if (xen_remap_domain_mfn_range(st->vma, st->va & PAGE_MASK, *mfnp, 1,
+-				       st->vma->vm_page_prot, st->domain) < 0) {
+-		*mfnp |= 0xf0000000U;
+-		st->err++;
++	ret = xen_remap_domain_mfn_range(st->vma, st->va & PAGE_MASK, *mfnp, 1,
++					 st->vma->vm_page_prot, st->domain);
++	if (ret < 0) {
++		/*
++		 * Error reporting is a mess but userspace relies on
++		 * it behaving this way.
++		 *
++		 * V2 needs to a) return the result of each frame's
++		 * remap; and b) return -ENOENT if any frame failed
++		 * with -ENOENT.
++		 *
++		 * In this first pass the error code is saved by
++		 * overwriting the mfn and an error is indicated in
++		 * st->err.
++		 *
++		 * The second pass by mmap_return_errors() will write
++		 * the error codes to user space and get the right
++		 * ioctl return value.
++		 */
++		*(int *)mfnp = ret;
++		st->err = ret;
+ 	}
+ 	st->va += PAGE_SIZE;
+ 
+@@ -270,16 +289,33 @@ static int mmap_return_errors(void *data, void *state)
+ {
+ 	xen_pfn_t *mfnp = data;
+ 	struct mmap_batch_state *st = state;
++	int ret;
++
++	if (st->user_err) {
++		int err = *(int *)mfnp;
++
++		if (err == -ENOENT)
++			st->err = err;
+ 
+-	return put_user(*mfnp, st->user++);
++		return __put_user(err, st->user_err++);
++	} else {
++		xen_pfn_t mfn;
++
++		ret = __get_user(mfn, st->user_mfn);
++		if (ret < 0)
++			return ret;
++
++		mfn |= PRIVCMD_MMAPBATCH_MFN_ERROR;
++		return __put_user(mfn, st->user_mfn++);
++	}
+ }
+ 
+ static struct vm_operations_struct privcmd_vm_ops;
+ 
+-static long privcmd_ioctl_mmap_batch(void __user *udata)
++static long privcmd_ioctl_mmap_batch(void __user *udata, int version)
+ {
+ 	int ret;
+-	struct privcmd_mmapbatch m;
++	struct privcmd_mmapbatch_v2 m;
+ 	struct mm_struct *mm = current->mm;
+ 	struct vm_area_struct *vma;
+ 	unsigned long nr_pages;
+@@ -289,15 +325,31 @@ static long privcmd_ioctl_mmap_batch(void __user *udata)
+ 	if (!xen_initial_domain())
+ 		return -EPERM;
+ 
+-	if (copy_from_user(&m, udata, sizeof(m)))
+-		return -EFAULT;
++	switch (version) {
++	case 1:
++		if (copy_from_user(&m, udata, sizeof(struct privcmd_mmapbatch)))
++			return -EFAULT;
++		/* Returns per-frame error in m.arr. */
++		m.err = NULL;
++		if (!access_ok(VERIFY_WRITE, m.arr, m.num * sizeof(*m.arr)))
++			return -EFAULT;
++		break;
++	case 2:
++		if (copy_from_user(&m, udata, sizeof(struct privcmd_mmapbatch_v2)))
++			return -EFAULT;
++		/* Returns per-frame error code in m.err. */
++		if (!access_ok(VERIFY_WRITE, m.err, m.num * (sizeof(*m.err))))
++			return -EFAULT;
++		break;
++	default:
++		return -EINVAL;
++	}
+ 
+ 	nr_pages = m.num;
+ 	if ((m.num <= 0) || (nr_pages > (LONG_MAX >> PAGE_SHIFT)))
+ 		return -EINVAL;
+ 
+-	ret = gather_array(&pagelist, m.num, sizeof(xen_pfn_t),
+-			   m.arr);
++	ret = gather_array(&pagelist, m.num, sizeof(xen_pfn_t), m.arr);
+ 
+ 	if (ret || list_empty(&pagelist))
+ 		goto out;
+@@ -325,12 +377,17 @@ static long privcmd_ioctl_mmap_batch(void __user *udata)
+ 
+ 	up_write(&mm->mmap_sem);
+ 
+-	if (state.err > 0) {
+-		state.user = m.arr;
++	if (state.err) {
++		state.err = 0;
++		state.user_mfn = (xen_pfn_t *)m.arr;
++		state.user_err = m.err;
+ 		ret = traverse_pages(m.num, sizeof(xen_pfn_t),
+-			       &pagelist,
+-			       mmap_return_errors, &state);
+-	}
++				     &pagelist,
++				     mmap_return_errors, &state);
++		if (ret >= 0)
++			ret = state.err;
++	} else if (m.err)
++		__clear_user(m.err, m.num * sizeof(*m.err));
+ 
+ out:
+ 	free_page_list(&pagelist);
+@@ -354,7 +411,11 @@ static long privcmd_ioctl(struct file *file,
+ 		break;
+ 
+ 	case IOCTL_PRIVCMD_MMAPBATCH:
+-		ret = privcmd_ioctl_mmap_batch(udata);
++		ret = privcmd_ioctl_mmap_batch(udata, 1);
++		break;
++
++	case IOCTL_PRIVCMD_MMAPBATCH_V2:
++		ret = privcmd_ioctl_mmap_batch(udata, 2);
+ 		break;
+ 
+ 	default:
+diff --git a/include/xen/privcmd.h b/include/xen/privcmd.h
+index 17857fb..f60d75c 100644
+--- a/include/xen/privcmd.h
++++ b/include/xen/privcmd.h
+@@ -59,13 +59,32 @@ struct privcmd_mmapbatch {
+ 	int num;     /* number of pages to populate */
+ 	domid_t dom; /* target domain */
+ 	__u64 addr;  /* virtual address */
+-	xen_pfn_t __user *arr; /* array of mfns - top nibble set on err */
++	xen_pfn_t __user *arr; /* array of mfns - or'd with
++				  PRIVCMD_MMAPBATCH_MFN_ERROR on err */
++};
++
++#define PRIVCMD_MMAPBATCH_MFN_ERROR 0xf0000000U
++
++struct privcmd_mmapbatch_v2 {
++	unsigned int num; /* number of pages to populate */
++	domid_t dom;      /* target domain */
++	__u64 addr;       /* virtual address */
++	const xen_pfn_t __user *arr; /* array of mfns */
++	int __user *err;  /* array of error codes */
+ };
+ 
+ /*
+  * @cmd: IOCTL_PRIVCMD_HYPERCALL
+  * @arg: &privcmd_hypercall_t
+  * Return: Value returned from execution of the specified hypercall.
++ *
++ * @cmd: IOCTL_PRIVCMD_MMAPBATCH_V2
++ * @arg: &struct privcmd_mmapbatch_v2
++ * Return: 0 on success (i.e., arg->err contains valid error codes for
++ * each frame).  On an error other than a failed frame remap, -1 is
++ * returned and errno is set to EINVAL, EFAULT etc.  As an exception,
++ * if the operation was otherwise successful but any frame failed with
++ * -ENOENT, then -1 is returned and errno is set to ENOENT.
+  */
+ #define IOCTL_PRIVCMD_HYPERCALL					\
+ 	_IOC(_IOC_NONE, 'P', 0, sizeof(struct privcmd_hypercall))
+@@ -73,5 +92,7 @@ struct privcmd_mmapbatch {
+ 	_IOC(_IOC_NONE, 'P', 2, sizeof(struct privcmd_mmap))
+ #define IOCTL_PRIVCMD_MMAPBATCH					\
+ 	_IOC(_IOC_NONE, 'P', 3, sizeof(struct privcmd_mmapbatch))
++#define IOCTL_PRIVCMD_MMAPBATCH_V2				\
++	_IOC(_IOC_NONE, 'P', 4, sizeof(struct privcmd_mmapbatch_v2))
+ 
+ #endif /* __LINUX_PUBLIC_PRIVCMD_H__ */
+-- 
+1.7.2.5
+
