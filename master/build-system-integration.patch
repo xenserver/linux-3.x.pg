@@ -1,7 +1,15 @@
-diff -r 2d437261d0d5 mk/Makefile
---- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/mk/Makefile	Wed May 23 14:48:06 2012 +0100
-@@ -0,0 +1,104 @@
+Convert to GIT
+
+From: Frediano Ziglio <frediano.ziglio@citrix.com>
+
+Use GIT macros instead of HG ones
+
+diff --git a/mk/Makefile b/mk/Makefile
+new file mode 100644
+index 0000000..8991cf8
+--- /dev/null
++++ b/mk/Makefile
+@@ -0,0 +1,105 @@
 +USE_BRANDING := yes
 +IMPORT_BRANDING := yes
 +REPONAME=linux-3.x
@@ -9,8 +17,8 @@ diff -r 2d437261d0d5 mk/Makefile
 +include /b/rpmbuild.mk
 +
 +RPM_BUILT_COOKIE  = $(MY_OBJ_DIR)/.pvops_rpm_built_cookie
-+REPO              = $(call pq_loc,$(REPONAME))
-+REPOSTAMP         = $(call pq_req,$(REPONAME))
++REPO              = $(call git_loc,$(REPONAME))
++REPOSTAMP         = $(call git_req,$(REPONAME))
 +
 +-include $(MY_OBJ_DIR)/pvops_version.inc
 +$(MY_OBJ_DIR)/pvops_version.inc: $(REPOSTAMP)
@@ -19,7 +27,7 @@ diff -r 2d437261d0d5 mk/Makefile
 +		< $(REPOSTAMP) >> $@
 +	awk '/(^VERSION)|(^PATCHLEVEL)|(^SUBLEVEL)|(^EXTRAVERSION)/ { print "KERNEL_"$$_ }' ../Makefile >> $@
 +	echo LINUX_VERSION := '$$(KERNEL_VERSION).$$(KERNEL_PATCHLEVEL).$$(KERNEL_SUBLEVEL)$$(KERNEL_EXTRAVERSION)' >> $@
-+	$(call pq_cset_number,$(REPONAME)) >> $@
++	$(call git_cset_number,$(REPONAME)) >> $@
 +	echo XS_RELEASE := '.xs$$(PLATFORM_VERSION).$$(CSET_NUMBER)' >> $@
 +
 +# RPM package Version and Release.
@@ -55,7 +63,8 @@ diff -r 2d437261d0d5 mk/Makefile
 +	$(call component_clean,$(COMPONENT))
 +
 +$(RPM_SOURCESDIR)/linux-$(LINUX_VERSION)$(XS_RELEASE).tar.bz2: $(RPM_DIRECTORIES)
-+	hg -R $(call pq_loc,$(REPONAME)) archive -t tbz2 $@
++	set -e -o pipefail; cd $(call git_loc,$(REPONAME)) && git archive --prefix=linux-$(LINUX_VERSION)$(XS_RELEASE)/ HEAD | bzip2 -c > $@.tmp
++	mv -f $@.tmp $@
 +
 +$(RPM_SOURCESDIR)/kernel-$(LINUX_VERSION)$(XS_RELEASE)-i686.config: ../buildconfigs/linux-defconfig_xen_x86_32 $(RPM_DIRECTORIES)
 +	cp -f $< $@
@@ -106,9 +115,11 @@ diff -r 2d437261d0d5 mk/Makefile
 +.PHONY: sources
 +sources: $(MY_SOURCES)/MANIFEST
 +	@ :
-diff -r 2d437261d0d5 mk/kernel.spec.in
---- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/mk/kernel.spec.in	Wed May 23 14:48:06 2012 +0100
+diff --git a/mk/kernel.spec.in b/mk/kernel.spec.in
+new file mode 100644
+index 0000000..fe0a95b
+--- /dev/null
++++ b/mk/kernel.spec.in
 @@ -0,0 +1,270 @@
 +# -*- rpm-spec -*-
 +
