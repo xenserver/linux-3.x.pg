@@ -1,13 +1,14 @@
 # HG changeset patch
 # Parent 64b7dc6739b0268ef44b5acb537736a06ae7c51e
 
-diff -r 64b7dc6739b0 drivers/misc/Kconfig
---- a/drivers/misc/Kconfig	Thu Jun 07 17:08:25 2012 +0100
-+++ b/drivers/misc/Kconfig	Thu Aug 09 16:35:24 2012 +0100
-@@ -506,4 +506,14 @@ source "drivers/misc/ti-st/Kconfig"
- source "drivers/misc/lis3lv02d/Kconfig"
+diff --git a/drivers/misc/Kconfig b/drivers/misc/Kconfig
+index 98a442d..a62dca4 100644
+--- a/drivers/misc/Kconfig
++++ b/drivers/misc/Kconfig
+@@ -517,4 +517,14 @@ source "drivers/misc/lis3lv02d/Kconfig"
  source "drivers/misc/carma/Kconfig"
  source "drivers/misc/altera-stapl/Kconfig"
+ source "drivers/misc/mei/Kconfig"
 +
 +config UKLOG
 +	tristate "User level printk support through procfs"
@@ -19,17 +20,20 @@ diff -r 64b7dc6739b0 drivers/misc/Kconfig
 +	  root may log using this functionality
 +
  endmenu
-diff -r 64b7dc6739b0 drivers/misc/Makefile
---- a/drivers/misc/Makefile	Thu Jun 07 17:08:25 2012 +0100
-+++ b/drivers/misc/Makefile	Thu Aug 09 16:35:24 2012 +0100
-@@ -49,3 +49,4 @@ obj-y				+= carma/
+diff --git a/drivers/misc/Makefile b/drivers/misc/Makefile
+index b88df7a..8e46d40 100644
+--- a/drivers/misc/Makefile
++++ b/drivers/misc/Makefile
+@@ -50,3 +50,4 @@ obj-y				+= carma/
  obj-$(CONFIG_USB_SWITCH_FSA9480) += fsa9480.o
  obj-$(CONFIG_ALTERA_STAPL)	+=altera-stapl/
- obj-$(CONFIG_MAX8997_MUIC)	+= max8997-muic.o
-+obj-$(CONFIG_UKLOG)		+= uklog.o
-diff -r 64b7dc6739b0 drivers/misc/uklog.c
---- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/drivers/misc/uklog.c	Thu Aug 09 16:35:24 2012 +0100
+ obj-$(CONFIG_INTEL_MEI)		+= mei/
+++obj-$(CONFIG_UKLOG)		+= uklog.o
+diff --git a/drivers/misc/uklog.c b/drivers/misc/uklog.c
+new file mode 100644
+index 0000000..79ab056
+--- /dev/null
++++ b/drivers/misc/uklog.c
 @@ -0,0 +1,136 @@
 +#include <linux/kernel.h>  /* because this is a kernel module */
 +#include <linux/module.h>  /* for module macros */

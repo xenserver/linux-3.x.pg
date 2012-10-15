@@ -24,16 +24,10 @@ blktap-include-linux-export.h.patch
 #
 # x86
 #
-x86-pci-do-not-use-pci-bios-under-xen.patch
 
 #
 # Xen
 # 
-0001-xen-correctly-check-for-pending-events-when-restorin.patch
-0001-xen-mm-do-direct-hypercall-in-xen_set_pte-if-batchin.patch
-0002-xen-mm-zero-PTEs-for-non-present-MFNs-in-the-initial.patch
-0001-x86-add-desc_equal-to-compare-GDT-descriptors.patch
-0002-x86-xen-avoid-updating-TLS-descriptors-if-they-haven.patch
 0001-xen-mm-return-more-precise-error-from-xen_remap_doma.patch
 0002-xen-privcmd-add-PRIVCMD_MMAPBATCH_V2-ioctl.patch
 
