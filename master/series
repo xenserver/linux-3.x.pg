@@ -45,3 +45,4 @@ drivers-misc-uklog.patch
 # Kernel Configuration.
 #
 kernel-configuration
+hypercall.patch

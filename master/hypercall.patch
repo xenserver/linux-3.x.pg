@@ -1,0 +1,22 @@
+diff --git a/arch/x86/kernel/entry_32.S b/arch/x86/kernel/entry_32.S
+index 623f288..d477f67 100644
+--- a/arch/x86/kernel/entry_32.S
++++ b/arch/x86/kernel/entry_32.S
+@@ -1016,7 +1016,7 @@ ENTRY(xen_sysenter_target)
+ 
+ ENTRY(xen_hypervisor_callback)
+ 	CFI_STARTPROC
+-	pushl_cfi $0
++	pushl_cfi $-1
+ 	SAVE_ALL
+ 	TRACE_IRQS_OFF
+ 
+@@ -1065,7 +1065,7 @@ ENTRY(xen_failsafe_callback)
+ 	jz 5f
+ 	addl $16,%esp
+ 	jmp iret_exc		# EAX != 0 => Category 2 (Bad IRET)
+-5:	pushl_cfi $0		# EAX == 0 => Category 1 (Bad segment)
++5:	pushl_cfi $-1		# EAX == 0 => Category 1 (Bad segment)
+ 	SAVE_ALL
+ 	jmp ret_from_exception
+ 	CFI_ENDPROC
