@@ -1,0 +1,88 @@
+From 864ab2019b0106e7a3eae9bc6136eb33b97452c2 Mon Sep 17 00:00:00 2001
+From: David Vrabel <david.vrabel@citrix.com>
+Date: Wed, 17 Oct 2012 11:29:20 +0100
+Subject: [PATCH] xen/x86: don't corrupt %eip when returning from a signal handler
+
+In 32 bit guests, if a userspace process has %eax == -ERESTARTSYS
+(-512) or -ERESTARTNOINTR (-513) when it is interrupted by an event
+/and/ the process has a pending signal then %eip (and %eax) are
+corrupted when returning to the main process after handling the
+signal.  The application may then crash with SIGSEGV or a SIGILL or it
+may have subtly incorrect behaviour (depending on what instruction it
+returned to).
+
+The occurs because handle_signal() is incorrectly thinking that there
+is a system call that needs to restarted so it adjusts %eip and %eax
+to re-execute the system call instruction (even though user space had
+not done a system call).
+
+If %eax == -514 (-ERESTARTNOHAND (-514) or -ERESTART_RESTARTBLOCK
+(-516) then handle_signal() only corrupted %eax (by setting it to
+-EINTR).  This may cause the application to crash or have incorrect
+behaviour.
+
+handle_signal() assumes that regs->orig_ax >= 0 means a system call so
+any kernel entry point that is not for a system call must push a
+negative value for orig_ax.  For example, for physical interrupts on
+bare metal the inverse of the vector is pushed and page_fault() sets
+regs->orig_ax to -1, overwriting the hardware provided error code.
+
+xen_hypervisor_callback() was incorrectly pushing 0 for orig_ax
+instead of -1.
+
+Classic Xen kernels pushed %eax which works as %eax cannot be both
+non-negative and -RESTARTSYS (etc.), but using -1 is consistent with
+other non-system call entry points.
+
+There were similar bugs in xen_failsafe_callback(), if the fault was
+corrected and normal return path was used.  64 bit guests would push 0
+which is broken.  32 bit guests would push %eax which is safe (see
+previous paragraph), but for consistency this is also changed to -1.
+
+Signed-off-by: David Vrabel <david.vrabel@citrix.com>
+Acked-by: Jan Beulich <JBeulich@suse.com>
+Acked-by: Ian Campbell <ian.campbell@citrix.com>
+Cc: stable@vger.kernel.org
+---
+ arch/x86/kernel/entry_32.S |    4 ++--
+ arch/x86/kernel/entry_64.S |    2 +-
+ 2 files changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/arch/x86/kernel/entry_32.S b/arch/x86/kernel/entry_32.S
+index 2c63407..6a19e66 100644
+--- a/arch/x86/kernel/entry_32.S
++++ b/arch/x86/kernel/entry_32.S
+@@ -1042,7 +1042,7 @@ ENTRY(xen_sysenter_target)
+ 
+ ENTRY(xen_hypervisor_callback)
+ 	CFI_STARTPROC
+-	pushl_cfi $0
++	pushl_cfi $-1 /* orig_ax = -1 => not a system call */
+ 	SAVE_ALL
+ 	TRACE_IRQS_OFF
+ 
+@@ -1078,7 +1078,7 @@ ENDPROC(xen_hypervisor_callback)
+ # We distinguish between categories by maintaining a status value in EAX.
+ ENTRY(xen_failsafe_callback)
+ 	CFI_STARTPROC
+-	pushl_cfi %eax
++	pushl_cfi $-1  /* orig_ax = -1 => not a system call */
+ 	movl $1,%eax
+ 1:	mov 4(%esp),%ds
+ 2:	mov 8(%esp),%es
+diff --git a/arch/x86/kernel/entry_64.S b/arch/x86/kernel/entry_64.S
+index cdc790c..430b1fc 100644
+--- a/arch/x86/kernel/entry_64.S
++++ b/arch/x86/kernel/entry_64.S
+@@ -1451,7 +1451,7 @@ ENTRY(xen_failsafe_callback)
+ 	CFI_RESTORE r11
+ 	addq $0x30,%rsp
+ 	CFI_ADJUST_CFA_OFFSET -0x30
+-	pushq_cfi $0
++	pushq_cfi $-1 /* orig_ax = -1 => not a system call */
+ 	SAVE_ALL
+ 	jmp error_exit
+ 	CFI_ENDPROC
+-- 
+1.7.2.5
+
