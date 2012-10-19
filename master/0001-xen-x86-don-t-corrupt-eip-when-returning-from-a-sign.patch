@@ -1,4 +1,4 @@
-From 864ab2019b0106e7a3eae9bc6136eb33b97452c2 Mon Sep 17 00:00:00 2001
+From 5eeb9bbb292ec7b3030bea7744ae719f4c28479e Mon Sep 17 00:00:00 2001
 From: David Vrabel <david.vrabel@citrix.com>
 Date: Wed, 17 Oct 2012 11:29:20 +0100
 Subject: [PATCH] xen/x86: don't corrupt %eip when returning from a signal handler
@@ -32,24 +32,27 @@ instead of -1.
 
 Classic Xen kernels pushed %eax which works as %eax cannot be both
 non-negative and -RESTARTSYS (etc.), but using -1 is consistent with
-other non-system call entry points.
+other non-system call entry points and avoids some of the tests in
+handle_signal().
 
-There were similar bugs in xen_failsafe_callback(), if the fault was
-corrected and normal return path was used.  64 bit guests would push 0
-which is broken.  32 bit guests would push %eax which is safe (see
-previous paragraph), but for consistency this is also changed to -1.
+There were similar bugs in xen_failsafe_callback() of both 32 and
+64-bit guests. If the fault was corrected and the normal return path
+was used then 0 was incorrectly pushed as the value for orig_ax.
 
 Signed-off-by: David Vrabel <david.vrabel@citrix.com>
 Acked-by: Jan Beulich <JBeulich@suse.com>
 Acked-by: Ian Campbell <ian.campbell@citrix.com>
 Cc: stable@vger.kernel.org
 ---
- arch/x86/kernel/entry_32.S |    4 ++--
+v3:
+  - fixup the right push in the 32-bit xen_failsafe_callback().
+---
+ arch/x86/kernel/entry_32.S |    8 +++++---
  arch/x86/kernel/entry_64.S |    2 +-
- 2 files changed, 3 insertions(+), 3 deletions(-)
+ 2 files changed, 6 insertions(+), 4 deletions(-)
 
 diff --git a/arch/x86/kernel/entry_32.S b/arch/x86/kernel/entry_32.S
-index 2c63407..6a19e66 100644
+index 2c63407..985f7b3 100644
 --- a/arch/x86/kernel/entry_32.S
 +++ b/arch/x86/kernel/entry_32.S
 @@ -1042,7 +1042,7 @@ ENTRY(xen_sysenter_target)
@@ -61,15 +64,25 @@ index 2c63407..6a19e66 100644
  	SAVE_ALL
  	TRACE_IRQS_OFF
  
-@@ -1078,7 +1078,7 @@ ENDPROC(xen_hypervisor_callback)
- # We distinguish between categories by maintaining a status value in EAX.
- ENTRY(xen_failsafe_callback)
- 	CFI_STARTPROC
--	pushl_cfi %eax
-+	pushl_cfi $-1  /* orig_ax = -1 => not a system call */
- 	movl $1,%eax
- 1:	mov 4(%esp),%ds
+@@ -1084,14 +1084,16 @@ ENTRY(xen_failsafe_callback)
  2:	mov 8(%esp),%es
+ 3:	mov 12(%esp),%fs
+ 4:	mov 16(%esp),%gs
++	/* EAX == 0 => Category 1 (Bad segment)
++	   EAX != 0 => Category 2 (Bad IRET) */
+ 	testl %eax,%eax
+ 	popl_cfi %eax
+ 	lea 16(%esp),%esp
+ 	CFI_ADJUST_CFA_OFFSET -16
+ 	jz 5f
+ 	addl $16,%esp
+-	jmp iret_exc		# EAX != 0 => Category 2 (Bad IRET)
+-5:	pushl_cfi $0		# EAX == 0 => Category 1 (Bad segment)
++	jmp iret_exc
++5:	pushl_cfi $-1 /* orig_ax = -1 => not a system call */
+ 	SAVE_ALL
+ 	jmp ret_from_exception
+ 	CFI_ENDPROC
 diff --git a/arch/x86/kernel/entry_64.S b/arch/x86/kernel/entry_64.S
 index cdc790c..430b1fc 100644
 --- a/arch/x86/kernel/entry_64.S
