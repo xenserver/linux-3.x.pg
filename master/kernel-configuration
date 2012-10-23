@@ -1,6 +1,26 @@
+diff --git a/arch/x86/kernel/apic/io_apic.c b/arch/x86/kernel/apic/io_apic.c
+index c265593..3d03280 100644
+--- a/arch/x86/kernel/apic/io_apic.c
++++ b/arch/x86/kernel/apic/io_apic.c
+@@ -3556,9 +3556,13 @@ static int __init io_apic_get_unique_id(int ioapic, int apic_id)
+ 	 * 'stuck on smp_invalidate_needed IPI wait' messages.
+ 	 */
+ 	if (apic->check_apicid_used(&apic_id_map, apic_id)) {
+-
++		printk("apic->check_apicid_used = %pF, apic_id_map = %lx, get_physical_broadcast() = %d",
++		       apic->check_apicid_used, apic_id_map.mask[0],
++		       get_physical_broadcast());
+ 		for (i = 0; i < get_physical_broadcast(); i++) {
+-			if (!apic->check_apicid_used(&apic_id_map, i))
++			int ret = apic->check_apicid_used(&apic_id_map, i);
++			printk(KERN_ERR "apic->check_apicid_used(%d) = %d\n", i, ret);
++			if (!ret)
+ 				break;
+ 		}
+ 
 diff --git a/buildconfigs/linux-defconfig_xen_x86_32 b/buildconfigs/linux-defconfig_xen_x86_32
 new file mode 100644
-index 0000000..78f4109
+index 0000000..52f1ad9
 --- /dev/null
 +++ b/buildconfigs/linux-defconfig_xen_x86_32
 @@ -0,0 +1,4038 @@
@@ -406,7 +426,7 @@ index 0000000..78f4109
 +CONFIG_DMI=y
 +CONFIG_SWIOTLB=y
 +CONFIG_IOMMU_HELPER=y
-+CONFIG_NR_CPUS=32
++CONFIG_NR_CPUS=8
 +CONFIG_SCHED_SMT=y
 +CONFIG_SCHED_MC=y
 +# CONFIG_IRQ_TIME_ACCOUNTING is not set
@@ -4044,7 +4064,7 @@ index 0000000..78f4109
 +# CONFIG_DDR is not set
 diff --git a/buildconfigs/linux-defconfig_xen_x86_64 b/buildconfigs/linux-defconfig_xen_x86_64
 new file mode 100644
-index 0000000..11fb1cc
+index 0000000..5f9b6b8
 --- /dev/null
 +++ b/buildconfigs/linux-defconfig_xen_x86_64
 @@ -0,0 +1,3918 @@
@@ -4423,7 +4443,7 @@ index 0000000..11fb1cc
 +CONFIG_SWIOTLB=y
 +CONFIG_IOMMU_HELPER=y
 +# CONFIG_MAXSMP is not set
-+CONFIG_NR_CPUS=32
++CONFIG_NR_CPUS=8
 +CONFIG_SCHED_SMT=y
 +CONFIG_SCHED_MC=y
 +# CONFIG_IRQ_TIME_ACCOUNTING is not set
