@@ -30,6 +30,7 @@ blktap-include-linux-export.h.patch
 # 
 0001-xen-mm-return-more-precise-error-from-xen_remap_doma.patch
 0001-xen-x86-don-t-corrupt-eip-when-returning-from-a-sign.patch
+0001-xen-gntdev-don-t-leak-memory-from-IOCTL_GNTDEV_MAP_G.patch
 
 #
 # Local patches.
