@@ -29,7 +29,6 @@ blktap-include-linux-export.h.patch
 # Xen
 # 
 0001-xen-mm-return-more-precise-error-from-xen_remap_doma.patch
-0002-xen-privcmd-add-PRIVCMD_MMAPBATCH_V2-ioctl.patch
 0001-xen-x86-don-t-corrupt-eip-when-returning-from-a-sign.patch
 
 #
