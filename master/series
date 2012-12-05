@@ -20,6 +20,7 @@ build-system-integration.patch
 0010-blktap-Forward-port-to-2.6.37.patch
 0011-blktap-Drop-some-debug-output-on-2.6.39.patch
 blktap-include-linux-export.h.patch
+blktap-install-linux-blktap.h.patch
 
 #
 # x86
