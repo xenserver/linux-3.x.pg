@@ -48,3 +48,4 @@ drivers-misc-uklog.patch
 # Kernel Configuration.
 #
 kernel-configuration
+abi-version
