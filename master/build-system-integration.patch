@@ -6,10 +6,10 @@ Use GIT macros instead of HG ones
 
 diff --git a/mk/Makefile b/mk/Makefile
 new file mode 100644
-index 0000000..8991cf8
+index 0000000..7afc26b
 --- /dev/null
 +++ b/mk/Makefile
-@@ -0,0 +1,105 @@
+@@ -0,0 +1,124 @@
 +USE_BRANDING := yes
 +IMPORT_BRANDING := yes
 +REPONAME=linux-3.x
@@ -17,6 +17,7 @@ index 0000000..8991cf8
 +include /b/rpmbuild.mk
 +
 +RPM_BUILT_COOKIE  = $(MY_OBJ_DIR)/.pvops_rpm_built_cookie
++FILES_COOKIE      = $(MY_OBJ_DIR)/.files.cookie
 +REPO              = $(call git_loc,$(REPONAME))
 +REPOSTAMP         = $(call git_req,$(REPONAME))
 +
@@ -42,7 +43,7 @@ index 0000000..8991cf8
 +endif
 +PKG_VERSION := $(KERNEL_VERSION).$(KERNEL_PATCHLEVEL).$(KERNEL_SUBLEVEL)
 +PKG_RELEASE := $(release_prefix)$(XS_RELEASE)
-+ARCHS := $(DOMAIN0_ARCH_OPTIMIZED) x86_64
++ARCHS := $(DOMAIN0_ARCH_OPTIMIZED)
 +
 +SOURCES = $(RPM_SOURCESDIR)/linux-$(LINUX_VERSION)$(XS_RELEASE).tar.bz2 \
 +	  $(ARCHS:%=$(RPM_SOURCESDIR)/kernel-$(LINUX_VERSION)$(XS_RELEASE)-%.config) \
@@ -51,7 +52,7 @@ index 0000000..8991cf8
 +SRPM = $(RPM_SRPMSDIR)/kernel-$(PKG_VERSION)-$(PKG_RELEASE).src.rpm
 +
 +.PHONY: build
-+build: $(RPM_BUILT_COOKIE) $(MY_OUTPUT_DIR)/kernel.inc $(BRANDING) $(MY_SOURCES)/MANIFEST
++build: $(RPM_BUILT_COOKIE) $(FILES_COOKIE) $(MY_OUTPUT_DIR)/kernel.inc $(BRANDING) $(MY_SOURCES)/MANIFEST
 +	@ :
 +
 +.PHONY: clean
@@ -93,8 +94,28 @@ index 0000000..8991cf8
 +	@touch $@
 +
 +OUTPUT_RPM = kernel-$(PKG_VERSION)-$(PKG_RELEASE).$(DOMAIN0_ARCH_OPTIMIZED).rpm
-+OUTPUT_FIRMWARE_RPM = kernel-firmware-$(PKG_VERSION)-$(PKG_RELEASE).$(DOMAIN0_ARCH_OPTIMIZED).rpm
 +OUTPUT_DEBUG_RPM = kernel-debuginfo-$(PKG_VERSION)-$(PKG_RELEASE).$(DOMAIN0_ARCH_OPTIMIZED).rpm
++
++VMLINUX_PATH := /usr/lib/debug/lib/modules/$(LINUX_VERSION)$(XS_RELEASE)/vmlinux
++
++$(FILES_COOKIE): $(RPM_BUILT_COOKIE) $(MY_INSTALLER_FILES)/.dirstamp $(MY_MAIN_CDFILES)/.dirstamp
++	mkdir -p $(MY_INSTALLER_FILES)
++	rpm2cpio $(MY_OUTPUT_DIR)/RPMS/$(DOMAIN0_ARCH_OPTIMIZED)/$(OUTPUT_RPM) | ( cd $(MY_INSTALLER_FILES) ; cpio -id )
++
++	mkdir -p $(MY_MAIN_CDFILES)/boot/
++	mv $(MY_INSTALLER_FILES)/boot/vmlinuz-$(LINUX_VERSION)$(XS_RELEASE) $(MY_MAIN_CDFILES)/boot/vmlinuz
++
++#
++# The install-image component requires a gzipped, stripped vmlinux
++# file to build some of the more esoteric installers.
++#
++	rpm2cpio $(MY_OUTPUT_DIR)/RPMS/$(DOMAIN0_ARCH_OPTIMIZED)/$(OUTPUT_DEBUG_RPM) \
++		| cpio -i --to-stdout .$(VMLINUX_PATH) > $(MY_INSTALLER_FILES)/boot/vmlinux
++	objcopy --strip-debug --strip-unneeded $(MY_INSTALLER_FILES)/boot/vmlinux
++	gzip < $(MY_INSTALLER_FILES)/boot/vmlinux > $(MY_MAIN_CDFILES)/boot/vmlinux.gz
++
++	rm -rf $(MY_INSTALLER_FILES)/boot
++	touch $@
 +
 +$(MY_OUTPUT_DIR)/kernel.inc: $(MY_OUTPUT_DIR)/.dirstamp
 +	( echo KERNEL_PKG_NAME := kernel ;\
@@ -105,9 +126,7 @@ index 0000000..8991cf8
 +	) >$@
 +
 +$(BRANDING):
-+	( echo KERNEL_VERSION := $(LINUX_VERSION)$(XS_RELEASE)xen ; \
-+	  echo KDUMP_VERSION := $(LINUX_VERSION)$(XS_RELEASE)kdump ; \
-+	) >$(BRANDING)
++	echo KERNEL_VERSION := $(LINUX_VERSION)$(XS_RELEASE) >$(BRANDING)
 +
 +$(MY_SOURCES)/MANIFEST: $(MY_SOURCES_DIRSTAMP)
 +	echo "$(COMPONENT) gpl file $(SRPM)" >$@
@@ -120,7 +139,7 @@ new file mode 100644
 index 0000000..432b8e3
 --- /dev/null
 +++ b/mk/kernel.spec.in
-@@ -0,0 +1,271 @@
+@@ -0,0 +1,270 @@
 +# -*- rpm-spec -*-
 +
 +# The full kernel uname version
@@ -197,7 +216,6 @@ index 0000000..432b8e3
 +
 +Source0: linux-%{uname}.tar.bz2
 +Source1: kernel-%{uname}-i686.config
-+Source2: kernel-%{uname}-x86_64.config
 +
 +BuildRoot: %{_tmppath}/kernel-%{version}-root
 +
