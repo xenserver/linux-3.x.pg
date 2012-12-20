@@ -1,3 +1,12 @@
+#
+# Stable series combined patch
+#
+linux-stable-3.6-to-3.6.11.patch
+
+#
+# Backports from upstream
+#
+
 hgignore.patch
 
 #
@@ -31,8 +40,6 @@ blktap-install-linux-blktap.h.patch
 # Xen
 # 
 0001-xen-mm-return-more-precise-error-from-xen_remap_doma.patch
-0001-xen-x86-don-t-corrupt-eip-when-returning-from-a-sign.patch
-0001-xen-gntdev-don-t-leak-memory-from-IOCTL_GNTDEV_MAP_G.patch
 
 #
 # Local patches.

@@ -1,11 +1,11 @@
 diff --git a/Makefile b/Makefile
-index bb9fff2..357e4c5 100644
+index 50dc4d1..6a3c81a 100644
 --- a/Makefile
 +++ b/Makefile
 @@ -1,7 +1,7 @@
  VERSION = 3
  PATCHLEVEL = 6
- SUBLEVEL = 0
+ SUBLEVEL = 11
 -EXTRAVERSION =
 +EXTRAVERSION = -0
  NAME = Terrified Chipmunk
