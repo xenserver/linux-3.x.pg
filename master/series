@@ -6,6 +6,8 @@ linux-stable-3.6-to-3.6.11.patch
 #
 # Backports from upstream
 #
+# nfs: don't zero out the rest of the page if we hit the EOF on a DIO READ (3.8-rc1)
+git-67fad106a219e083c91c79695bd1807dde1bf7b9.patch # v3.7-rc4-111-g67fad10
 
 hgignore.patch
 
