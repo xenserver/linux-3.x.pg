@@ -8,6 +8,8 @@ linux-stable-3.6-to-3.6.11.patch
 #
 # nfs: don't zero out the rest of the page if we hit the EOF on a DIO READ (3.8-rc1)
 git-67fad106a219e083c91c79695bd1807dde1bf7b9.patch # v3.7-rc4-111-g67fad10
+# libata: set dma_mode to 0xff in reset (3.8-rc1)
+git-5416912af75de9cba5d1c75b99a7888b0bbbd2fb.patch # v3.7-rc7-39-g5416912
 
 #
 # Build system integration
