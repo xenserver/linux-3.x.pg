@@ -58,3 +58,4 @@ drivers-misc-uklog.patch
 #
 kernel-configuration
 abi-version
+xen_failsafe_stack_fix.patch
