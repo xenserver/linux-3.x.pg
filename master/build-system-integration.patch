@@ -120,10 +120,8 @@ new file mode 100644
 index 0000000..432b8e3
 --- /dev/null
 +++ b/mk/kernel.spec.in
-@@ -0,0 +1,281 @@
+@@ -0,0 +1,271 @@
 +# -*- rpm-spec -*-
-+
-+%define buildsource  0
 +
 +# The full kernel uname version
 +%define uname         @LINUX_VERSION@
@@ -208,6 +206,23 @@ index 0000000..432b8e3
 +
 +@REPO_VERSION@
 +
++%package headers
++Summary: Header files for the Linux kernel for use by glibc
++Group: Development/System
++Obsoletes: glibc-kernheaders
++Provides: kernel-headers = %{uname}
++Conflicts: kernel-headers < %{uname}
++
++%description headers
++This package provides the C header files that specify the interface
++between the Linux kernel and userspace libraries & programs. The
++header files define structures and constants that are needed when
++building most standard programs. They are also required when
++rebuilding the glibc package.
++
++@REPO_VERSION@
++
++
 +%package devel
 +Summary: Development package for building kernel modules to match the xen kernel.
 +Group: System Environment/Kernel
@@ -220,28 +235,6 @@ index 0000000..432b8e3
 +
 +@REPO_VERSION@
 +
-+
-+%package sourcecode
-+Summary: The source code for the Linux kernel.
-+Group: Development/System
-+Prereq: fileutils
-+Requires: make >= 3.78
-+Requires: gcc >= 3.2
-+Requires: /usr/bin/strip
-+# for xconfig and gconfig
-+#Requires: qt-devel, gtk2-devel
-+Requires: readline-devel ncurses-devel
-+Provides: kernel-source
-+
-+%description sourcecode 
-+The kernel-sourcecode package contains the source code files for the
-+Linux kernel.
-+
-+This package is neither needed nor usable for building external
-+kernel modules for linking such modules into the default operating
-+system kernels. For this purpose you require the -devel package.
-+
-+@REPO_VERSION@
 +
 +#%package doc
 +#Summary: Various documentation bits found in the kernel source.
@@ -302,6 +295,9 @@ index 0000000..432b8e3
 +install -d -m 755 $RPM_BUILD_ROOT/usr/lib/debug/lib/modules/%{uname}
 +install -m 644 vmlinux $RPM_BUILD_ROOT/usr/lib/debug/lib/modules/%{uname}
 +
++# Install -headers files
++make ${MAKEOPTS} INSTALL_HDR_PATH=$RPM_BUILD_ROOT/usr headers_install
++
 +# Install -devel files
 +install -d -m 755 $RPM_BUILD_ROOT/usr/src/kernels/%{uname}-%{target}
 +
@@ -335,6 +331,7 @@ index 0000000..432b8e3
 +install -d -m 755 $RPM_BUILD_ROOT${SOURCE}/arch/x86/include
 +if [ -d arch/x86/include ] ; then
 +    cp -a arch/x86/include/asm $RPM_BUILD_ROOT${SOURCE}/arch/x86/include
++    cp -a arch/x86/include/generated $RPM_BUILD_ROOT${SOURCE}/arch/x86/include
 +fi
 +
 +install -d -m 755 $RPM_BUILD_ROOT${SOURCE}/include
@@ -348,11 +345,6 @@ index 0000000..432b8e3
 +# external modules can be built
 +touch -r $RPM_BUILD_ROOT${SOURCE}/Makefile $RPM_BUILD_ROOT${SOURCE}/include/linux/version.h
 +touch -r $RPM_BUILD_ROOT${SOURCE}/.config $RPM_BUILD_ROOT${SOURCE}/include/linux/autoconf.h
-+
-+%if %{buildsource}
-+install -d -m 755 $RPM_BUILD_ROOT/usr/src/linux-%{uname}
-+tar -cf - . | tar -C $RPM_BUILD_ROOT/usr/src/linux-%{uname} -xf -
-+%endif
 +
 +# Firmware is provided by the linux-firmware package.
 +rm -rf $RPM_BUILD_ROOT/lib/firmware
@@ -387,17 +379,15 @@ index 0000000..432b8e3
 +%dir /lib/modules/%{uname}
 +/lib/modules/%{uname}/kernel
 +
++%files headers
++%defattr(-,root,root)
++/usr/include
++
 +%files devel
 +%defattr(-,root,root)
 +/lib/modules/%{uname}/build
 +/lib/modules/%{uname}/source
 +%verify(not mtime) /usr/src/kernels/%{uname}-%{target}
-+
-+%if %{buildsource}
-+%files sourcecode
-+%defattr(-,root,root)
-+/usr/src/linux-%{uname}
-+%endif
 +
 +%changelog
 +* Thu Mar 29 2012 Simon Rowe <simon.rowe@eu.citrix.com> - 3.3.0-rc3
