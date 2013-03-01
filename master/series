@@ -42,6 +42,7 @@ blktap-install-linux-blktap.h.patch
 # Xen
 # 
 0001-xen-mm-return-more-precise-error-from-xen_remap_doma.patch
+0001-xen-blkback-correctly-respond-to-unknown-non-native-.patch
 
 #
 # Local patches.
