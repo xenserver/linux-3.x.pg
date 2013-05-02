@@ -1,0 +1,47 @@
+From 4cb16f03ba8914e900a5dac24b2bfe930c9d3eec Mon Sep 17 00:00:00 2001
+From: Wei Liu <wei.liu2@citrix.com>
+Date: Mon, 25 Mar 2013 01:08:20 +0000
+Subject: [PATCH 09/13] xen-netback: remove skb in xen_netbk_alloc_page
+
+This variable is never used.
+
+Signed-off-by: Wei Liu <wei.liu2@citrix.com>
+Acked-by: Ian Campbell <ian.campbell@citrix.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ drivers/net/xen-netback/netback.c |    5 ++---
+ 1 files changed, 2 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/net/xen-netback/netback.c b/drivers/net/xen-netback/netback.c
+index 6aa059e..0ed1b26 100644
+--- a/drivers/net/xen-netback/netback.c
++++ b/drivers/net/xen-netback/netback.c
+@@ -913,7 +913,6 @@ static int netbk_count_requests(struct xenvif *vif,
+ }
+ 
+ static struct page *xen_netbk_alloc_page(struct xen_netbk *netbk,
+-					 struct sk_buff *skb,
+ 					 u16 pending_idx)
+ {
+ 	struct page *page;
+@@ -947,7 +946,7 @@ static struct gnttab_copy *xen_netbk_get_requests(struct xen_netbk *netbk,
+ 
+ 		index = pending_index(netbk->pending_cons++);
+ 		pending_idx = netbk->pending_ring[index];
+-		page = xen_netbk_alloc_page(netbk, skb, pending_idx);
++		page = xen_netbk_alloc_page(netbk, pending_idx);
+ 		if (!page)
+ 			goto err;
+ 
+@@ -1352,7 +1351,7 @@ static unsigned xen_netbk_tx_build_gops(struct xen_netbk *netbk)
+ 		}
+ 
+ 		/* XXX could copy straight to head */
+-		page = xen_netbk_alloc_page(netbk, skb, pending_idx);
++		page = xen_netbk_alloc_page(netbk, pending_idx);
+ 		if (!page) {
+ 			kfree_skb(skb);
+ 			netbk_tx_err(vif, &txreq, idx);
+-- 
+1.7.2.5
+
