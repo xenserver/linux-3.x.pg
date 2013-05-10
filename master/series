@@ -10,6 +10,8 @@ linux-stable-3.6-to-3.6.11.patch
 git-67fad106a219e083c91c79695bd1807dde1bf7b9.patch # v3.7-rc4-111-g67fad10
 # libata: set dma_mode to 0xff in reset (3.8-rc1)
 git-5416912af75de9cba5d1c75b99a7888b0bbbd2fb.patch # v3.7-rc7-39-g5416912
+# xen: Fix stack corruption in xen_failsafe_callback for 32bit PVOPS guests. (v3.8-rc5)
+git-9174adbee4a9a49d0139f5d71969852b36720809.patch # v3.7-30-g9174ad
 # xen/netback: shutdown the ring if it contains garbage. (3.8-rc7)
 git-48856286b64e4b66ec62b94e504d0b29c1ade664.patch # v3.8-rc5-184-g48856286
 # xen/netback: don't leak pages on failure in xen_netbk_tx_check_gop. (3.8-rc7)
@@ -84,4 +86,3 @@ drivers-misc-uklog.patch
 #
 kernel-configuration
 abi-version
-xen_failsafe_stack_fix.patch
