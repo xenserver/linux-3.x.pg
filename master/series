@@ -24,6 +24,8 @@ git-b9149729ebdcfce63f853aa54a404c6a8f6ebbf3.patch # v3.8-rc5-187-gb914972
 git-35876b5ffc154c357476b2c3bdab10feaf4bd8f0.patch # v3.8-rc7-79-g35876b5
 # xen-netback: cancel the credit timer when taking the vif down (3.9-rc1)
 git-3e55f8b306cf305832a4ac78aa82e1b40e818ece.patch # v3.8-rc7-80-g3e55f8b
+# x86: Do full rtc synchronization with ntp (v3.10-rc1)
+git-3195ef59cb42cda3aeeb24a7fd2ba1b900c4a3cc.patch # v3.9-rc2-115-g3195ef5
 
 #
 # Build system integration
