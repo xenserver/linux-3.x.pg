@@ -1,0 +1,49 @@
+From 8a8ab759bc0d21728e479fe4357b8eca952c4c07 Mon Sep 17 00:00:00 2001
+From: David Vrabel <david.vrabel@citrix.com>
+Date: Fri, 10 May 2013 16:34:22 +0100
+Subject: [PATCH 3/3] x86/xen: sync the CMOS RTC as well as the Xen wallclock
+
+If NTP is used in dom0 and it is synchronized to its clock source,
+then the kernel will periodically synchronize the Xen wallclock with
+the system time.  Updates to the Xen wallclock do not persist across
+reboots, so also synchronize the CMOS RTC (as on bare metal).
+
+Signed-off-by: David Vrabel <david.vrabel@citrix.com>
+diff --git a/arch/x86/xen/time.c b/arch/x86/xen/time.c
+index bb9c314..99c5d31 100644
+--- a/arch/x86/xen/time.c
++++ b/arch/x86/xen/time.c
+@@ -14,6 +14,7 @@
+ #include <linux/kernel_stat.h>
+ #include <linux/math64.h>
+ #include <linux/gfp.h>
++#include <linux/mc146818rtc.h>
+ 
+ #include <asm/pvclock.h>
+ #include <asm/xen/hypervisor.h>
+@@ -199,17 +200,24 @@ static void xen_get_wallclock(struct timespec *now)
+ static int xen_set_wallclock(const struct timespec *now)
+ {
+ 	struct xen_platform_op op;
++	int ret;
+ 
+ 	/* do nothing for domU */
+ 	if (!xen_initial_domain())
+ 		return -1;
+ 
++	/* Set the Xen wallclock. */
+ 	op.cmd = XENPF_settime;
+ 	op.u.settime.secs = now->tv_sec;
+ 	op.u.settime.nsecs = now->tv_nsec;
+ 	op.u.settime.system_time = xen_clocksource_read();
+ 
+-	return HYPERVISOR_dom0_op(&op);
++	ret = HYPERVISOR_dom0_op(&op);
++	if (ret)
++		return ret;
++
++	/* Set the hardware RTC. */
++	return mach_set_rtc_mmss(now);
+ }
+ 
+ static struct clocksource xen_clocksource __read_mostly = {

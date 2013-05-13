@@ -59,6 +59,9 @@ blktap-install-linux-blktap.h.patch
 # 
 0001-xen-mm-return-more-precise-error-from-xen_remap_doma.patch
 0001-x86-xen-populate-boot_params-with-EDD-data.patch
+0001-x86-increase-precision-of-x86_platform.get-set_wallc.patch
+0002-timekeeping-sync-persistent-clock-and-RTC-on-system-.patch
+0003-x86-xen-sync-the-CMOS-RTC-as-well-as-the-Xen-wallclo.patch
 
 # Netback
 0007-xen-netfront-remove-unused-variable-extra.patch

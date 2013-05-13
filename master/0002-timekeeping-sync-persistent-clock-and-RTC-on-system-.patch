@@ -1,0 +1,82 @@
+From 1f4fa74069a00fd47ba82200f08115cbd21f4995 Mon Sep 17 00:00:00 2001
+From: David Vrabel <david.vrabel@citrix.com>
+Date: Fri, 10 May 2013 16:09:04 +0100
+Subject: [PATCH 2/3] timekeeping: sync persistent clock and RTC on system time step changes
+
+The persistent clock or the RTC is only synchronized with system time
+every 11 minutes if NTP is running.  This gives a window where the
+persistent clock may be incorrect after a step change in the time
+(such as on first boot).
+
+This particularly affects Xen guests as until an update to the control
+domain's persistent clock, new guests will start with the incorrect
+system time.
+
+When there is a step change in the system time, call
+update_persistent_clock or rtc_set_ntp_time() to synchronize the
+persistent clock or RTC to the new system time.
+
+Signed-off-by: David Vrabel <david.vrabel@citrix.com>
+diff --git a/kernel/time/timekeeping.c b/kernel/time/timekeeping.c
+index f791637..8d8942d 100644
+--- a/kernel/time/timekeeping.c
++++ b/kernel/time/timekeeping.c
+@@ -243,14 +243,56 @@ static inline s64 timekeeping_get_ns_raw(struct timekeeper *tk)
+ 	return nsec + arch_gettimeoffset();
+ }
+ 
++#if defined(CONFIG_GENERIC_CMOS_UPDATE) || defined(CONFIG_RTC_SYSTOHC)
++
++static void __sync_persistent_clock(struct work_struct *work)
++{
++	struct timespec now;
++	int ret = 0;
++
++	getnstimeofday(&now);
++
++#ifdef CONFIG_GENERIC_CMOS_UPDATE
++	ret = update_persistent_clock(now);
++#endif
++#ifdef CONFIG_RTC_SYSTOHC
++	if (ret == -ENODEV)
++		rtc_set_ntp_time(now);
++#endif
++}
++
++static DECLARE_DELAYED_WORK(sync_persistent_clock_work, __sync_persistent_clock);
++
++static void sync_persistent_clock(struct timekeeper *tk)
++{
++	u64 nsecs;
++	u32 remainder;
++
++	/* Many RTCs require updates 500 ms before the next second. */
++	nsecs = timekeeping_get_ns(tk);
++	div_u64_rem(nsecs, NSEC_PER_SEC, &remainder);
++	if (remainder > NSEC_PER_SEC / 2)
++		nsecs = remainder - NSEC_PER_SEC / 2;
++	else
++		nsecs = remainder + NSEC_PER_SEC / 2;
++
++	if (system_wq)
++		schedule_delayed_work(&sync_persistent_clock_work, nsecs_to_jiffies(nsecs));
++}
++
++#endif
++
+ /* must hold write on timekeeper.lock */
+-static void timekeeping_update(struct timekeeper *tk, bool clearntp)
++static void timekeeping_update(struct timekeeper *tk, bool step)
+ {
+ 	struct timespec xt;
+ 
+-	if (clearntp) {
++	if (step) {
+ 		tk->ntp_error = 0;
+ 		ntp_clear();
++#if defined(CONFIG_GENERIC_CMOS_UPDATE) || defined(CONFIG_RTC_SYSTOHC)
++		sync_persistent_clock(tk);
++#endif
+ 	}
+ 	xt = tk_xtime(tk);
+ 	update_vsyscall(&xt, &tk->wall_to_monotonic, tk->clock, tk->mult);

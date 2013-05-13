@@ -1,0 +1,257 @@
+From 285c2f28da2ae4ee846d2481658a0bab8f6e32c2 Mon Sep 17 00:00:00 2001
+From: David Vrabel <david.vrabel@citrix.com>
+Date: Fri, 10 May 2013 13:46:27 +0100
+Subject: [PATCH 1/3] x86: increase precision of x86_platform.get/set_wallclock()
+
+All the virtualized platforms (KVM, lguest and Xen) have persistent
+wallclocks that have more than one second of precision.
+
+read_persistent_wallclock() and update_persistent_wallclock() allow
+for nanosecond precision but their implementation on x86 with
+x86_platform.get/set_wallclock() only allows for one second precision.
+This means guests may see a wallclock time that is off by up to 1
+second.
+
+Make set_wallclock() and get_wallclock() take a struct timespec
+parameter (which allows for nanosecond precision) so KVM and Xen
+guests may start with a more accurate wallclock time and a Xen dom0
+can maintain a more accurate wallclock for guests.
+
+Signed-off-by: David Vrabel <david.vrabel@citrix.com>
+Cc: Thomas Gleixner <tglx@linutronix.de>
+diff --git a/arch/x86/include/asm/mc146818rtc.h b/arch/x86/include/asm/mc146818rtc.h
+index d354fb7..a55c7ef 100644
+--- a/arch/x86/include/asm/mc146818rtc.h
++++ b/arch/x86/include/asm/mc146818rtc.h
+@@ -95,8 +95,8 @@ static inline unsigned char current_lock_cmos_reg(void)
+ unsigned char rtc_cmos_read(unsigned char addr);
+ void rtc_cmos_write(unsigned char val, unsigned char addr);
+ 
+-extern int mach_set_rtc_mmss(unsigned long nowtime);
+-extern unsigned long mach_get_cmos_time(void);
++extern int mach_set_rtc_mmss(const struct timespec *now);
++extern void mach_get_cmos_time(struct timespec *now);
+ 
+ #define RTC_IRQ 8
+ 
+diff --git a/arch/x86/include/asm/x86_init.h b/arch/x86/include/asm/x86_init.h
+index 38155f6..787aad7 100644
+--- a/arch/x86/include/asm/x86_init.h
++++ b/arch/x86/include/asm/x86_init.h
+@@ -153,6 +153,8 @@ struct x86_cpuinit_ops {
+ 	void (*fixup_cpu_id)(struct cpuinfo_x86 *c, int node);
+ };
+ 
++struct timespec;
++
+ /**
+  * struct x86_platform_ops - platform specific runtime functions
+  * @calibrate_tsc:		calibrate TSC
+@@ -167,8 +169,8 @@ struct x86_cpuinit_ops {
+  */
+ struct x86_platform_ops {
+ 	unsigned long (*calibrate_tsc)(void);
+-	unsigned long (*get_wallclock)(void);
+-	int (*set_wallclock)(unsigned long nowtime);
++	void (*get_wallclock)(struct timespec *ts);
++	int (*set_wallclock)(const struct timespec *ts);
+ 	void (*iommu_shutdown)(void);
+ 	bool (*is_untracked_pat_range)(u64 start, u64 end);
+ 	void (*nmi_init)(void);
+diff --git a/arch/x86/kernel/kvmclock.c b/arch/x86/kernel/kvmclock.c
+index f1b42b3..c0a261c 100644
+--- a/arch/x86/kernel/kvmclock.c
++++ b/arch/x86/kernel/kvmclock.c
+@@ -47,10 +47,9 @@ static struct pvclock_wall_clock wall_clock;
+  * have elapsed since the hypervisor wrote the data. So we try to account for
+  * that with system time
+  */
+-static unsigned long kvm_get_wallclock(void)
++static void kvm_get_wallclock(struct timespec *now)
+ {
+ 	struct pvclock_vcpu_time_info *vcpu_time;
+-	struct timespec ts;
+ 	int low, high;
+ 
+ 	low = (int)__pa_symbol(&wall_clock);
+@@ -59,13 +58,11 @@ static unsigned long kvm_get_wallclock(void)
+ 	native_write_msr(msr_kvm_wall_clock, low, high);
+ 
+ 	vcpu_time = &get_cpu_var(hv_clock);
+-	pvclock_read_wallclock(&wall_clock, vcpu_time, &ts);
++	pvclock_read_wallclock(&wall_clock, vcpu_time, now);
+ 	put_cpu_var(hv_clock);
+-
+-	return ts.tv_sec;
+ }
+ 
+-static int kvm_set_wallclock(unsigned long now)
++static int kvm_set_wallclock(const struct timespec *now)
+ {
+ 	return -1;
+ }
+diff --git a/arch/x86/kernel/rtc.c b/arch/x86/kernel/rtc.c
+index ef2ee0e..aefbf7f 100644
+--- a/arch/x86/kernel/rtc.c
++++ b/arch/x86/kernel/rtc.c
+@@ -38,8 +38,9 @@ EXPORT_SYMBOL(rtc_lock);
+  * jump to the next second precisely 500 ms later. Check the Motorola
+  * MC146818A or Dallas DS12887 data sheet for details.
+  */
+-int mach_set_rtc_mmss(unsigned long nowtime)
++int mach_set_rtc_mmss(const struct timespec *now)
+ {
++	unsigned long nowtime = now->tv_sec;
+ 	struct rtc_time tm;
+ 	int retval = 0;
+ 
+@@ -58,7 +59,7 @@ int mach_set_rtc_mmss(unsigned long nowtime)
+ 	return retval;
+ }
+ 
+-unsigned long mach_get_cmos_time(void)
++void mach_get_cmos_time(struct timespec *now)
+ {
+ 	unsigned int status, year, mon, day, hour, min, sec, century = 0;
+ 	unsigned long flags;
+@@ -108,7 +109,8 @@ unsigned long mach_get_cmos_time(void)
+ 	} else
+ 		year += CMOS_YEARS_OFFS;
+ 
+-	return mktime(year, mon, day, hour, min, sec);
++	now->tv_sec = mktime(year, mon, day, hour, min, sec);
++	now->tv_nsec = 0;
+ }
+ 
+ /* Routines for accessing the CMOS RAM/RTC. */
+@@ -136,18 +138,13 @@ EXPORT_SYMBOL(rtc_cmos_write);
+ 
+ int update_persistent_clock(struct timespec now)
+ {
+-	return x86_platform.set_wallclock(now.tv_sec);
++	return x86_platform.set_wallclock(&now);
+ }
+ 
+ /* not static: needed by APM */
+ void read_persistent_clock(struct timespec *ts)
+ {
+-	unsigned long retval;
+-
+-	retval = x86_platform.get_wallclock();
+-
+-	ts->tv_sec = retval;
+-	ts->tv_nsec = 0;
++	x86_platform.get_wallclock(ts);
+ }
+ 
+ unsigned long long native_read_tsc(void)
+diff --git a/arch/x86/lguest/boot.c b/arch/x86/lguest/boot.c
+index 642d880..8cfd3db 100644
+--- a/arch/x86/lguest/boot.c
++++ b/arch/x86/lguest/boot.c
+@@ -881,9 +881,9 @@ int lguest_setup_irq(unsigned int irq)
+  * It would be far better for everyone if the Guest had its own clock, but
+  * until then the Host gives us the time on every interrupt.
+  */
+-static unsigned long lguest_get_wallclock(void)
++static void lguest_get_wallclock(struct timespec *now)
+ {
+-	return lguest_data.time.tv_sec;
++	*now = lguest_data.time;
+ }
+ 
+ /*
+diff --git a/arch/x86/platform/efi/efi.c b/arch/x86/platform/efi/efi.c
+index e96607f..6a9dcb2 100644
+--- a/arch/x86/platform/efi/efi.c
++++ b/arch/x86/platform/efi/efi.c
+@@ -254,8 +254,9 @@ static efi_status_t __init phys_efi_get_time(efi_time_t *tm,
+ 	return status;
+ }
+ 
+-int efi_set_rtc_mmss(unsigned long nowtime)
++int efi_set_rtc_mmss(const struct timespec *now)
+ {
++	unsigned long   nowtime = now->tv_sec;
+ 	efi_status_t 	status;
+ 	efi_time_t 	eft;
+ 	efi_time_cap_t 	cap;
+@@ -290,7 +291,7 @@ int efi_set_rtc_mmss(unsigned long nowtime)
+ 	return 0;
+ }
+ 
+-unsigned long efi_get_time(void)
++void efi_get_time(struct timespec *now)
+ {
+ 	efi_status_t status;
+ 	efi_time_t eft;
+@@ -300,8 +301,9 @@ unsigned long efi_get_time(void)
+ 	if (status != EFI_SUCCESS)
+ 		pr_err("Oops: efitime: can't read time!\n");
+ 
+-	return mktime(eft.year, eft.month, eft.day, eft.hour,
+-		      eft.minute, eft.second);
++	now->tv_sec = mktime(eft.year, eft.month, eft.day, eft.hour,
++			     eft.minute, eft.second);
++	now->tv_nsec = 0;
+ }
+ 
+ /*
+diff --git a/arch/x86/xen/time.c b/arch/x86/xen/time.c
+index 0296a95..bb9c314 100644
+--- a/arch/x86/xen/time.c
++++ b/arch/x86/xen/time.c
+@@ -191,32 +191,25 @@ static void xen_read_wallclock(struct timespec *ts)
+ 	put_cpu_var(xen_vcpu);
+ }
+ 
+-static unsigned long xen_get_wallclock(void)
++static void xen_get_wallclock(struct timespec *now)
+ {
+-	struct timespec ts;
+-
+-	xen_read_wallclock(&ts);
+-	return ts.tv_sec;
++	xen_read_wallclock(now);
+ }
+ 
+-static int xen_set_wallclock(unsigned long now)
++static int xen_set_wallclock(const struct timespec *now)
+ {
+ 	struct xen_platform_op op;
+-	int rc;
+ 
+ 	/* do nothing for domU */
+ 	if (!xen_initial_domain())
+ 		return -1;
+ 
+ 	op.cmd = XENPF_settime;
+-	op.u.settime.secs = now;
+-	op.u.settime.nsecs = 0;
++	op.u.settime.secs = now->tv_sec;
++	op.u.settime.nsecs = now->tv_nsec;
+ 	op.u.settime.system_time = xen_clocksource_read();
+ 
+-	rc = HYPERVISOR_dom0_op(&op);
+-	WARN(rc != 0, "XENPF_settime failed: now=%ld\n", now);
+-
+-	return rc;
++	return HYPERVISOR_dom0_op(&op);
+ }
+ 
+ static struct clocksource xen_clocksource __read_mostly = {
+diff --git a/include/linux/efi.h b/include/linux/efi.h
+index 5782114..4f2c6f2 100644
+--- a/include/linux/efi.h
++++ b/include/linux/efi.h
+@@ -508,8 +508,8 @@ extern u64 efi_mem_attribute (unsigned long phys_addr, unsigned long size);
+ extern int __init efi_uart_console_only (void);
+ extern void efi_initialize_iomem_resources(struct resource *code_resource,
+ 		struct resource *data_resource, struct resource *bss_resource);
+-extern unsigned long efi_get_time(void);
+-extern int efi_set_rtc_mmss(unsigned long nowtime);
++extern void efi_get_time(struct timespec *now);
++extern int efi_set_rtc_mmss(const struct timespec *now);
+ extern void efi_reserve_boot_services(void);
+ extern struct efi_memory_map memmap;
+ 
