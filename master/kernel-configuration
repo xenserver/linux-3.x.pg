@@ -20,13 +20,13 @@ index c265593..3d03280 100644
  
 diff --git a/buildconfigs/linux-defconfig_xen_x86_32 b/buildconfigs/linux-defconfig_xen_x86_32
 new file mode 100644
-index 0000000..e26a574
+index 0000000..684c77c
 --- /dev/null
 +++ b/buildconfigs/linux-defconfig_xen_x86_32
-@@ -0,0 +1,4063 @@
+@@ -0,0 +1,4062 @@
 +#
 +# Automatically generated file; DO NOT EDIT.
-+# Linux/i386 3.6.0 Kernel Configuration
++# Linux/i386 3.6.11-0 Kernel Configuration
 +#
 +# CONFIG_64BIT is not set
 +CONFIG_X86_32=y
@@ -770,7 +770,7 @@ index 0000000..e26a574
 +CONFIG_INET_LRO=y
 +CONFIG_INET_DIAG=y
 +CONFIG_INET_TCP_DIAG=y
-+CONFIG_INET_UDP_DIAG=y
++CONFIG_INET_UDP_DIAG=m
 +CONFIG_TCP_CONG_ADVANCED=y
 +CONFIG_TCP_CONG_BIC=m
 +CONFIG_TCP_CONG_CUBIC=y
@@ -788,7 +788,7 @@ index 0000000..e26a574
 +# CONFIG_DEFAULT_RENO is not set
 +CONFIG_DEFAULT_TCP_CONG="cubic"
 +CONFIG_TCP_MD5SIG=y
-+CONFIG_IPV6=y
++CONFIG_IPV6=m
 +CONFIG_IPV6_PRIVACY=y
 +# CONFIG_IPV6_ROUTER_PREF is not set
 +# CONFIG_IPV6_OPTIMISTIC_DAD is not set
@@ -2995,7 +2995,6 @@ index 0000000..e26a574
 +CONFIG_USB_STORAGE_KARMA=m
 +CONFIG_USB_STORAGE_CYPRESS_ATACB=m
 +# CONFIG_USB_STORAGE_ENE_UB6250 is not set
-+CONFIG_USB_UAS=m
 +# CONFIG_USB_LIBUSUAL is not set
 +
 +#
