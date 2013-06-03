@@ -85,6 +85,7 @@ drivers-misc-uklog.patch
 #
 # Debugging/hacks
 #
+ca-100040-wake-all-vcpus.patch
 
 #
 # Kernel Configuration.
