@@ -64,6 +64,7 @@ blktap-install-linux-blktap.h.patch
 0001-x86-increase-precision-of-x86_platform.get-set_wallc.patch
 0002-timekeeping-sync-persistent-clock-and-RTC-on-system-.patch
 0003-x86-xen-sync-the-CMOS-RTC-as-well-as-the-Xen-wallclo.patch
+0001-x86-xen-do-not-identity-map-UNUSABLE-regions-in-the-.patch
 
 # Netback
 0007-xen-netfront-remove-unused-variable-extra.patch
