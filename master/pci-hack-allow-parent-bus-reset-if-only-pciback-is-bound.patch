@@ -1,0 +1,33 @@
+diff --git a/drivers/pci/pci.c b/drivers/pci/pci.c
+index a0f8e8f..e9e5a6e 100644
+--- a/drivers/pci/pci.c
++++ b/drivers/pci/pci.c
+@@ -3338,9 +3338,11 @@ static int pci_parent_bus_reset(struct pci_dev *dev, int probe)
+ 	if (pci_is_root_bus(dev->bus) || dev->subordinate || !dev->bus->self)
+ 		return -ENOTTY;
+ 
+-	list_for_each_entry(pdev, &dev->bus->devices, bus_list)
+-		if (pdev != dev)
++	list_for_each_entry(pdev, &dev->bus->devices, bus_list) {
++		if (pdev != dev && pdev->driver
++		    && strcmp(pdev->driver->name, "pciback") != 0)
+ 			return -ENOTTY;
++	}
+ 
+ 	if (probe)
+ 		return 0;
+diff --git a/drivers/xen/xen-pciback/pci_stub.c b/drivers/xen/xen-pciback/pci_stub.c
+index 77c9f76..7cecc0d 100644
+--- a/drivers/xen/xen-pciback/pci_stub.c
++++ b/drivers/xen/xen-pciback/pci_stub.c
+@@ -361,7 +361,9 @@ static int __devinit pcistub_init_device(struct pci_dev *dev)
+ 		dev_err(&dev->dev, "Could not store PCI conf saved state!\n");
+ 	else {
+ 		dev_dbg(&dev->dev, "reseting (FLR, D3, etc) the device\n");
+-		__pci_reset_function_locked(dev);
++		err = __pci_reset_function_locked(dev);
++		if (err < 0)
++			dev_warn(&dev->dev, "function reset failed (%d)\n", err);
+ 		pci_restore_state(dev);
+ 	}
+ 	/* Now disable the device (this also ensures some private device

@@ -83,6 +83,7 @@ xen-blkback-change-statistics-counter-types-to-unsigned.patch
 # Local patches.
 #
 drivers-misc-uklog.patch
+pci-hack-allow-parent-bus-reset-if-only-pciback-is-bound.patch
 
 
 #
