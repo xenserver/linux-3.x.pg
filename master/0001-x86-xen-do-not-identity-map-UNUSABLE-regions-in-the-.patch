@@ -1,4 +1,4 @@
-From b9ef435dbe6c959247772ff01e800dff6ffe4f76 Mon Sep 17 00:00:00 2001
+From 53eb1436ec02cd4e2de256dfd199a3bf8b2c3182 Mon Sep 17 00:00:00 2001
 From: David Vrabel <david.vrabel@citrix.com>
 Date: Mon, 8 Jul 2013 19:02:35 +0100
 Subject: [PATCH] x86/xen: do not identity map UNUSABLE regions in the machine E820
@@ -20,7 +20,7 @@ Signed-off-by: David Vrabel <david.vrabel@citrix.com>
  1 files changed, 91 insertions(+), 23 deletions(-)
 
 diff --git a/arch/x86/xen/setup.c b/arch/x86/xen/setup.c
-index 94eac5c..de77059 100644
+index 94eac5c..3fdb6bd 100644
 --- a/arch/x86/xen/setup.c
 +++ b/arch/x86/xen/setup.c
 @@ -55,6 +55,91 @@ unsigned long xen_released_pages;
@@ -58,7 +58,7 @@ index 94eac5c..de77059 100644
 +	memmap.nr_entries = *nr_entries;
 +	set_xen_guest_handle(memmap.buffer, map);
 +
-+	ret = HYPERVISOR_memory_op(XENMEM_memory_map, &memmap);
++	ret = HYPERVISOR_memory_op(XENMEM_machine_memory_map, &memmap);
 +	if (ret < 0)
 +		return ret;
 +
