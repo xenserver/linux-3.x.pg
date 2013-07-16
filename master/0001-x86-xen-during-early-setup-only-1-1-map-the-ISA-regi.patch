@@ -32,15 +32,11 @@ tboot marked this region as unusable.
 (XEN)  0000000100000000 - 0000000630000000 (usable)
 
 Signed-off-by: David Vrabel <david.vrabel@citrix.com>
----
- arch/x86/xen/setup.c |   17 ++++++++++++-----
- 1 files changed, 12 insertions(+), 5 deletions(-)
-
 diff --git a/arch/x86/xen/setup.c b/arch/x86/xen/setup.c
-index 94eac5c..7db9345 100644
+index e2d62d6..95716d5 100644
 --- a/arch/x86/xen/setup.c
 +++ b/arch/x86/xen/setup.c
-@@ -215,13 +215,20 @@ static void __init xen_set_identity_and_release_chunk(
+@@ -215,13 +215,19 @@ static void __init xen_set_identity_and_release_chunk(
  	unsigned long pfn;
  
  	/*
@@ -54,8 +50,7 @@ index 94eac5c..7db9345 100644
 +	for (pfn = start_pfn; pfn <= max_pfn_mapped && pfn < end_pfn; pfn++) {
 +		pte_t pte = __pte_ma(0);
 +
-+		if (pfn >= PFN_DOWN(ISA_START_ADDRESS)
-+		    && pfn < PFN_UP(ISA_END_ADDRESS))
++		if (pfn < PFN_UP(ISA_END_ADDRESS))
 +			pte = mfn_pte(pfn, PAGE_KERNEL_IO);
 +
  		(void)HYPERVISOR_update_va_mapping(
@@ -66,6 +61,3 @@ index 94eac5c..7db9345 100644
  
  	if (start_pfn < nr_pages)
  		*released += xen_release_chunk(
--- 
-1.7.2.5
-
