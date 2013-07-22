@@ -1,0 +1,31 @@
+From 257cc5592218b5440c2c663e129b36482e1dbb82 Mon Sep 17 00:00:00 2001
+From: David Vrabel <david.vrabel@citrix.com>
+Date: Tue, 16 Jul 2013 11:45:48 +0100
+Subject: [PATCH 2/3] xen/p2m: avoid unneccesary TLB flush in m2p_remove_override()
+
+In m2p_remove_override() when removing the grant map from the kernel
+mapping and replacing with a mapping to the original page, the grant
+unmap will already have flushed the TLB and it is not necessary to do
+it again after updating the mapping.
+
+Signed-off-by: David Vrabel <david.vrabel@citrix.com>
+Cc: Stefano Stabellini <stefano.stabellini@eu.citrix.com>
+---
+ arch/x86/xen/p2m.c |    1 -
+ 1 files changed, 0 insertions(+), 1 deletions(-)
+
+diff --git a/arch/x86/xen/p2m.c b/arch/x86/xen/p2m.c
+index 95fb2aa..74672ee 100644
+--- a/arch/x86/xen/p2m.c
++++ b/arch/x86/xen/p2m.c
+@@ -1003,7 +1003,6 @@ int m2p_remove_override(struct page *page,
+ 
+ 			set_pte_at(&init_mm, address, ptep,
+ 					pfn_pte(pfn, PAGE_KERNEL));
+-			__flush_tlb_single(address);
+ 			kmap_op->host_addr = 0;
+ 		}
+ 	}
+-- 
+1.7.2.5
+
