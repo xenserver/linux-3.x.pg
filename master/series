@@ -93,6 +93,7 @@ pci-hack-allow-parent-bus-reset-if-only-pciback-is-bound.patch
 # Debugging/hacks
 #
 ca-100040-wake-all-vcpus.patch
+0001-xen-add-xen_trace-for-adding-trace-records-to-the-Xe.patch
 
 #
 # Kernel Configuration.
