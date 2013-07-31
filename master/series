@@ -38,19 +38,8 @@ avoid_svn_execution.patch
 #
 # Blktap
 #
-0001-blktap-Blktap-userspace-devices.patch
-0002-blktap-Fix-reference-to-freed-struct-request.patch
-0003-blktap-Support-non-R-W-requests.patch
-0004-blktap-Drop-the-ring-message-timestamp.patch
-0005-blktap-Add-physical-sector-device-info.patch
-0006-blktap-Add-BLKTAP_OP_FLUSH-command-option.patch
-0007-blktap-Add-BLKTAP_OP_TRIM-command-option.patch
-0008-blktap-Add-discard-queue-limits.patch
-0009-blktap-Forward-port-to-2.6.36.patch
-0010-blktap-Forward-port-to-2.6.37.patch
-0011-blktap-Drop-some-debug-output-on-2.6.39.patch
-blktap-include-linux-export.h.patch
-blktap-install-linux-blktap.h.patch
+blktap2-import-from-trunk.patch
+blktap2-fixups.patch
 
 #
 # x86

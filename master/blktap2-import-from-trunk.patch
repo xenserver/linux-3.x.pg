@@ -1,77 +1,23 @@
-From 7ccd87f78d54c5f3e3d21931dbbeebba664e1aec Mon Sep 17 00:00:00 2001
-From: Daniel Stodden <daniel.stodden@citrix.com>
-Date: Mon, 14 Mar 2011 22:16:31 -0700
-Subject: [PATCH 01/11] blktap: Blktap userspace devices.
-
-config BLK_DEV_TAP
-	The block tap driver allows block device requests to be
-	redirected to processes, through a device interface.
-	Doing so allows user-space development of high-performance
-	block storage backends, where disk images may be implemented
-	as files, in memory, or on other hosts across the network.
-
-Signed-off-by: Daniel Stodden <daniel.stodden@citrix.com>
----
- drivers/block/Kconfig          |    9 +
- drivers/block/Makefile         |    1 +
- drivers/block/blktap/Makefile  |    3 +
- drivers/block/blktap/blktap.h  |  161 +++++++++++
- drivers/block/blktap/control.c |  316 +++++++++++++++++++++
- drivers/block/blktap/device.c  |  551 +++++++++++++++++++++++++++++++++++++
- drivers/block/blktap/request.c |  419 ++++++++++++++++++++++++++++
- drivers/block/blktap/ring.c    |  595 ++++++++++++++++++++++++++++++++++++++++
- drivers/block/blktap/sysfs.c   |  288 +++++++++++++++++++
- include/linux/blktap.h         |   98 +++++++
- mm/memory.c                    |    1 +
- 11 files changed, 2442 insertions(+), 0 deletions(-)
- create mode 100644 drivers/block/blktap/Makefile
- create mode 100644 drivers/block/blktap/blktap.h
- create mode 100644 drivers/block/blktap/control.c
- create mode 100644 drivers/block/blktap/device.c
- create mode 100644 drivers/block/blktap/request.c
- create mode 100644 drivers/block/blktap/ring.c
- create mode 100644 drivers/block/blktap/sysfs.c
- create mode 100644 include/linux/blktap.h
-
-diff -r af9e0ca95ee2 drivers/block/Kconfig
---- a/drivers/block/Kconfig	Wed Feb 15 16:58:44 2012 +0000
-+++ b/drivers/block/Kconfig	Wed Feb 15 16:59:37 2012 +0000
-@@ -555,4 +555,13 @@ config BLK_DEV_RBD
- 
- 	  If unsure, say N.
- 
-+config BLK_DEV_TAP
-+       tristate "Blktap userspace devices"
-+       help
-+         The block tap driver allows block device requests to be
-+         redirected to processes, through a device interface.
-+         Doing so allows user-space development of high-performance
-+         block storage backends, where disk images may be implemented
-+         as files, in memory, or on other hosts across the network.
+diff --git a/drivers/block/blktap2/Makefile b/drivers/block/blktap2/Makefile
+new file mode 100644
+index 0000000..80a5be9
+--- /dev/null
++++ b/drivers/block/blktap2/Makefile
+@@ -0,0 +1,8 @@
++obj-$(CONFIG_XEN_BLKDEV_TAP) := blktap.o
 +
- endif # BLK_DEV
-diff -r af9e0ca95ee2 drivers/block/Makefile
---- a/drivers/block/Makefile	Wed Feb 15 16:58:44 2012 +0000
-+++ b/drivers/block/Makefile	Wed Feb 15 16:59:37 2012 +0000
-@@ -30,6 +30,7 @@ obj-$(CONFIG_BLK_DEV_UMEM)	+= umem.o
- obj-$(CONFIG_BLK_DEV_NBD)	+= nbd.o
- obj-$(CONFIG_BLK_DEV_CRYPTOLOOP) += cryptoloop.o
- obj-$(CONFIG_VIRTIO_BLK)	+= virtio_blk.o
-+obj-$(CONFIG_BLK_DEV_TAP)	+= blktap/
- 
- obj-$(CONFIG_VIODASD)		+= viodasd.o
- obj-$(CONFIG_BLK_DEV_SX8)	+= sx8.o
-diff -r af9e0ca95ee2 drivers/block/blktap/Makefile
---- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/drivers/block/blktap/Makefile	Wed Feb 15 16:59:37 2012 +0000
-@@ -0,0 +1,3 @@
-+obj-$(CONFIG_BLK_DEV_TAP) := blktap.o
-+
-+blktap-objs := control.o ring.o device.o request.o sysfs.o
-diff -r af9e0ca95ee2 drivers/block/blktap/blktap.h
---- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/drivers/block/blktap/blktap.h	Wed Feb 15 16:59:37 2012 +0000
-@@ -0,0 +1,161 @@
++blktap-objs := control.o
++blktap-objs += ring.o
++blktap-objs += device.o
++blktap-objs += request.o
++blktap-objs += sysfs.o
++blktap-objs += ioctx.o
+diff --git a/drivers/block/blktap2/blktap.h b/drivers/block/blktap2/blktap.h
+new file mode 100644
+index 0000000..bb8d2d2
+--- /dev/null
++++ b/drivers/block/blktap2/blktap.h
+@@ -0,0 +1,173 @@
 +#ifndef _BLKTAP_H_
 +#define _BLKTAP_H_
 +
@@ -107,6 +53,8 @@ diff -r af9e0ca95ee2 drivers/block/blktap/blktap.h
 +#define BLKTAP_REQUEST_FREE          0
 +#define BLKTAP_REQUEST_PENDING       1
 +
++#define BLKTAP_BIO_POOL_SIZE         2
++
 +struct blktap_device {
 +	spinlock_t                     lock;
 +	struct gendisk                *gd;
@@ -118,7 +66,7 @@ diff -r af9e0ca95ee2 drivers/block/blktap/blktap.h
 +	struct task_struct            *task;
 +
 +	struct vm_area_struct         *vma;
-+	struct blktap_front_ring       ring;
++	blktap_front_ring_t            ring;
 +	unsigned long                  ring_vstart;
 +	unsigned long                  user_vstart;
 +
@@ -171,6 +119,12 @@ diff -r af9e0ca95ee2 drivers/block/blktap/blktap.h
 +	struct blktap_ring             ring;
 +	struct blktap_device           device;
 +	struct blktap_page_pool       *pool;
++	struct io_context             *ioc;
++
++	/* device_mutex protects the block device create/destroy. */
++	struct mutex                   device_mutex;
++
++	struct list_head               node;
 +
 +	wait_queue_head_t              remove_wait;
 +	struct work_struct             remove_work;
@@ -183,7 +137,7 @@ diff -r af9e0ca95ee2 drivers/block/blktap/blktap.h
 +	struct mempool_s              *bufs;
 +	spinlock_t                     lock;
 +	struct kobject                 kobj;
-+	wait_queue_head_t              wait;
++	struct list_head               waiters;
 +};
 +
 +extern struct mutex blktap_lock;
@@ -220,6 +174,7 @@ diff -r af9e0ca95ee2 drivers/block/blktap/blktap.h
 +void blktap_device_destroy_sync(struct blktap *);
 +void blktap_device_run_queue(struct blktap *);
 +void blktap_device_end_request(struct blktap *, struct blktap_request *, int);
++void blktap_device_start_queue(struct blktap *tap);
 +
 +int blktap_page_pool_init(struct kobject *);
 +void blktap_page_pool_exit(void);
@@ -230,27 +185,31 @@ diff -r af9e0ca95ee2 drivers/block/blktap/blktap.h
 +int blktap_request_get_pages(struct blktap *, struct blktap_request *, int);
 +void blktap_request_free(struct blktap *, struct blktap_request *);
 +void blktap_request_bounce(struct blktap *, struct blktap_request *, int, int);
++void __page_pool_wake(struct blktap_page_pool *pool);
 +
++int blktap_ioctx_attach(struct blktap *, int);
++void blktap_ioctx_detach(struct blktap *);
 +
 +#endif
-diff -r af9e0ca95ee2 drivers/block/blktap/control.c
---- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/drivers/block/blktap/control.c	Wed Feb 15 16:59:37 2012 +0000
-@@ -0,0 +1,316 @@
+diff --git a/drivers/block/blktap2/control.c b/drivers/block/blktap2/control.c
+new file mode 100644
+index 0000000..fa7042b
+--- /dev/null
++++ b/drivers/block/blktap2/control.c
+@@ -0,0 +1,321 @@
 +#include <linux/module.h>
 +#include <linux/sched.h>
 +#include <linux/miscdevice.h>
 +#include <linux/device.h>
-+#include <linux/slab.h>
 +#include <asm/uaccess.h>
 +
 +#include "blktap.h"
 +
 +DEFINE_MUTEX(blktap_lock);
 +
-+struct blktap **blktaps;
++struct blktap **blktaps = NULL;
 +int blktap_max_minor;
-+static struct blktap_page_pool *default_pool;
++static struct blktap_page_pool *default_pool = NULL;
 +
 +static struct blktap *
 +blktap_control_get_minor(void)
@@ -261,6 +220,9 @@ diff -r af9e0ca95ee2 drivers/block/blktap/control.c
 +	tap = kzalloc(sizeof(*tap), GFP_KERNEL);
 +	if (unlikely(!tap))
 +		return NULL;
++
++	mutex_init(&tap->device_mutex);
++	INIT_LIST_HEAD(&tap->node);
 +
 +	mutex_lock(&blktap_lock);
 +
@@ -291,15 +253,14 @@ diff -r af9e0ca95ee2 drivers/block/blktap/control.c
 +	blktaps[minor] = tap;
 +
 +	__module_get(THIS_MODULE);
-+out:
++
 +	mutex_unlock(&blktap_lock);
 +	return tap;
 +
 +fail:
 +	mutex_unlock(&blktap_lock);
 +	kfree(tap);
-+	tap = NULL;
-+	goto out;
++	return NULL;
 +}
 +
 +static void
@@ -337,6 +298,7 @@ diff -r af9e0ca95ee2 drivers/block/blktap/control.c
 +fail_ring:
 +	blktap_ring_destroy(tap);
 +fail_tap:
++	kobject_put(&default_pool->kobj);
 +	blktap_control_put_minor(tap);
 +
 +	return NULL;
@@ -415,14 +377,14 @@ diff -r af9e0ca95ee2 drivers/block/blktap/control.c
 +	.fops     = &blktap_control_file_operations,
 +};
 +
-+static struct device *control_device;
++static struct device *control_device = NULL;
 +
 +static ssize_t
 +blktap_control_show_default_pool(struct device *device,
 +				 struct device_attribute *attr,
 +				 char *buf)
 +{
-+	return sprintf(buf, "%s", kobject_name(&default_pool->kobj));
++	return sprintf(buf, "%s\n", kobject_name(&default_pool->kobj));
 +}
 +
 +static ssize_t
@@ -482,8 +444,11 @@ diff -r af9e0ca95ee2 drivers/block/blktap/control.c
 +		return err;
 +
 +	default_pool = blktap_page_pool_get("default");
-+	if (!default_pool)
-+		return -ENOMEM;
++	if (IS_ERR(default_pool)) {
++		err = PTR_ERR(default_pool);
++		default_pool = NULL;
++		return err;
++	}
 +
 +	err = device_create_file(control_device, &dev_attr_default_pool);
 +	if (err)
@@ -553,15 +518,16 @@ diff -r af9e0ca95ee2 drivers/block/blktap/control.c
 +module_init(blktap_init);
 +module_exit(blktap_exit);
 +MODULE_LICENSE("Dual BSD/GPL");
-diff -r af9e0ca95ee2 drivers/block/blktap/device.c
---- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/drivers/block/blktap/device.c	Wed Feb 15 16:59:37 2012 +0000
-@@ -0,0 +1,551 @@
+diff --git a/drivers/block/blktap2/device.c b/drivers/block/blktap2/device.c
+new file mode 100644
+index 0000000..e88f729
+--- /dev/null
++++ b/drivers/block/blktap2/device.c
+@@ -0,0 +1,658 @@
 +#include <linux/fs.h>
 +#include <linux/blkdev.h>
 +#include <linux/cdrom.h>
 +#include <linux/hdreg.h>
-+#include <linux/log2.h>
 +#include <scsi/scsi.h>
 +#include <scsi/scsi_ioctl.h>
 +
@@ -570,6 +536,52 @@ diff -r af9e0ca95ee2 drivers/block/blktap/device.c
 +int blktap_device_major;
 +
 +#define dev_to_blktap(_dev) container_of(_dev, struct blktap, device)
++
++/* Call with tap->device.lock held. */
++static bool blktap_device_stop_queue(struct blktap *tap)
++{
++	struct blktap_page_pool *pool = tap->pool;
++
++	spin_lock(&pool->lock);
++
++	/*
++	 * If the ring isn't full and there are pages available, don't
++	 * stop as the queue may never get restarted.
++	 */
++	if (!RING_FULL(&tap->ring.ring)
++	    && pool->bufs->curr_nr >= BLKTAP_SEGMENT_MAX) {
++		spin_unlock(&pool->lock);
++		return false;
++	}
++
++
++	/*
++	 * If this tap is already in the list of waiters, the queue is
++	 * already stopped.  This can happen if userspace is woken
++	 * early by a signal.
++	 */
++	if (list_empty(&tap->node)) {
++		list_add_tail(&tap->node, &pool->waiters);
++		blk_stop_queue(tap->device.gd->queue);
++	}
++
++	spin_unlock(&pool->lock);
++
++	return true;
++}
++
++/* Call with tap->device.lock held. */
++void blktap_device_start_queue(struct blktap *tap)
++{
++	struct blktap_page_pool *pool = tap->pool;
++
++	spin_lock(&pool->lock);
++
++	list_del_init(&tap->node);
++	blk_start_queue(tap->device.gd->queue);
++
++	spin_unlock(&pool->lock);
++}
 +
 +static int
 +blktap_device_open(struct block_device *bdev, fmode_t mode)
@@ -695,9 +707,11 @@ diff -r af9e0ca95ee2 drivers/block/blktap/device.c
 +static inline void
 +blktap_end_rq(struct request *rq, int err)
 +{
-+	spin_lock_irq(rq->q->queue_lock);
++	struct request_queue *q = rq->q;
++
++	spin_lock_irq(q->queue_lock);
 +	__blktap_end_rq(rq, err);
-+	spin_unlock_irq(rq->q->queue_lock);
++	spin_unlock_irq(q->queue_lock);
 +}
 +
 +void
@@ -812,8 +826,9 @@ diff -r af9e0ca95ee2 drivers/block/blktap/device.c
 +		spin_lock_irq(&tapdev->lock);
 +
 +		if (err == -EBUSY) {
-+			blk_stop_queue(q);
-+			break;
++			if (blktap_device_stop_queue(tap))
++				break;
++			continue;
 +		}
 +
 +		__blktap_dequeue_rq(rq);
@@ -843,10 +858,11 @@ diff -r af9e0ca95ee2 drivers/block/blktap/device.c
 +	struct request_queue *rq = gd->queue;
 +
 +	set_capacity(gd, info->capacity);
-+	set_disk_ro(gd, !!(info->flags & BLKTAP_DEVICE_FLAG_RO));
++	set_disk_ro(gd, !!(info->flags & BLKTAP_DEVICE_RO));
 +
 +	/* Hard sector size and max sectors impersonate the equiv. hardware. */
 +	blk_queue_logical_block_size(rq, info->sector_size);
++	blk_queue_physical_block_size(rq, info->physical_sector_size);
 +	blk_queue_max_sectors(rq, 512);
 +
 +	/* Each segment in a request is up to an aligned page in size. */
@@ -869,27 +885,34 @@ diff -r af9e0ca95ee2 drivers/block/blktap/device.c
 +			    struct blktap_device_info *info)
 +{
 +	struct device *dev = tap->ring.dev;
++	int sector_order;
 +
-+	/* sector size is is 2^(n >= 9) */
-+	if (info->sector_size < 512 ||
-+	    !is_power_of_2(info->sector_size))
++	sector_order = ffs(info->sector_size) - 1;
++	if (sector_order <  9 ||
++	    sector_order > 12 ||
++	    info->sector_size != 1U<<sector_order)
 +		goto fail;
 +
-+	/* make sure capacity won't overflow */
 +	if (!info->capacity ||
-+	    info->capacity > ULLONG_MAX >> ilog2(info->sector_size))
++	    (info->capacity > ULLONG_MAX >> sector_order))
++		goto fail;
++
++	sector_order = ffs(info->physical_sector_size) - 1;
++	if (sector_order <  9 ||
++	    info->physical_sector_size != 1U<<sector_order)
 +		goto fail;
 +
 +	return 0;
 +
 +fail:
-+	dev_err(dev, "capacity: %llu, sector-size: %u\n",
-+		info->capacity, info->sector_size);
++	dev_err(dev, "capacity: %llu, sector-size: %u/%u\n",
++		info->capacity,
++		info->sector_size, info->physical_sector_size);
 +	return -EINVAL;
 +}
 +
 +int
-+blktap_device_destroy(struct blktap *tap)
++__blktap_device_destroy(struct blktap *tap)
 +{
 +	struct blktap_device *tapdev = &tap->device;
 +	struct block_device *bdev;
@@ -915,10 +938,26 @@ diff -r af9e0ca95ee2 drivers/block/blktap/device.c
 +		goto out;
 +	}
 +
++	/*
++	 * This tap's queue may be been stopped. Remove ourselves from
++	 * the list of pool waiters.
++	 */
++	spin_lock(&tap->pool->lock);
++	list_del_init(&tap->node);
++	spin_unlock(&tap->pool->lock);
++
++	/*
++	 * Another tapdisk might have tried to wake us during teardown
++	 * so try and wake another tapdisk.
++	 */
++	__page_pool_wake(tap->pool);
++
 +	del_gendisk(gd);
 +	gd->private_data = NULL;
 +
 +	blk_cleanup_queue(gd->queue);
++
++	blktap_ioctx_detach(tap);
 +
 +	put_disk(gd);
 +	tapdev->gd = NULL;
@@ -931,6 +970,18 @@ diff -r af9e0ca95ee2 drivers/block/blktap/device.c
 +	bdput(bdev);
 +
 +	return err;
++}
++
++int
++blktap_device_destroy(struct blktap *tap)
++{
++	int ret;
++
++	mutex_lock(&tap->device_mutex);
++	ret = __blktap_device_destroy(tap);
++	mutex_unlock(&tap->device_mutex);
++
++	return ret;
 +}
 +
 +static void
@@ -958,9 +1009,13 @@ diff -r af9e0ca95ee2 drivers/block/blktap/device.c
 +{
 +	int err;
 +
-+	err = blktap_device_destroy(tap);
++	mutex_lock(&tap->device_mutex);
++
++	err = __blktap_device_destroy(tap);
 +	if (err)
 +		blktap_device_fail_queue(tap);
++
++	mutex_unlock(&tap->device_mutex);
 +
 +	return err;
 +}
@@ -973,7 +1028,7 @@ diff -r af9e0ca95ee2 drivers/block/blktap/device.c
 +}
 +
 +int
-+blktap_device_create(struct blktap *tap, struct blktap_device_info *info)
++__blktap_device_create(struct blktap *tap, struct blktap_device_info *info)
 +{
 +	int minor, err;
 +	struct gendisk *gd;
@@ -1021,6 +1076,11 @@ diff -r af9e0ca95ee2 drivers/block/blktap/device.c
 +		err = -ENOMEM;
 +		goto fail;
 +	}
++
++	err = blktap_ioctx_attach(tap, rq->node);
++	if (err)
++		goto fail;
++
 +	elevator_init(rq, "noop");
 +
 +	gd->queue     = rq;
@@ -1035,11 +1095,13 @@ diff -r af9e0ca95ee2 drivers/block/blktap/device.c
 +	dev_info(disk_to_dev(gd), "sector-size: %u/%u capacity: %llu\n",
 +		 queue_logical_block_size(rq),
 +		 queue_physical_block_size(rq),
-+		 (unsigned long long)get_capacity(gd));
++		 get_capacity(gd));
 +
 +	return 0;
 +
 +fail:
++	blktap_ioctx_detach(tap);
++
 +	if (gd)
 +		del_gendisk(gd);
 +	if (rq)
@@ -1047,6 +1109,19 @@ diff -r af9e0ca95ee2 drivers/block/blktap/device.c
 +
 +	return err;
 +}
++
++int
++blktap_device_create(struct blktap *tap, struct blktap_device_info *info)
++{
++	int ret;
++
++	mutex_lock(&tap->device_mutex);
++	ret = __blktap_device_create(tap, info);
++	mutex_unlock(&tap->device_mutex);
++
++	return ret;
++}
++
 +
 +size_t
 +blktap_device_debug(struct blktap *tap, char *buf, size_t size)
@@ -1063,8 +1138,7 @@ diff -r af9e0ca95ee2 drivers/block/blktap/device.c
 +
 +	s += snprintf(s, end - s,
 +		      "disk capacity:%llu sector size:%u\n",
-+		      (unsigned long long)get_capacity(disk),
-+		      queue_logical_block_size(q));
++		      get_capacity(disk), queue_logical_block_size(q));
 +
 +	s += snprintf(s, end - s,
 +		      "queue flags:%#lx plugged:%d stopped:%d empty:%d\n",
@@ -1108,16 +1182,95 @@ diff -r af9e0ca95ee2 drivers/block/blktap/device.c
 +	if (blktap_device_major)
 +		unregister_blkdev(blktap_device_major, "tapdev");
 +}
-diff -r af9e0ca95ee2 drivers/block/blktap/request.c
---- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/drivers/block/blktap/request.c	Wed Feb 15 16:59:37 2012 +0000
-@@ -0,0 +1,419 @@
+diff --git a/drivers/block/blktap2/ioctx.c b/drivers/block/blktap2/ioctx.c
+new file mode 100644
+index 0000000..2d829ec
+--- /dev/null
++++ b/drivers/block/blktap2/ioctx.c
+@@ -0,0 +1,72 @@
++/*
++ * Copyright (c) 2010 Citrix Systems, Inc.
++ */
++
++#include <linux/bio.h>
++#include <linux/iocontext.h>
++
++#include "blktap.h"
++
++void
++blktap_ioctx_detach(struct blktap *tap)
++{
++	struct special_io_context *sioc;
++	struct io_context *ioc;
++
++	ioc  = tap->ioc;
++	if (!ioc)
++		return;
++
++	sioc = ioc->special;
++	if (sioc && atomic_dec_and_test(&sioc->refs)) {
++		bioset_free(sioc->bs);
++		kfree(sioc);
++		ioc->special = NULL;
++	}
++
++	put_io_context(ioc);
++	tap->ioc = NULL;
++}
++
++int
++blktap_ioctx_attach(struct blktap *tap, int node)
++{
++	struct special_io_context *sioc;
++	struct io_context *ioc;
++	int err;
++
++	err = -ENOMEM;
++
++	ioc = tap->ioc = get_io_context(GFP_KERNEL, node);
++	if (!ioc)
++		goto fail;
++
++	sioc = ioc->special;
++	if (sioc)
++		goto out;
++
++	sioc = kzalloc_node(sizeof(*sioc), GFP_KERNEL, node);
++	if (!sioc)
++		goto fail;
++
++	ioc->special = sioc;
++
++	/* NB. multi-vbd count. */
++	atomic_set(&sioc->refs, 0);
++
++	/* NB. one warning per task and minute. */
++	sioc->rs.interval = 60 * HZ;
++	sioc->rs.burst    = 1;
++
++	sioc->bs = bioset_create(BLKTAP_BIO_POOL_SIZE, 0);
++	if (!sioc->bs)
++		goto fail;
++
++out:
++	atomic_inc(&sioc->refs);
++	return 0;
++
++fail:
++	blktap_ioctx_detach(tap);
++	return err;
++}
+diff --git a/drivers/block/blktap2/request.c b/drivers/block/blktap2/request.c
+new file mode 100644
+index 0000000..03bbb56
+--- /dev/null
++++ b/drivers/block/blktap2/request.c
+@@ -0,0 +1,450 @@
 +#include <linux/mempool.h>
 +#include <linux/spinlock.h>
 +#include <linux/mutex.h>
 +#include <linux/sched.h>
 +#include <linux/device.h>
-+#include <linux/slab.h>
 +
 +#include "blktap.h"
 +
@@ -1135,18 +1288,21 @@ diff -r af9e0ca95ee2 drivers/block/blktap/request.c
 +/* min request structs per pool. These grow dynamically. */
 +#define POOL_MIN_REQS            BLKTAP_RING_SIZE
 +
-+static struct kset *pool_set;
++static struct kset *pool_set = NULL;
++static DEFINE_MUTEX(pool_set_mutex);
 +
 +#define kobj_to_pool(_kobj) \
 +	container_of(_kobj, struct blktap_page_pool, kobj)
 +
-+static struct kmem_cache *request_cache;
-+static mempool_t *request_pool;
++static struct kmem_cache *request_cache = NULL;
++static mempool_t *request_pool = NULL;
 +
-+static void
++void
 +__page_pool_wake(struct blktap_page_pool *pool)
 +{
-+	mempool_t *mem = pool->bufs;
++	struct blktap *tap = NULL;
++
++	spin_lock(&pool->lock);
 +
 +	/*
 +	  NB. slightly wasteful to always wait for a full segment
@@ -1155,8 +1311,32 @@ diff -r af9e0ca95ee2 drivers/block/blktap/request.c
 +	  alloc/release cycles would otherwise keep everyone spinning.
 +	*/
 +
-+	if (mem->curr_nr >= POOL_MAX_REQUEST_PAGES)
-+		wake_up(&pool->wait);
++	if (pool->bufs->curr_nr >= POOL_MAX_REQUEST_PAGES
++	    && !list_empty(&pool->waiters)) {
++		tap = list_first_entry(&pool->waiters, struct blktap, node);
++		list_del_init(&tap->node);
++	}
++
++	spin_unlock(&pool->lock);
++
++	/*
++	 * We have to drop the pool lock here or
++	 * blktap_device_start_queue() will deadlock.
++	 *
++	 * tap is deleted from the pool waiters list above so a
++	 * another __page_pool_wake() call will wake a different
++	 * process.
++	 *
++	 * blktap_device_stop_queue() may also be called again, so
++	 * blktap_device_start_queue() also deletes the tap from
++	 * pool->waiters.
++	 */
++
++	if (tap) {
++		spin_lock_irq(&tap->device.lock);
++		blktap_device_start_queue(tap);
++		spin_unlock_irq(&tap->device.lock);
++	}
 +}
 +
 +int
@@ -1307,7 +1487,7 @@ diff -r af9e0ca95ee2 drivers/block/blktap/request.c
 +			   char *buf)
 +{
 +	mempool_t *mem = pool->bufs;
-+	return sprintf(buf, "%d", mem->min_nr);
++	return sprintf(buf, "%d\n", mem->min_nr);
 +}
 +
 +static ssize_t
@@ -1339,7 +1519,7 @@ diff -r af9e0ca95ee2 drivers/block/blktap/request.c
 +			   char *buf)
 +{
 +	mempool_t *mem = pool->bufs;
-+	return sprintf(buf, "%d", mem->curr_nr);
++	return sprintf(buf, "%d\n", mem->curr_nr);
 +}
 +
 +static struct pool_attribute blktap_page_pool_attr_free =
@@ -1450,7 +1630,7 @@ diff -r af9e0ca95ee2 drivers/block/blktap/request.c
 +		goto fail;
 +
 +	spin_lock_init(&pool->lock);
-+	init_waitqueue_head(&pool->wait);
++	INIT_LIST_HEAD(&pool->waiters);
 +
 +	pool->bufs = mempool_create(nr_pages,
 +				    __mempool_page_alloc, __mempool_page_free,
@@ -1466,9 +1646,9 @@ diff -r af9e0ca95ee2 drivers/block/blktap/request.c
 +
 +	return &pool->kobj;
 +
-+	kobject_del(&pool->kobj);
 +fail_bufs:
-+	mempool_destroy(pool->bufs);
++	kobject_put(&pool->kobj);
++	return NULL;
 +fail_pool:
 +	kfree(pool);
 +fail:
@@ -1480,10 +1660,15 @@ diff -r af9e0ca95ee2 drivers/block/blktap/request.c
 +{
 +	struct kobject *kobj;
 +
++	mutex_lock(&pool_set_mutex);
++
 +	kobj = __blktap_kset_find_obj(pool_set, name);
 +	if (!kobj)
 +		kobj = blktap_page_pool_create(name,
 +					       POOL_DEFAULT_PAGES);
++
++	mutex_unlock(&pool_set_mutex);
++
 +	if (!kobj)
 +		return ERR_PTR(-ENOMEM);
 +
@@ -1531,10 +1716,12 @@ diff -r af9e0ca95ee2 drivers/block/blktap/request.c
 +		request_cache = NULL;
 +	}
 +}
-diff -r af9e0ca95ee2 drivers/block/blktap/ring.c
---- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/drivers/block/blktap/ring.c	Wed Feb 15 16:59:37 2012 +0000
-@@ -0,0 +1,595 @@
+diff --git a/drivers/block/blktap2/ring.c b/drivers/block/blktap2/ring.c
+new file mode 100644
+index 0000000..5295eaf
+--- /dev/null
++++ b/drivers/block/blktap2/ring.c
+@@ -0,0 +1,587 @@
 +
 +#include <linux/device.h>
 +#include <linux/signal.h>
@@ -1553,13 +1740,9 @@ diff -r af9e0ca95ee2 drivers/block/blktap/ring.c
 +  */
 +#define RING_PAGES 1
 +
-+#define BLKTAP_INFO_SIZE_AT(_memb)			\
-+	offsetof(struct blktap_device_info, _memb) +	\
-+	sizeof(((struct blktap_device_info*)0)->_memb)
-+
 +static void
 +blktap_ring_read_response(struct blktap *tap,
-+			  const struct blktap_ring_response *rsp)
++			  const blktap_ring_rsp_t *rsp)
 +{
 +	struct blktap_ring *ring = &tap->ring;
 +	struct blktap_request *request;
@@ -1608,14 +1791,8 @@ diff -r af9e0ca95ee2 drivers/block/blktap/ring.c
 +blktap_read_ring(struct blktap *tap)
 +{
 +	struct blktap_ring *ring = &tap->ring;
-+	struct blktap_ring_response rsp;
++	blktap_ring_rsp_t rsp;
 +	RING_IDX rc, rp;
-+
-+	down_read(&current->mm->mmap_sem);
-+	if (!ring->vma) {
-+		up_read(&current->mm->mmap_sem);
-+		return;
-+	}
 +
 +	/* for each outstanding message on the ring  */
 +	rp = ring->ring.sring->rsp_prod;
@@ -1627,8 +1804,6 @@ diff -r af9e0ca95ee2 drivers/block/blktap/ring.c
 +	}
 +
 +	ring->ring.rsp_cons = rc;
-+
-+	up_read(&current->mm->mmap_sem);
 +}
 +
 +#define MMAP_VADDR(_start, _req, _seg)				\
@@ -1783,7 +1958,7 @@ diff -r af9e0ca95ee2 drivers/block/blktap/ring.c
 +			   struct blktap_request *request)
 +{
 +	struct blktap_ring *ring = &tap->ring;
-+	struct blktap_ring_request *breq;
++	blktap_ring_req_t *breq;
 +	struct scatterlist *sg;
 +	int i, nsecs = 0;
 +
@@ -1873,7 +2048,7 @@ diff -r af9e0ca95ee2 drivers/block/blktap/ring.c
 +{
 +	struct blktap *tap = filp->private_data;
 +	struct blktap_ring *ring = &tap->ring;
-+	struct blktap_sring *sring;
++	blktap_sring_t *sring;
 +	struct page *page = NULL;
 +	int err;
 +
@@ -1917,9 +2092,15 @@ diff -r af9e0ca95ee2 drivers/block/blktap/ring.c
 +	return err;
 +}
 +
-+static int
-+blktap_ring_ioctl(struct inode *inode, struct file *filp,
-+		  unsigned int cmd, unsigned long arg)
++static bool
++blktap_ring_vma_valid(struct blktap_ring *ring)
++{
++	/* Current process has mapped this ring? */
++	return ring->vma && ring->vma->vm_mm == current->mm;
++}
++
++static long
++__blktap_ring_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 +{
 +	struct blktap *tap = filp->private_data;
 +	struct blktap_ring *ring = &tap->ring;
@@ -1928,7 +2109,7 @@ diff -r af9e0ca95ee2 drivers/block/blktap/ring.c
 +
 +	BTDBG("%d: cmd: %u, arg: %lu\n", tap->minor, cmd, arg);
 +
-+	if (!ring->vma || ring->vma->vm_mm != current->mm)
++	if (!blktap_ring_vma_valid(ring))
 +		return -EACCES;
 +
 +	switch(cmd) {
@@ -1946,6 +2127,7 @@ diff -r af9e0ca95ee2 drivers/block/blktap/ring.c
 +
 +		info.capacity             = params.capacity;
 +		info.sector_size          = params.sector_size;
++		info.physical_sector_size = params.sector_size;
 +		info.flags                = 0;
 +
 +		err = blktap_device_create(tap, &info);
@@ -1961,24 +2143,9 @@ diff -r af9e0ca95ee2 drivers/block/blktap/ring.c
 +	}
 +
 +	case BLKTAP_IOCTL_CREATE_DEVICE: {
-+		struct blktap_device_info __user *ptr = (void *)arg;
 +		struct blktap_device_info info;
-+		unsigned long mask;
-+		size_t base_sz, sz;
 +
-+		mask  = BLKTAP_DEVICE_FLAG_RO;
-+
-+		memset(&info, 0, sizeof(info));
-+		sz = base_sz = BLKTAP_INFO_SIZE_AT(flags);
-+
-+		if (copy_from_user(&info, ptr, sz))
-+			return -EFAULT;
-+
-+		if (sz > base_sz)
-+			if (copy_from_user(&info, ptr, sz))
-+				return -EFAULT;
-+
-+		if (put_user(info.flags & mask, &ptr->flags))
++		if (copy_from_user(&info, ptr, sizeof(info)))
 +			return -EFAULT;
 +
 +		return blktap_device_create(tap, &info);
@@ -1989,8 +2156,21 @@ diff -r af9e0ca95ee2 drivers/block/blktap/ring.c
 +		return blktap_device_destroy(tap);
 +	}
 +
-+	return -ENOTTY;
++	return -ENOIOCTLCMD;
 +}
++
++static long
++blktap_ring_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
++{
++	int ret;
++
++	down_read(&current->mm->mmap_sem);
++	ret = __blktap_ring_ioctl(filp, cmd, arg);
++	up_read(&current->mm->mmap_sem);
++
++	return ret;
++}
++
 +
 +static unsigned int blktap_ring_poll(struct file *filp, poll_table *wait)
 +{
@@ -1998,11 +2178,10 @@ diff -r af9e0ca95ee2 drivers/block/blktap/ring.c
 +	struct blktap_ring *ring = &tap->ring;
 +	int work;
 +
-+	poll_wait(filp, &tap->pool->wait, wait);
 +	poll_wait(filp, &ring->poll_wait, wait);
 +
 +	down_read(&current->mm->mmap_sem);
-+	if (ring->vma && tap->device.gd)
++	if (blktap_ring_vma_valid(ring) && tap->device.gd)
 +		blktap_device_run_queue(tap);
 +	up_read(&current->mm->mmap_sem);
 +
@@ -2010,7 +2189,7 @@ diff -r af9e0ca95ee2 drivers/block/blktap/ring.c
 +	RING_PUSH_REQUESTS(&ring->ring);
 +
 +	if (work ||
-+	    *BLKTAP_RING_MESSAGE(ring->ring.sring) ||
++	    ring->ring.sring->private.tapif_user.msg ||
 +	    test_and_clear_bit(BLKTAP_DEVICE_CLOSED, &tap->dev_inuse))
 +		return POLLIN | POLLRDNORM;
 +
@@ -2021,7 +2200,7 @@ diff -r af9e0ca95ee2 drivers/block/blktap/ring.c
 +	.owner    = THIS_MODULE,
 +	.open     = blktap_ring_open,
 +	.release  = blktap_ring_release,
-+	.ioctl    = blktap_ring_ioctl,
++	.unlocked_ioctl = blktap_ring_ioctl,
 +	.mmap     = blktap_ring_mmap,
 +	.poll     = blktap_ring_poll,
 +};
@@ -2130,9 +2309,11 @@ diff -r af9e0ca95ee2 drivers/block/blktap/ring.c
 +
 +	blktap_ring_major = 0;
 +}
-diff -r af9e0ca95ee2 drivers/block/blktap/sysfs.c
---- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/drivers/block/blktap/sysfs.c	Wed Feb 15 16:59:37 2012 +0000
+diff --git a/drivers/block/blktap2/sysfs.c b/drivers/block/blktap2/sysfs.c
+new file mode 100644
+index 0000000..4cbb0ce
+--- /dev/null
++++ b/drivers/block/blktap2/sysfs.c
 @@ -0,0 +1,288 @@
 +#include <linux/types.h>
 +#include <linux/device.h>
@@ -2145,7 +2326,7 @@ diff -r af9e0ca95ee2 drivers/block/blktap/sysfs.c
 +
 +int blktap_debug_level = 1;
 +
-+static struct class *class;
++static struct class *class = NULL;
 +
 +static ssize_t
 +blktap_sysfs_set_name(struct device *dev, struct device_attribute *attr, const char *buf, size_t size)
@@ -2211,8 +2392,8 @@ diff -r af9e0ca95ee2 drivers/block/blktap/sysfs.c
 +		goto wait;
 +
 +	if (tap->ring.vma) {
-+		struct blktap_sring *sring = tap->ring.ring.sring;
-+		*BLKTAP_RING_MESSAGE(sring) = BLKTAP_RING_MESSAGE_CLOSE;
++		blktap_sring_t *sring = tap->ring.ring.sring;
++		sring->private.tapif_user.msg = BLKTAP_RING_MESSAGE_CLOSE;
 +		blktap_ring_kick_user(tap);
 +	} else {
 +		INIT_WORK(&tap->remove_work, blktap_sysfs_remove_work);
@@ -2273,7 +2454,7 @@ diff -r af9e0ca95ee2 drivers/block/blktap/sysfs.c
 +		       char *buf)
 +{
 +	struct blktap *tap = dev_get_drvdata(dev);
-+	return sprintf(buf, "%s", kobject_name(&tap->pool->kobj));
++	return sprintf(buf, "%s\n", kobject_name(&tap->pool->kobj));
 +}
 +
 +static ssize_t
@@ -2422,10 +2603,12 @@ diff -r af9e0ca95ee2 drivers/block/blktap/sysfs.c
 +
 +	return err;
 +}
-diff -r af9e0ca95ee2 include/linux/blktap.h
---- /dev/null	Thu Jan 01 00:00:00 1970 +0000
-+++ b/include/linux/blktap.h	Wed Feb 15 16:59:37 2012 +0000
-@@ -0,0 +1,98 @@
+diff --git a/include/linux/blktap.h b/include/linux/blktap.h
+new file mode 100644
+index 0000000..eeee457
+--- /dev/null
++++ b/include/linux/blktap.h
+@@ -0,0 +1,95 @@
 +/*
 + * Copyright (c) 2011, XenSource Inc.
 + * All rights reserved.
@@ -2444,8 +2627,6 @@ diff -r af9e0ca95ee2 include/linux/blktap.h
 +#define BLKTAP_IOCTL_CREATE_DEVICE  208
 +#define BLKTAP_IOCTL_REMOVE_DEVICE  207
 +
-+#define BLKTAP_DEVICE_FLAG_RO       0x00000001UL /* disk is R/O */
-+
 +struct blktap_info {
 +	unsigned int            ring_major;
 +	unsigned int            bdev_major;
@@ -2455,8 +2636,12 @@ diff -r af9e0ca95ee2 include/linux/blktap.h
 +struct blktap_device_info {
 +	unsigned long long      capacity;
 +	unsigned int            sector_size;
++	unsigned int            physical_sector_size;
 +	unsigned long           flags;
++	unsigned long           __rsvd[4];
 +};
++
++#define BLKTAP_DEVICE_RO        0x00000001UL
 +
 +/*
 + * I/O ring
@@ -2467,6 +2652,9 @@ diff -r af9e0ca95ee2 include/linux/blktap.h
 +#endif
 +
 +#include <xen/interface/io/ring.h>
++
++typedef struct blktap_ring_request  blktap_ring_req_t;
++typedef struct blktap_ring_response blktap_ring_rsp_t;
 +
 +struct blktap_segment {
 +	uint32_t                __pad;
@@ -2498,21 +2686,13 @@ diff -r af9e0ca95ee2 include/linux/blktap.h
 +	int16_t                 status;
 +};
 +
-+DEFINE_RING_TYPES(blktap,
-+		  struct blktap_ring_request,
-+		  struct blktap_ring_response);
-+
-+#define BLKTAP_RING_SIZE						\
-+	((int)__RD32((BLKTAP_PAGE_SIZE -				\
-+		      (size_t)&((struct blktap_sring*)0)->ring) /	\
-+		     sizeof(((struct blktap_sring *)0)->ring[0])))
++DEFINE_RING_TYPES(blktap, struct blktap_ring_request, struct blktap_ring_response);
++#define BLKTAP_RING_SIZE __CONST_RING_SIZE(blktap, BLKTAP_PAGE_SIZE)
 +
 +/*
 + * Ring messages + old ioctls (DEPRECATED)
 + */
 +
-+#define BLKTAP_RING_MESSAGE(_sring) \
-+	((uint8_t*)(&(_sring)->rsp_event + 1))
 +#define BLKTAP_RING_MESSAGE_CLOSE   3
 +#define BLKTAP_IOCTL_CREATE_DEVICE_COMPAT 202
 +#define BLKTAP_NAME_MAX 256
@@ -2524,14 +2704,3 @@ diff -r af9e0ca95ee2 include/linux/blktap.h
 +};
 +
 +#endif /* _LINUX_BLKTAP_H */
-diff -r af9e0ca95ee2 mm/memory.c
---- a/mm/memory.c	Wed Feb 15 16:58:44 2012 +0000
-+++ b/mm/memory.c	Wed Feb 15 16:59:37 2012 +0000
-@@ -1404,6 +1404,7 @@ unsigned long zap_page_range(struct vm_a
- 	tlb_finish_mmu(&tlb, address, end);
- 	return end;
- }
-+EXPORT_SYMBOL_GPL(zap_page_range);
- 
- /**
-  * zap_vma_ptes - remove ptes mapping the vma
