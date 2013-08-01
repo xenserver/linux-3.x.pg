@@ -4,6 +4,7 @@ hgignore.patch
 # Build system integration
 #
 build-system-integration.patch
+avoid_svn_execution.patch
 
 #
 # Blktap

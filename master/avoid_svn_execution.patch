@@ -1,0 +1,13 @@
+diff --git a/scripts/setlocalversion b/scripts/setlocalversion
+index bd6dca8..b9d66a5 100755
+--- a/scripts/setlocalversion
++++ b/scripts/setlocalversion
+@@ -108,7 +108,7 @@ scm_version()
+ 	fi
+ 
+ 	# Check for svn and a svn repo.
+-	if rev=`svn info 2>/dev/null | grep '^Last Changed Rev'`; then
++	if test -d .svn && rev=`svn info 2>/dev/null | grep '^Last Changed Rev'`; then
+ 		rev=`echo $rev | awk '{print $NF}'`
+ 		printf -- '-svn%s' "$rev"
+ 
