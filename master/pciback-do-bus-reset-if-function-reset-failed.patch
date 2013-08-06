@@ -1,0 +1,129 @@
+diff --git a/drivers/xen/xen-pciback/pci_stub.c b/drivers/xen/xen-pciback/pci_stub.c
+index 77c9f76..fe773ad 100644
+--- a/drivers/xen/xen-pciback/pci_stub.c
++++ b/drivers/xen/xen-pciback/pci_stub.c
+@@ -14,6 +14,7 @@
+ #include <linux/wait.h>
+ #include <linux/sched.h>
+ #include <linux/atomic.h>
++#include <linux/delay.h>
+ #include <xen/events.h>
+ #include <asm/xen/pci.h>
+ #include <asm/xen/hypervisor.h>
+@@ -59,6 +60,77 @@ static LIST_HEAD(pcistub_devices);
+ static int initialize_devices;
+ static LIST_HEAD(seized_devices);
+ 
++static void pcistub_save_config_space(struct pci_dev *dev)
++{
++	struct xen_pcibk_dev_data *dev_data = pci_get_drvdata(dev);
++	unsigned i;
++	u32 *ptr = (u32 *)dev_data->config_space;
++
++	for (i = 0; i < dev->cfg_size / sizeof(u32); i += sizeof(u32), ptr++)
++		pci_read_config_dword(dev, i, ptr);
++}
++
++static void pcistub_restore_config_space(struct pci_dev *dev)
++{
++	struct xen_pcibk_dev_data *dev_data = pci_get_drvdata(dev);
++	unsigned i;
++	u32 *ptr = (u32 *)dev_data->config_space;
++
++	for (i = 0; i < dev->cfg_size / sizeof(u32); i += sizeof(u32), ptr++)
++		pci_write_config_dword(dev, i, *ptr);
++}
++
++static int __pcistub_reset_function(struct pci_dev *dev)
++{
++	struct pci_dev *pdev;
++	u16 ctrl;
++	int ret;
++
++	ret = __pci_reset_function_locked(dev);
++	if (ret == 0)
++		return 0;
++
++	if (pci_is_root_bus(dev->bus) || dev->subordinate || !dev->bus->self)
++		return -ENOTTY;
++
++	list_for_each_entry(pdev, &dev->bus->devices, bus_list) {
++		if (pdev != dev && (!pdev->driver
++				    || strcmp(pdev->driver->name, "pciback")))
++			return -ENOTTY;
++		dev_info(&pdev->dev, "save\n");
++		pci_save_state(pdev);
++		pcistub_save_config_space(pdev);
++	}
++
++	pci_read_config_word(dev->bus->self, PCI_BRIDGE_CONTROL, &ctrl);
++	ctrl |= PCI_BRIDGE_CTL_BUS_RESET;
++	pci_write_config_word(dev->bus->self, PCI_BRIDGE_CONTROL, ctrl);
++	msleep(200);
++
++	ctrl &= ~PCI_BRIDGE_CTL_BUS_RESET;
++	pci_write_config_word(dev->bus->self, PCI_BRIDGE_CONTROL, ctrl);
++	msleep(200);
++
++	list_for_each_entry(pdev, &dev->bus->devices, bus_list) {
++		dev_info(&pdev->dev, "restore\n");
++		pcistub_restore_config_space(pdev);
++		pci_restore_state(pdev);
++	}
++
++	return 0;
++}
++
++static int pcistub_reset_function(struct pci_dev *dev)
++{
++	int ret;
++
++	device_lock(&dev->dev);
++	ret = __pcistub_reset_function(dev);
++	device_unlock(&dev->dev);
++
++	return ret;
++}
++
+ static struct pcistub_device *pcistub_device_alloc(struct pci_dev *dev)
+ {
+ 	struct pcistub_device *psdev;
+@@ -97,7 +169,7 @@ static void pcistub_device_release(struct kref *kref)
+ 	/* Call the reset function which does not take lock as this
+ 	 * is called from "unbind" which takes a device_lock mutex.
+ 	 */
+-	__pci_reset_function_locked(psdev->dev);
++	__pcistub_reset_function(psdev->dev);
+ 	if (pci_load_and_free_saved_state(psdev->dev,
+ 					  &dev_data->pci_saved_state)) {
+ 		dev_dbg(&psdev->dev->dev, "Could not reload PCI state\n");
+@@ -250,7 +322,7 @@ void pcistub_put_pci_dev(struct pci_dev *dev)
+ 	/* This is OK - we are running from workqueue context
+ 	 * and want to inhibit the user from fiddling with 'reset'
+ 	 */
+-	pci_reset_function(dev);
++	pcistub_reset_function(psdev->dev);
+ 	pci_restore_state(psdev->dev);
+ 
+ 	/* This disables the device. */
+@@ -361,7 +433,7 @@ static int __devinit pcistub_init_device(struct pci_dev *dev)
+ 		dev_err(&dev->dev, "Could not store PCI conf saved state!\n");
+ 	else {
+ 		dev_dbg(&dev->dev, "reseting (FLR, D3, etc) the device\n");
+-		__pci_reset_function_locked(dev);
++		__pcistub_reset_function(dev);
+ 		pci_restore_state(dev);
+ 	}
+ 	/* Now disable the device (this also ensures some private device
+diff --git a/drivers/xen/xen-pciback/pciback.h b/drivers/xen/xen-pciback/pciback.h
+index a7def01..019e5e1 100644
+--- a/drivers/xen/xen-pciback/pciback.h
++++ b/drivers/xen/xen-pciback/pciback.h
+@@ -50,6 +50,7 @@ struct xen_pcibk_dev_data {
+ 	unsigned long handled;
+ 	unsigned int irq; /* Saved in case device transitions to MSI/MSI-X */
+ 	char irq_name[0]; /* xen-pcibk[000:04:00.0] */
++	u8 config_space[4096];
+ };
+ 
+ /* Used by XenBus and xen_pcibk_ops.c */
