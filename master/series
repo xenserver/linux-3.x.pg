@@ -70,6 +70,7 @@ blktap2-fixups.patch
 # Blkback
 0001-xen-blkback-correctly-respond-to-unknown-non-native-.patch
 xen-blkback-change-statistics-counter-types-to-unsigned.patch
+blkback-debug-ring.diff
 
 #
 # Local patches.
