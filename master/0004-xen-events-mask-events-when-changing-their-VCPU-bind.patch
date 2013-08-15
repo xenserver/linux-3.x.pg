@@ -43,7 +43,7 @@ index fb88e32..d404c7d 100644
 +	 * Mask the event while changing the VCPU binding to prevent
 +	 * it being delivered on an unexpected VCPU.
 +	 */
-+	masked = sync_test_and_set_bit(evtchn, BM(s->evtchn_mask));
++	masked = sync_test_and_set_bit(evtchn, s->evtchn_mask);
 +
 +	/*
  	 * If this fails, it usually just indicates that we're dealing with a
