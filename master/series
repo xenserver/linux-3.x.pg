@@ -57,6 +57,8 @@ blktap2-fixups.patch
 0001-xen-evtchn-avoid-a-deadlock-when-unbinding-an-event-.patch
 0002-xen-p2m-avoid-unneccesary-TLB-flush-in-m2p_remove_ov.patch
 0003-xen-evtchn-improve-scalability-by-using-per-user-loc.patch
+0003-xen-events-initialize-local-per-cpu-mask-for-all-pos.patch
+0004-xen-events-mask-events-when-changing-their-VCPU-bind.patch
 
 # Netback
 0007-xen-netfront-remove-unused-variable-extra.patch
