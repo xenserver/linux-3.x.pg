@@ -59,6 +59,7 @@ blktap2-fixups.patch
 0003-xen-evtchn-improve-scalability-by-using-per-user-loc.patch
 0003-xen-events-initialize-local-per-cpu-mask-for-all-pos.patch
 0004-xen-events-mask-events-when-changing-their-VCPU-bind.patch
+0001-xen-p2m-check-MFN-is-in-range-before-using-the-m2p-t.patch
 
 # Netback
 0007-xen-netfront-remove-unused-variable-extra.patch
