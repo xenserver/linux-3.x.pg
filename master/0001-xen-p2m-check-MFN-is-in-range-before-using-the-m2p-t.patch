@@ -1,4 +1,4 @@
-From 7209a756037f2c06b48eade831377aa829ff370d Mon Sep 17 00:00:00 2001
+From 1a0fc1a6eb363ed5ff729242c45eb8989e7ce9f5 Mon Sep 17 00:00:00 2001
 From: David Vrabel <david.vrabel@citrix.com>
 Date: Wed, 28 Aug 2013 12:45:34 +0100
 Subject: [PATCH] xen/p2m: check MFN is in range before using the m2p table
@@ -28,14 +28,22 @@ All faults caused by accessing the non-existant parts of the m2p are
 thus within the kernel address space and exception_fixup() is called
 without trying to lock mm->mmap_sem.
 
+This means that for MFNs that are outside the mapped range of the m2p
+then mfn_to_pfn() will always look in the m2p overrides.  This is
+correct because it must be a foreign MFN (and the PFN in the m2p in
+this case isn't correct anyway).
+
 Signed-off-by: David Vrabel <david.vrabel@citrix.com>
+--
+v2: in mfn_to_pfn() look in m2p_overrides if the MFN is is out of
+    range as it's probably foreign.
 ---
  arch/x86/include/asm/xen/page.h |   32 +++++++++++++++++++-------------
  arch/x86/xen/p2m.c              |   10 ++++------
  2 files changed, 23 insertions(+), 19 deletions(-)
 
 diff --git a/arch/x86/include/asm/xen/page.h b/arch/x86/include/asm/xen/page.h
-index 6aef9fb..17c7b6b 100644
+index 6aef9fb..979d7a2 100644
 --- a/arch/x86/include/asm/xen/page.h
 +++ b/arch/x86/include/asm/xen/page.h
 @@ -79,30 +79,35 @@ static inline int phys_to_machine_mapping_valid(unsigned long pfn)
@@ -83,7 +91,7 @@ index 6aef9fb..17c7b6b 100644
 +		return mfn;
 +
 +	pfn = mfn_to_pfn_no_overrides(mfn);
-+	if (pfn != ~0 && get_phys_to_machine(pfn) != mfn) {
++	if (get_phys_to_machine(pfn) != mfn) {
  		/*
  		 * If this appears to be a foreign mfn (because the pfn
  		 * doesn't map back to the mfn), then check the local override
