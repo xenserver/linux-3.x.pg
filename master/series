@@ -69,6 +69,7 @@ blktap2-fixups.patch
 0011-xen-netfront-reduce-gso_max_size-to-account-for-max-.patch
 0012-xen-netback-coalesce-slots-in-TX-path-and-fix-regres.patch
 0013-xen-netback-don-t-disconnect-frontend-when-seeing-ov.patch
+0001-xen-netback-count-number-required-slots-for-an-skb-m.patch
 
 # Blkback
 0001-xen-blkback-correctly-respond-to-unknown-non-native-.patch

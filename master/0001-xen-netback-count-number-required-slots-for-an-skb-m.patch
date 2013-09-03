@@ -1,0 +1,141 @@
+From cf107b509278ff0c1d995d194a412fbfb46db4be Mon Sep 17 00:00:00 2001
+From: David Vrabel <david.vrabel@citrix.com>
+Date: Tue, 3 Sep 2013 13:52:35 +0100
+Subject: [PATCH] xen-netback: count number required slots for an skb more carefully
+
+When a VM is providing an iSCSI target and the LUN is used by the
+backend, the generated skbs for writes to the disk have large,
+multi-page skb->data but no frags.
+
+With specific lengths and starting offsets,
+xen_netbk_count_skb_slots() would be one short because the simple
+calculation of DIV_ROUND_UP(skb_headlen(), PAGE_SIZE) was not
+accounting for the decisions made by start_new_rx_buffer() which does
+not guarantee responses are fully packed.
+
+Miscounting the number of slots means netback may push more responses
+than the number of available requests.  This will cause the frontend
+to get very confused and report "Too many frags/slots".  The frontend
+never recovers and will eventually BUG.
+
+Fix this by counting the number of required slots more carefully.  In
+xen_netbk_count_skb_slots(), more closely follow the algorithm used by
+xen_netbk_gop_skb() by introducing xen_netbk_count_frag_slots() which
+is the dry-run equivalent of netbk_gop_frag_copy().
+
+Signed-off-by: David Vrabel <david.vrabel@citrix.com>
+diff --git a/drivers/net/xen-netback/netback.c b/drivers/net/xen-netback/netback.c
+index 89dd960..e3fa799 100644
+--- a/drivers/net/xen-netback/netback.c
++++ b/drivers/net/xen-netback/netback.c
+@@ -345,6 +345,49 @@ static bool start_new_rx_buffer(int offset, unsigned long size, int head)
+ 	return false;
+ }
+ 
++struct xen_netbk_count_slot_state {
++	unsigned long copy_off;
++	bool head;
++};
++
++unsigned int xen_netbk_count_frag_slots(struct xenvif *vif,
++					unsigned long offset, unsigned long size,
++					struct xen_netbk_count_slot_state *state)
++{
++	unsigned count = 0;
++
++	offset &= ~PAGE_MASK;
++
++	while (size > 0) {
++		unsigned long bytes;
++
++		bytes = PAGE_SIZE - offset;
++
++		if (bytes > size)
++			bytes = size;
++
++		if (start_new_rx_buffer(state->copy_off, bytes, state->head)) {
++			count++;
++			state->copy_off = 0;
++		}
++
++		if (state->copy_off + bytes > MAX_BUFFER_OFFSET)
++			bytes = MAX_BUFFER_OFFSET - state->copy_off;
++
++		state->copy_off += bytes;
++
++		offset += bytes;
++		size -= bytes;
++
++		if (offset == PAGE_SIZE)
++			offset = 0;
++
++		state->head = false;
++	}
++
++	return count;
++}
++
+ /*
+  * Figure out how many ring slots we're going to need to send @skb to
+  * the guest. This function is essentially a dry run of
+@@ -352,34 +395,39 @@ static bool start_new_rx_buffer(int offset, unsigned long size, int head)
+  */
+ unsigned int xen_netbk_count_skb_slots(struct xenvif *vif, struct sk_buff *skb)
+ {
++	struct xen_netbk_count_slot_state state;
+ 	unsigned int count;
+-	int i, copy_off;
+-
+-	count = DIV_ROUND_UP(skb_headlen(skb), PAGE_SIZE);
+-
+-	copy_off = skb_headlen(skb) % PAGE_SIZE;
+-
++	unsigned char *data;
++	unsigned i;
++
++	state.head = true;
++	state.copy_off = 0;
++ 
++	/* Slot for the first (partial) page of data. */
++	count = 1;
++ 
++	/* Need a slot for the GSO prefix for GSO extra data? */
+ 	if (skb_shinfo(skb)->gso_size)
+ 		count++;
+ 
++	data = skb->data;
++	while (data < skb_tail_pointer(skb)) {
++		unsigned long offset = offset_in_page(data);
++		unsigned long size = PAGE_SIZE - offset;
++ 
++		if (data + size > skb_tail_pointer(skb))
++			size = skb_tail_pointer(skb) - data;
++ 
++		count += xen_netbk_count_frag_slots(vif, offset, size, &state);
++ 
++		data += size;
++	}
++
+ 	for (i = 0; i < skb_shinfo(skb)->nr_frags; i++) {
+ 		unsigned long size = skb_frag_size(&skb_shinfo(skb)->frags[i]);
+-		unsigned long bytes;
+-		while (size > 0) {
+-			BUG_ON(copy_off > MAX_BUFFER_OFFSET);
++		unsigned long offset = skb_shinfo(skb)->frags[i].page_offset;
+ 
+-			if (start_new_rx_buffer(copy_off, size, 0)) {
+-				count++;
+-				copy_off = 0;
+-			}
+-
+-			bytes = size;
+-			if (copy_off + bytes > MAX_BUFFER_OFFSET)
+-				bytes = MAX_BUFFER_OFFSET - copy_off;
+-
+-			copy_off += bytes;
+-			size -= bytes;
+-		}
++		count += xen_netbk_count_frag_slots(vif, offset, size, &state);
+ 	}
+ 	return count;
+ }
