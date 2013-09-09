@@ -1,0 +1,39 @@
+From 0eb071651474952c8b6daecd36b378e2d01be22c Mon Sep 17 00:00:00 2001
+From: David Vrabel <david.vrabel@citrix.com>
+Date: Thu, 27 Jun 2013 11:35:44 +0100
+Subject: [PATCH 2/6] xen: Remove clock_was_set() call in the resume path
+
+commit 359cdd3f866(xen: maintain clock offset over save/restore) added
+a clock_was_set() call into the xen resume code to propagate the
+system time changes. With the modified hrtimer resume code, which
+makes sure that all cpus are notified this call is not longer necessary.
+
+[ tglx: Separated it from the hrtimer change ]
+
+Signed-off-by: David Vrabel <david.vrabel@citrix.com>
+Cc: Konrad Rzeszutek Wilk  <konrad.wilk@oracle.com>
+Cc: John Stultz  <john.stultz@linaro.org>
+Cc: <xen-devel@lists.xen.org>
+Link: http://lkml.kernel.org/r/1372329348-20841-2-git-send-email-david.vrabel@citrix.com
+Signed-off-by: Thomas Gleixner <tglx@linutronix.de>
+---
+ drivers/xen/manage.c |    3 ---
+ 1 files changed, 0 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/xen/manage.c b/drivers/xen/manage.c
+index 412b96c..421da85 100644
+--- a/drivers/xen/manage.c
++++ b/drivers/xen/manage.c
+@@ -166,9 +166,6 @@ out_resume:
+ 
+ 	dpm_resume_end(si.cancelled ? PMSG_THAW : PMSG_RESTORE);
+ 
+-	/* Make sure timer events get retriggered on all CPUs */
+-	clock_was_set();
+-
+ out_thaw:
+ #ifdef CONFIG_PREEMPT
+ 	thaw_processes();
+-- 
+1.7.1
+

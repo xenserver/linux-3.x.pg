@@ -1,33 +1,29 @@
 #
 # Stable series combined patch
 #
-linux-stable-3.6-to-3.6.11.patch
+linux-stable-3.10-to-3.10.11.patch
 
 #
 # Backports from upstream
 #
-# Merge branch 'stable/late-swiotlb.v3.3' into stable/for-linus-3.7 (3.7-rc1)
-git-a5f95155709cb854e96aa27969d110668cdbda9d.patch
-# nfs: don't zero out the rest of the page if we hit the EOF on a DIO READ (3.8-rc1)
-git-67fad106a219e083c91c79695bd1807dde1bf7b9.patch # v3.7-rc4-111-g67fad10
-# libata: set dma_mode to 0xff in reset (3.8-rc1)
-git-5416912af75de9cba5d1c75b99a7888b0bbbd2fb.patch # v3.7-rc7-39-g5416912
-# xen: Fix stack corruption in xen_failsafe_callback for 32bit PVOPS guests. (v3.8-rc5)
-git-9174adbee4a9a49d0139f5d71969852b36720809.patch # v3.7-30-g9174ad
-# xen/netback: shutdown the ring if it contains garbage. (3.8-rc7)
-git-48856286b64e4b66ec62b94e504d0b29c1ade664.patch # v3.8-rc5-184-g48856286
-# xen/netback: don't leak pages on failure in xen_netbk_tx_check_gop. (3.8-rc7)
-git-7d5145d8eb2b9791533ffe4dc003b129b9696c48.patch # v3.8-rc5-185-g7d5145d
-# xen/netback: free already allocated memory on failure in xen_netbk_get_requests (3.8-rc7)
-git-4cc7c1cb7b11b6f3515bd9075527576a1eecc4aa.patch # v3.8-rc5-186-g4cc7c1c
-# netback: correct netbk_tx_err to handle wrap around. (3.8-rc7)
-git-b9149729ebdcfce63f853aa54a404c6a8f6ebbf3.patch # v3.8-rc5-187-gb914972
-# xen-netback: correctly return errors from netbk_count_requests() (3.9-rc1)
-git-35876b5ffc154c357476b2c3bdab10feaf4bd8f0.patch # v3.8-rc7-79-g35876b5
-# xen-netback: cancel the credit timer when taking the vif down (3.9-rc1)
-git-3e55f8b306cf305832a4ac78aa82e1b40e818ece.patch # v3.8-rc7-80-g3e55f8b
-# x86: Do full rtc synchronization with ntp (v3.10-rc1)
-git-3195ef59cb42cda3aeeb24a7fd2ba1b900c4a3cc.patch # v3.9-rc2-115-g3195ef5
+# 3565184ed0c1ea46bea5b792da5f72a83c43e49b (3.11-rc1)
+0001-x86-Increase-precision-of-x86_platform.get-set_wallc.patch
+# 7c4c3a0f18ba57ea2a2985034532303d2929902a (3.11-rc1)
+0001-hrtimers-Support-resuming-with-two-or-more-CPUs-onli.patch
+# 0eb071651474952c8b6daecd36b378e2d01be22c (3.11-rc1)
+0002-xen-Remove-clock_was_set-call-in-the-resume-path.patch
+# 04397fe94ad65289884b9862b6a0c722ececaadf (3.11-rc1)
+0003-timekeeping-Pass-flags-instead-of-multiple-bools-to-.patch
+# 780427f0e113b4c77dfff4d258c05a902cdb0eb9 (3.11-rc1)
+0004-timekeeping-Indicate-that-clock-was-set-in-the-pvclo.patch
+# 5584880e44e49c587059801faa2a9f7d22619c48 (3.11-rc1)
+0005-x86-xen-Sync-the-wallclock-when-the-system-time-is-s.patch
+# 47433b8c9d7480a3eebd99df38e857ce85a37cee (3.11-rc1)
+0006-x86-xen-Sync-the-CMOS-RTC-as-well-as-the-Xen-wallclo.patch
+# 65a45fa2f640f72757ef00f2bc83f9654d65a62b (3.11-rc1)
+0001-xen-p2m-avoid-unneccesary-TLB-flush-in-m2p_remove_ov.patch
+# 73cc4bb0c79eebe1f0e92b700d9fe8d1c9b061bb (3.12-rc1)
+0001-xen-evtchn-improve-scalability-by-using-per-user-loc.patch
 
 #
 # Build system integration
@@ -48,32 +44,12 @@ blktap2-fixups.patch
 #
 # Xen
 # 
-0001-xen-mm-return-more-precise-error-from-xen_remap_doma.patch
-0001-x86-xen-populate-boot_params-with-EDD-data.patch
-0001-x86-increase-precision-of-x86_platform.get-set_wallc.patch
-0002-timekeeping-sync-persistent-clock-and-RTC-on-system-.patch
-0003-x86-xen-sync-the-CMOS-RTC-as-well-as-the-Xen-wallclo.patch
-0001-x86-xen-do-not-identity-map-UNUSABLE-regions-in-the-.patch
-0001-xen-evtchn-avoid-a-deadlock-when-unbinding-an-event-.patch
-0002-xen-p2m-avoid-unneccesary-TLB-flush-in-m2p_remove_ov.patch
-0003-xen-evtchn-improve-scalability-by-using-per-user-loc.patch
-0003-xen-events-initialize-local-per-cpu-mask-for-all-pos.patch
-0004-xen-events-mask-events-when-changing-their-VCPU-bind.patch
 0001-xen-p2m-check-MFN-is-in-range-before-using-the-m2p-t.patch
 
 # Netback
-0007-xen-netfront-remove-unused-variable-extra.patch
-0008-xen-netfront-frags-slots-in-xennet_get_responses.patch
-0009-xen-netback-remove-skb-in-xen_netbk_alloc_page.patch
-0010-xen-netfront-frags-slots-in-log-message.patch
-0011-xen-netfront-reduce-gso_max_size-to-account-for-max-.patch
-0012-xen-netback-coalesce-slots-in-TX-path-and-fix-regres.patch
-0013-xen-netback-don-t-disconnect-frontend-when-seeing-ov.patch
 0001-xen-netback-count-number-required-slots-for-an-skb-m.patch
 
 # Blkback
-0001-xen-blkback-correctly-respond-to-unknown-non-native-.patch
-xen-blkback-change-statistics-counter-types-to-unsigned.patch
 blkback-debug-ring.diff
 
 #
@@ -81,12 +57,10 @@ blkback-debug-ring.diff
 #
 drivers-misc-uklog.patch
 pciback-do-bus-reset-if-function-reset-failed.patch
-#pci-hack-allow-parent-bus-reset-if-only-pciback-is-bound.patch
 
 #
 # Debugging/hacks
 #
-ca-100040-wake-all-vcpus.patch
 0001-xen-add-xen_trace-for-adding-trace-records-to-the-Xe.patch
 
 #

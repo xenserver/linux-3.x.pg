@@ -25,10 +25,10 @@ Usage:
 Signed-off-by: Daniel Stodden <daniel.stodden@citrix.com>
 
 diff --git a/drivers/block/xen-blkback/blkback.c b/drivers/block/xen-blkback/blkback.c
-index 0302b93..c84a8aa 100644
+index d81dfca..d18cdcf 100644
 --- a/drivers/block/xen-blkback/blkback.c
 +++ b/drivers/block/xen-blkback/blkback.c
-@@ -240,7 +240,7 @@ abort:
+@@ -363,7 +363,7 @@ abort:
  /*
   * Notification from the guest OS.
   */
@@ -38,7 +38,7 @@ index 0302b93..c84a8aa 100644
  	blkif->waiting_reqs = 1;
  	wake_up(&blkif->wq);
 diff --git a/drivers/block/xen-blkback/xenbus.c b/drivers/block/xen-blkback/xenbus.c
-index ea8babb..58785ce 100644
+index 8bfd1bc..d3ac95e 100644
 --- a/drivers/block/xen-blkback/xenbus.c
 +++ b/drivers/block/xen-blkback/xenbus.c
 @@ -36,6 +36,8 @@ static int connect_ring(struct backend_info *);
@@ -115,10 +115,10 @@ index ea8babb..58785ce 100644
 +
 +static DEVICE_ATTR(io_ring, S_IRUGO|S_IWUSR, show_io_ring, store_io_ring);
 +
- int xenvbd_sysfs_addif(struct xenbus_device *dev)
+ static int xenvbd_sysfs_addif(struct xenbus_device *dev)
  {
  	int error;
-@@ -273,8 +336,13 @@ int xenvbd_sysfs_addif(struct xenbus_device *dev)
+@@ -273,8 +336,13 @@ static int xenvbd_sysfs_addif(struct xenbus_device *dev)
  	if (error)
  		goto fail3;
  
@@ -132,7 +132,7 @@ index ea8babb..58785ce 100644
  fail3:	sysfs_remove_group(&dev->dev.kobj, &xen_vbdstat_group);
  fail2:	device_remove_file(&dev->dev, &dev_attr_mode);
  fail1:	device_remove_file(&dev->dev, &dev_attr_physical_device);
-@@ -286,6 +354,7 @@ void xenvbd_sysfs_delif(struct xenbus_device *dev)
+@@ -286,6 +354,7 @@ static void xenvbd_sysfs_delif(struct xenbus_device *dev)
  	sysfs_remove_group(&dev->dev.kobj, &xen_vbdstat_group);
  	device_remove_file(&dev->dev, &dev_attr_mode);
  	device_remove_file(&dev->dev, &dev_attr_physical_device);
