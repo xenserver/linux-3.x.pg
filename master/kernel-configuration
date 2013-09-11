@@ -20,13 +20,13 @@ index 9ed796c..cdac6bc 100644
  
 diff --git a/buildconfigs/linux-defconfig_xen_x86_32 b/buildconfigs/linux-defconfig_xen_x86_32
 new file mode 100644
-index 0000000..cb77e77
+index 0000000..ab7f1c3
 --- /dev/null
 +++ b/buildconfigs/linux-defconfig_xen_x86_32
-@@ -0,0 +1,3839 @@
+@@ -0,0 +1,3826 @@
 +#
 +# Automatically generated file; DO NOT EDIT.
-+# Linux/i386 3.10.11-0 Kernel Configuration
++# Linux/i386 3.10.11 Kernel Configuration
 +#
 +# CONFIG_64BIT is not set
 +CONFIG_X86_32=y
@@ -2905,22 +2905,6 @@ index 0000000..cb77e77
 +# CONFIG_USB_HSIC_USB3503 is not set
 +# CONFIG_USB_PHY is not set
 +# CONFIG_USB_GADGET is not set
-+# CONFIG_USB_ZERO is not set
-+# CONFIG_USB_ETH is not set
-+# CONFIG_USB_G_NCM is not set
-+# CONFIG_USB_GADGETFS is not set
-+# CONFIG_USB_FUNCTIONFS is not set
-+# CONFIG_USB_MASS_STORAGE is not set
-+# CONFIG_USB_GADGET_TARGET is not set
-+# CONFIG_USB_G_SERIAL is not set
-+# CONFIG_USB_G_PRINTER is not set
-+# CONFIG_USB_CDC_COMPOSITE is not set
-+# CONFIG_USB_G_ACM_MS is not set
-+# CONFIG_USB_G_MULTI is not set
-+# CONFIG_USB_G_HID is not set
-+# CONFIG_USB_G_DBGP is not set
-+# CONFIG_USB_G_DBGP_PRINTK is not set
-+# CONFIG_USB_G_DBGP_SERIAL is not set
 +# CONFIG_UWB is not set
 +# CONFIG_MMC is not set
 +# CONFIG_MEMSTICK is not set
@@ -3357,6 +3341,7 @@ index 0000000..cb77e77
 +# CONFIG_EXOFS_FS is not set
 +# CONFIG_F2FS_FS is not set
 +CONFIG_EFIVAR_FS=m
++CONFIG_ORE=m
 +CONFIG_NETWORK_FILESYSTEMS=y
 +CONFIG_NFS_FS=m
 +CONFIG_NFS_V2=m
@@ -3364,7 +3349,11 @@ index 0000000..cb77e77
 +CONFIG_NFS_V3_ACL=y
 +CONFIG_NFS_V4=m
 +# CONFIG_NFS_SWAP is not set
-+# CONFIG_NFS_V4_1 is not set
++CONFIG_NFS_V4_1=y
++CONFIG_PNFS_FILE_LAYOUT=m
++CONFIG_PNFS_BLOCK=m
++CONFIG_PNFS_OBJLAYOUT=m
++CONFIG_NFS_V4_1_IMPLEMENTATION_ID_DOMAIN="kernel.org"
 +CONFIG_NFS_FSCACHE=y
 +# CONFIG_NFS_USE_LEGACY_DNS is not set
 +CONFIG_NFS_USE_KERNEL_DNS=y
@@ -3381,6 +3370,7 @@ index 0000000..cb77e77
 +CONFIG_NFS_COMMON=y
 +CONFIG_SUNRPC=m
 +CONFIG_SUNRPC_GSS=m
++CONFIG_SUNRPC_BACKCHANNEL=y
 +CONFIG_SUNRPC_XPRT_RDMA=m
 +CONFIG_RPCSEC_GSS_KRB5=m
 +CONFIG_SUNRPC_DEBUG=y
@@ -3656,9 +3646,6 @@ index 0000000..cb77e77
 +# CONFIG_SECURITY_YAMA is not set
 +# CONFIG_IMA is not set
 +CONFIG_DEFAULT_SECURITY_SELINUX=y
-+# CONFIG_DEFAULT_SECURITY_SMACK is not set
-+# CONFIG_DEFAULT_SECURITY_TOMOYO is not set
-+# CONFIG_DEFAULT_SECURITY_APPARMOR is not set
 +# CONFIG_DEFAULT_SECURITY_DAC is not set
 +CONFIG_DEFAULT_SECURITY="selinux"
 +CONFIG_XOR_BLOCKS=m
@@ -3865,10 +3852,10 @@ index 0000000..cb77e77
 +CONFIG_UCS2_STRING=y
 diff --git a/buildconfigs/linux-defconfig_xen_x86_64 b/buildconfigs/linux-defconfig_xen_x86_64
 new file mode 100644
-index 0000000..94aabed
+index 0000000..9f66fab
 --- /dev/null
 +++ b/buildconfigs/linux-defconfig_xen_x86_64
-@@ -0,0 +1,3788 @@
+@@ -0,0 +1,3794 @@
 +#
 +# Automatically generated file; DO NOT EDIT.
 +# Linux/x86_64 3.10.11 Kernel Configuration
@@ -7141,6 +7128,7 @@ index 0000000..94aabed
 +# CONFIG_EXOFS_FS is not set
 +# CONFIG_F2FS_FS is not set
 +CONFIG_EFIVAR_FS=m
++CONFIG_ORE=m
 +CONFIG_NETWORK_FILESYSTEMS=y
 +CONFIG_NFS_FS=m
 +CONFIG_NFS_V2=m
@@ -7148,7 +7136,11 @@ index 0000000..94aabed
 +CONFIG_NFS_V3_ACL=y
 +CONFIG_NFS_V4=m
 +# CONFIG_NFS_SWAP is not set
-+# CONFIG_NFS_V4_1 is not set
++CONFIG_NFS_V4_1=y
++CONFIG_PNFS_FILE_LAYOUT=m
++CONFIG_PNFS_BLOCK=m
++CONFIG_PNFS_OBJLAYOUT=m
++CONFIG_NFS_V4_1_IMPLEMENTATION_ID_DOMAIN="kernel.org"
 +CONFIG_NFS_FSCACHE=y
 +# CONFIG_NFS_USE_LEGACY_DNS is not set
 +CONFIG_NFS_USE_KERNEL_DNS=y
@@ -7165,6 +7157,7 @@ index 0000000..94aabed
 +CONFIG_NFS_COMMON=y
 +CONFIG_SUNRPC=m
 +CONFIG_SUNRPC_GSS=m
++CONFIG_SUNRPC_BACKCHANNEL=y
 +CONFIG_SUNRPC_XPRT_RDMA=m
 +CONFIG_RPCSEC_GSS_KRB5=m
 +CONFIG_SUNRPC_DEBUG=y
