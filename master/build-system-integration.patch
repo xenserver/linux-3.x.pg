@@ -136,10 +136,10 @@ index 0000000..7afc26b
 +	@ :
 diff --git a/mk/kernel.spec.in b/mk/kernel.spec.in
 new file mode 100644
-index 0000000..432b8e3
+index 0000000..27ec79b
 --- /dev/null
 +++ b/mk/kernel.spec.in
-@@ -0,0 +1,270 @@
+@@ -0,0 +1,272 @@
 +# -*- rpm-spec -*-
 +
 +# The full kernel uname version
@@ -184,7 +184,7 @@ index 0000000..432b8e3
 +# Packages that need to be installed before the kernel is, because the %post
 +# scripts use them.
 +#
-+%define kernel_prereq  fileutils, module-init-tools, initscripts >= 8.11.1-1, mkinitrd >= 4.2.21-1
++%define kernel_prereq  fileutils, module-init-tools, initscripts >= 8.11.1-1, /sbin/new-kernel-pkg
 +
 +#
 +# don't use RPM's internal dependency generator, instead
@@ -205,12 +205,12 @@ index 0000000..432b8e3
 +ExclusiveArch: noarch i686 x86_64
 +ExclusiveOS: Linux
 +Summary: The Linux kernel built for Xen.
-+BuildPreReq: module-init-tools, patch >= 2.5.4, bash >= 2.03, sh-utils, tar
-+BuildPreReq: bzip2, findutils, gzip, m4, perl, make >= 3.78
++BuildRequires(pre): module-init-tools, patch >= 2.5.4, bash >= 2.03, sh-utils, tar
++BuildRequires(pre): bzip2, findutils, gzip, m4, perl, make >= 3.78
 +BuildRequires: gcc >= 2.96-98, binutils >= 2.12, redhat-rpm-config >= 8.0.32.1
 +Provides: kernel = %{uname}
 +Autoreqprov: no
-+Prereq: %{kernel_prereq}
++Requires(pre): %{kernel_prereq}
 +Conflicts: %{kernel_dot_org_conflicts}
 +Conflicts: %{package_conflicts}
 +
@@ -366,6 +366,8 @@ index 0000000..432b8e3
 +
 +# Firmware is provided by the linux-firmware package.
 +rm -rf $RPM_BUILD_ROOT/lib/firmware
++
++find $RPM_BUILD_ROOT -name ..install.cmd -type f -delete
 +
 +%clean
 +rm -rf $RPM_BUILD_ROOT
