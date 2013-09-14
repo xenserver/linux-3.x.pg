@@ -20,7 +20,7 @@ index c265593..3d03280 100644
  
 diff --git a/buildconfigs/linux-defconfig_xen_x86_32 b/buildconfigs/linux-defconfig_xen_x86_32
 new file mode 100644
-index 0000000..a9ea9c0
+index 0000000..bcb1337
 --- /dev/null
 +++ b/buildconfigs/linux-defconfig_xen_x86_32
 @@ -0,0 +1,4061 @@
@@ -1173,7 +1173,7 @@ index 0000000..a9ea9c0
 +CONFIG_DCB=y
 +CONFIG_DNS_RESOLVER=y
 +# CONFIG_BATMAN_ADV is not set
-+CONFIG_OPENVSWITCH=m
++# CONFIG_OPENVSWITCH is not set
 +CONFIG_RPS=y
 +CONFIG_RFS_ACCEL=y
 +CONFIG_XPS=y
@@ -4087,7 +4087,7 @@ index 0000000..a9ea9c0
 +# CONFIG_DDR is not set
 diff --git a/buildconfigs/linux-defconfig_xen_x86_64 b/buildconfigs/linux-defconfig_xen_x86_64
 new file mode 100644
-index 0000000..f5aecc9
+index 0000000..8bdbb22
 --- /dev/null
 +++ b/buildconfigs/linux-defconfig_xen_x86_64
 @@ -0,0 +1,3941 @@
@@ -5195,7 +5195,7 @@ index 0000000..f5aecc9
 +CONFIG_DCB=y
 +CONFIG_DNS_RESOLVER=y
 +# CONFIG_BATMAN_ADV is not set
-+CONFIG_OPENVSWITCH=m
++# CONFIG_OPENVSWITCH is not set
 +CONFIG_RPS=y
 +CONFIG_RFS_ACCEL=y
 +CONFIG_XPS=y
