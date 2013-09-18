@@ -1,5 +1,5 @@
 diff --git a/drivers/xen/xen-pciback/pci_stub.c b/drivers/xen/xen-pciback/pci_stub.c
-index 77c9f76..46f5915 100644
+index 4e8ba38..5a03e63 100644
 --- a/drivers/xen/xen-pciback/pci_stub.c
 +++ b/drivers/xen/xen-pciback/pci_stub.c
 @@ -14,6 +14,7 @@
@@ -10,7 +10,7 @@ index 77c9f76..46f5915 100644
  #include <xen/events.h>
  #include <asm/xen/pci.h>
  #include <asm/xen/hypervisor.h>
-@@ -42,6 +43,7 @@ struct pcistub_device {
+@@ -43,6 +44,7 @@ struct pcistub_device {
  	struct kref kref;
  	struct list_head dev_list;
  	spinlock_t lock;
@@ -18,7 +18,7 @@ index 77c9f76..46f5915 100644
  
  	struct pci_dev *dev;
  	struct xen_pcibk_device *pdev;/* non-NULL if struct pci_dev is in use */
-@@ -59,6 +61,114 @@ static LIST_HEAD(pcistub_devices);
+@@ -60,6 +62,114 @@ static LIST_HEAD(pcistub_devices);
  static int initialize_devices;
  static LIST_HEAD(seized_devices);
  
@@ -133,23 +133,24 @@ index 77c9f76..46f5915 100644
  static struct pcistub_device *pcistub_device_alloc(struct pci_dev *dev)
  {
  	struct pcistub_device *psdev;
-@@ -92,12 +202,14 @@ static void pcistub_device_release(struct kref *kref)
+@@ -95,12 +205,15 @@ static void pcistub_device_release(struct kref *kref)
  
- 	dev_dbg(&psdev->dev->dev, "pcistub_device_release\n");
+ 	dev_dbg(&dev->dev, "pcistub_device_release\n");
  
 +	pcistub_remove_reset_file(psdev);
 +
- 	xen_unregister_device_domain_owner(psdev->dev);
+ 	xen_unregister_device_domain_owner(dev);
  
  	/* Call the reset function which does not take lock as this
  	 * is called from "unbind" which takes a device_lock mutex.
  	 */
--	__pci_reset_function_locked(psdev->dev);
+-	__pci_reset_function_locked(dev);
 +	__pcistub_reset_function(psdev->dev);
- 	if (pci_load_and_free_saved_state(psdev->dev,
- 					  &dev_data->pci_saved_state)) {
- 		dev_dbg(&psdev->dev->dev, "Could not reload PCI state\n");
-@@ -250,7 +362,7 @@ void pcistub_put_pci_dev(struct pci_dev *dev)
++
+ 	if (pci_load_and_free_saved_state(dev, &dev_data->pci_saved_state))
+ 		dev_dbg(&dev->dev, "Could not reload PCI state\n");
+ 	else
+@@ -268,7 +381,7 @@ void pcistub_put_pci_dev(struct pci_dev *dev)
  	/* This is OK - we are running from workqueue context
  	 * and want to inhibit the user from fiddling with 'reset'
  	 */
@@ -158,16 +159,16 @@ index 77c9f76..46f5915 100644
  	pci_restore_state(psdev->dev);
  
  	/* This disables the device. */
-@@ -361,7 +473,7 @@ static int __devinit pcistub_init_device(struct pci_dev *dev)
+@@ -392,7 +505,7 @@ static int pcistub_init_device(struct pci_dev *dev)
  		dev_err(&dev->dev, "Could not store PCI conf saved state!\n");
  	else {
- 		dev_dbg(&dev->dev, "reseting (FLR, D3, etc) the device\n");
+ 		dev_dbg(&dev->dev, "resetting (FLR, D3, etc) the device\n");
 -		__pci_reset_function_locked(dev);
 +		__pcistub_reset_function(dev);
  		pci_restore_state(dev);
  	}
  	/* Now disable the device (this also ensures some private device
-@@ -436,6 +548,10 @@ static int __devinit pcistub_seize(struct pci_dev *dev)
+@@ -467,6 +580,10 @@ static int pcistub_seize(struct pci_dev *dev)
  	if (!psdev)
  		return -ENOMEM;
  
@@ -178,7 +179,7 @@ index 77c9f76..46f5915 100644
  	spin_lock_irqsave(&pcistub_devices_lock, flags);
  
  	if (initialize_devices) {
-@@ -454,10 +570,9 @@ static int __devinit pcistub_seize(struct pci_dev *dev)
+@@ -485,10 +602,9 @@ static int pcistub_seize(struct pci_dev *dev)
  	}
  
  	spin_unlock_irqrestore(&pcistub_devices_lock, flags);

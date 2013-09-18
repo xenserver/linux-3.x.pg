@@ -1,7 +1,7 @@
-From 44a491f19f5094b32556acfc9e5796d0ae370571 Mon Sep 17 00:00:00 2001
+From 73cc4bb0c79eebe1f0e92b700d9fe8d1c9b061bb Mon Sep 17 00:00:00 2001
 From: David Vrabel <david.vrabel@citrix.com>
-Date: Mon, 15 Jul 2013 14:33:15 +0100
-Subject: [PATCH 3/3] xen/evtchn: improve scalability by using per-user locks
+Date: Fri, 19 Jul 2013 15:52:00 +0100
+Subject: [PATCH] xen/evtchn: improve scalability by using per-user locks
 
 The global array of port users and the port_user_lock limits
 scalability of the evtchn device.  Instead of the global array lookup,
@@ -12,11 +12,16 @@ This is also a prerequiste for extended the number of supported event
 channels, by removing the fixed size, per-event channel array.
 
 Signed-off-by: David Vrabel <david.vrabel@citrix.com>
+Signed-off-by: Konrad Rzeszutek Wilk <konrad.wilk@oracle.com>
+---
+ drivers/xen/evtchn.c |  192 +++++++++++++++++++++++++++++---------------------
+ 1 files changed, 112 insertions(+), 80 deletions(-)
+
 diff --git a/drivers/xen/evtchn.c b/drivers/xen/evtchn.c
-index 8eb68c9..a9607c0 100644
+index b6165e0..f328f12 100644
 --- a/drivers/xen/evtchn.c
 +++ b/drivers/xen/evtchn.c
-@@ -55,6 +55,7 @@
+@@ -57,6 +57,7 @@
  
  struct per_user_data {
  	struct mutex bind_mutex; /* serialize bind/unbind operations */
@@ -24,7 +29,7 @@ index 8eb68c9..a9607c0 100644
  
  	/* Notification ring, accessed via /dev/xen/evtchn. */
  #define EVTCHN_RING_SIZE     (PAGE_SIZE / sizeof(evtchn_port_t))
-@@ -62,6 +63,7 @@ struct per_user_data {
+@@ -64,6 +65,7 @@ struct per_user_data {
  	evtchn_port_t *ring;
  	unsigned int ring_cons, ring_prod, ring_overflow;
  	struct mutex ring_cons_mutex; /* protect against concurrent readers */
@@ -32,7 +37,7 @@ index 8eb68c9..a9607c0 100644
  
  	/* Processes wait on this queue when ring is empty. */
  	wait_queue_head_t evtchn_wait;
-@@ -69,54 +71,79 @@ struct per_user_data {
+@@ -71,54 +73,79 @@ struct per_user_data {
  	const char *name;
  };
  
@@ -141,7 +146,7 @@ index 8eb68c9..a9607c0 100644
  		wmb(); /* Ensure ring contents visible */
  		if (u->ring_cons == u->ring_prod++) {
  			wake_up_interruptible(&u->evtchn_wait);
-@@ -126,7 +153,7 @@ static irqreturn_t evtchn_interrupt(int irq, void *data)
+@@ -128,7 +155,7 @@ static irqreturn_t evtchn_interrupt(int irq, void *data)
  	} else
  		u->ring_overflow = 1;
  
@@ -150,7 +155,7 @@ index 8eb68c9..a9607c0 100644
  
  	return IRQ_HANDLED;
  }
-@@ -227,20 +254,20 @@ static ssize_t evtchn_write(struct file *file, const char __user *buf,
+@@ -229,20 +256,20 @@ static ssize_t evtchn_write(struct file *file, const char __user *buf,
  	if (copy_from_user(kbuf, buf, count) != 0)
  		goto out;
  
@@ -177,7 +182,7 @@ index 8eb68c9..a9607c0 100644
  
  	rc = count;
  
-@@ -251,6 +278,8 @@ static ssize_t evtchn_write(struct file *file, const char __user *buf,
+@@ -253,6 +280,8 @@ static ssize_t evtchn_write(struct file *file, const char __user *buf,
  
  static int evtchn_bind_to_user(struct per_user_data *u, int port)
  {
@@ -186,13 +191,14 @@ index 8eb68c9..a9607c0 100644
  	int rc = 0;
  
  	/*
-@@ -261,25 +290,46 @@ static int evtchn_bind_to_user(struct per_user_data *u, int port)
+@@ -263,35 +292,47 @@ static int evtchn_bind_to_user(struct per_user_data *u, int port)
  	 * interrupt handler yet, and our caller has already
  	 * serialized bind operations.)
  	 */
 -	BUG_ON(get_port_user(port) != NULL);
 -	set_port_user(port, u);
 -	set_port_enabled(port, true); /* start enabled */
++
 +	evtchn = kzalloc(sizeof(*evtchn), GFP_KERNEL);
 +	if (!evtchn)
 +		return -ENOMEM;
@@ -209,13 +215,21 @@ index 8eb68c9..a9607c0 100644
 -				       u->name, (void *)(unsigned long)port);
 -	if (rc >= 0)
 -		rc = evtchn_make_refcounted(port);
+-	else {
+-		/* bind failed, should close the port now */
+-		struct evtchn_close close;
+-		close.port = port;
+-		if (HYPERVISOR_event_channel_op(EVTCHNOP_close, &close) != 0)
+-			BUG();
+-		set_port_user(port, NULL);
+-	}
 +				       u->name, evtchn);
 +	if (rc < 0)
 +		goto err;
-+ 
+ 
 +	rc = evtchn_make_refcounted(port);
 +	return rc;
- 
++
 +err:
 +	/* bind failed, should close the port now */
 +	close.port = port;
@@ -231,21 +245,19 @@ index 8eb68c9..a9607c0 100644
 +				    struct user_evtchn *evtchn)
  {
 -	int irq = irq_from_evtchn(port);
--
--	unbind_from_irqhandler(irq, (void *)(unsigned long)port);
--
--	set_port_user(port, NULL);
 +	int irq = irq_from_evtchn(evtchn->port);
-+ 
-+	BUG_ON(irq < 0);
-+ 
+ 
+ 	BUG_ON(irq < 0);
+ 
+-	unbind_from_irqhandler(irq, (void *)(unsigned long)port);
 +	unbind_from_irqhandler(irq, evtchn);
-+ 
+ 
+-	set_port_user(port, NULL);
 +	del_evtchn(u, evtchn);
  }
  
  static long evtchn_ioctl(struct file *file,
-@@ -358,6 +408,7 @@ static long evtchn_ioctl(struct file *file,
+@@ -370,6 +411,7 @@ static long evtchn_ioctl(struct file *file,
  
  	case IOCTL_EVTCHN_UNBIND: {
  		struct ioctl_evtchn_unbind unbind;
@@ -253,7 +265,7 @@ index 8eb68c9..a9607c0 100644
  
  		rc = -EFAULT;
  		if (copy_from_user(&unbind, uarg, sizeof(unbind)))
-@@ -368,29 +419,27 @@ static long evtchn_ioctl(struct file *file,
+@@ -380,29 +422,27 @@ static long evtchn_ioctl(struct file *file,
  			break;
  
  		rc = -ENOTCONN;
@@ -290,7 +302,7 @@ index 8eb68c9..a9607c0 100644
  			notify_remote_via_evtchn(notify.port);
  			rc = 0;
  		}
-@@ -400,9 +449,9 @@ static long evtchn_ioctl(struct file *file,
+@@ -412,9 +452,9 @@ static long evtchn_ioctl(struct file *file,
  	case IOCTL_EVTCHN_RESET: {
  		/* Initialise the ring to empty. Clear errors. */
  		mutex_lock(&u->ring_cons_mutex);
@@ -302,7 +314,7 @@ index 8eb68c9..a9607c0 100644
  		mutex_unlock(&u->ring_cons_mutex);
  		rc = 0;
  		break;
-@@ -461,6 +510,7 @@ static int evtchn_open(struct inode *inode, struct file *filp)
+@@ -473,6 +513,7 @@ static int evtchn_open(struct inode *inode, struct file *filp)
  
  	mutex_init(&u->bind_mutex);
  	mutex_init(&u->ring_cons_mutex);
@@ -310,7 +322,7 @@ index 8eb68c9..a9607c0 100644
  
  	filp->private_data = u;
  
-@@ -469,15 +519,15 @@ static int evtchn_open(struct inode *inode, struct file *filp)
+@@ -481,15 +522,15 @@ static int evtchn_open(struct inode *inode, struct file *filp)
  
  static int evtchn_release(struct inode *inode, struct file *filp)
  {
@@ -332,7 +344,7 @@ index 8eb68c9..a9607c0 100644
  	}
  
  	free_page((unsigned long)u->ring);
-@@ -511,12 +561,6 @@ static int __init evtchn_init(void)
+@@ -523,12 +564,6 @@ static int __init evtchn_init(void)
  	if (!xen_domain())
  		return -ENODEV;
  
@@ -342,10 +354,10 @@ index 8eb68c9..a9607c0 100644
 -
 -	spin_lock_init(&port_user_lock);
 -
- 	/* Create '/dev/misc/evtchn'. */
+ 	/* Create '/dev/xen/evtchn'. */
  	err = misc_register(&evtchn_miscdev);
  	if (err != 0) {
-@@ -531,9 +575,6 @@ static int __init evtchn_init(void)
+@@ -543,9 +578,6 @@ static int __init evtchn_init(void)
  
  static void __exit evtchn_cleanup(void)
  {
@@ -355,3 +367,6 @@ index 8eb68c9..a9607c0 100644
  	misc_deregister(&evtchn_miscdev);
  }
  
+-- 
+1.7.1
+

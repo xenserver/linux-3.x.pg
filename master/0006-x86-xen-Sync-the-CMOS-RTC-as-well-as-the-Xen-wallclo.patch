@@ -1,0 +1,119 @@
+From 47433b8c9d7480a3eebd99df38e857ce85a37cee Mon Sep 17 00:00:00 2001
+From: David Vrabel <david.vrabel@citrix.com>
+Date: Thu, 27 Jun 2013 11:35:48 +0100
+Subject: [PATCH 6/6] x86: xen: Sync the CMOS RTC as well as the Xen wallclock
+
+Adjustments to Xen's persistent clock via update_persistent_clock()
+don't actually persist, as the Xen wallclock is a software only clock
+and modifications to it do not modify the underlying CMOS RTC.
+
+The x86_platform.set_wallclock hook is there to keep the hardware RTC
+synchronized. On a guest this is pointless.
+
+On Dom0 we can use the native implementaion which actually updates the
+hardware RTC, but we still need to keep the software emulation of RTC
+for the guests up to date. The subscription to the pvclock_notifier
+allows us to emulate this easily. The notifier is called at every tick
+and when the clock was set.
+
+Right now we only use that notifier when the clock was set, but due to
+the fact that it is called periodically from the timekeeping update
+code, we can utilize it to emulate the NTP driven drift compensation
+of update_persistant_clock() for the Xen wall (software) clock.
+
+Add a 11 minutes periodic update to the pvclock_gtod notifier callback
+to achieve that. The static variable 'next' which maintains that 11
+minutes update cycle is protected by the core code serialization so
+there is no need to add a Xen specific serialization mechanism.
+
+[ tglx: Massaged changelog and added a few comments ]
+
+Signed-off-by: David Vrabel <david.vrabel@citrix.com>
+Cc: Konrad Rzeszutek Wilk <konrad.wilk@oracle.com>
+Cc: John Stultz <john.stultz@linaro.org>
+Cc: <xen-devel@lists.xen.org>
+Link: http://lkml.kernel.org/r/1372329348-20841-6-git-send-email-david.vrabel@citrix.com
+Signed-off-by: Thomas Gleixner <tglx@linutronix.de>
+---
+ arch/x86/xen/time.c |   45 ++++++++++++++++++++++++++-------------------
+ 1 files changed, 26 insertions(+), 19 deletions(-)
+
+diff --git a/arch/x86/xen/time.c b/arch/x86/xen/time.c
+index 3364850..7a5671b 100644
+--- a/arch/x86/xen/time.c
++++ b/arch/x86/xen/time.c
+@@ -199,37 +199,42 @@ static void xen_get_wallclock(struct timespec *now)
+ 
+ static int xen_set_wallclock(const struct timespec *now)
+ {
+-	struct xen_platform_op op;
+-
+-	/* do nothing for domU */
+-	if (!xen_initial_domain())
+-		return -1;
+-
+-	op.cmd = XENPF_settime;
+-	op.u.settime.secs = now->tv_sec;
+-	op.u.settime.nsecs = now->tv_nsec;
+-	op.u.settime.system_time = xen_clocksource_read();
+-
+-	return HYPERVISOR_dom0_op(&op);
++	return -1;
+ }
+ 
+-static int xen_pvclock_gtod_notify(struct notifier_block *nb, unsigned long was_set,
+-				   void *priv)
++static int xen_pvclock_gtod_notify(struct notifier_block *nb,
++				   unsigned long was_set, void *priv)
+ {
+-	struct timespec now;
+-	struct xen_platform_op op;
++	/* Protected by the calling core code serialization */
++	static struct timespec next_sync;
+ 
+-	if (!was_set)
+-		return NOTIFY_OK;
++	struct xen_platform_op op;
++	struct timespec now;
+ 
+ 	now = __current_kernel_time();
+ 
++	/*
++	 * We only take the expensive HV call when the clock was set
++	 * or when the 11 minutes RTC synchronization time elapsed.
++	 */
++	if (!was_set && timespec_compare(&now, &next_sync) < 0)
++		return NOTIFY_OK;
++
+ 	op.cmd = XENPF_settime;
+ 	op.u.settime.secs = now.tv_sec;
+ 	op.u.settime.nsecs = now.tv_nsec;
+ 	op.u.settime.system_time = xen_clocksource_read();
+ 
+ 	(void)HYPERVISOR_dom0_op(&op);
++
++	/*
++	 * Move the next drift compensation time 11 minutes
++	 * ahead. That's emulating the sync_cmos_clock() update for
++	 * the hardware RTC.
++	 */
++	next_sync = now;
++	next_sync.tv_sec += 11 * 60;
++
+ 	return NOTIFY_OK;
+ }
+ 
+@@ -513,7 +518,9 @@ void __init xen_init_time_ops(void)
+ 
+ 	x86_platform.calibrate_tsc = xen_tsc_khz;
+ 	x86_platform.get_wallclock = xen_get_wallclock;
+-	x86_platform.set_wallclock = xen_set_wallclock;
++	/* Dom0 uses the native method to set the hardware RTC. */
++	if (!xen_initial_domain())
++		x86_platform.set_wallclock = xen_set_wallclock;
+ }
+ 
+ #ifdef CONFIG_XEN_PVHVM
+-- 
+1.7.1
+

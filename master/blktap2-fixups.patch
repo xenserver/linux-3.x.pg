@@ -1,10 +1,10 @@
 diff --git a/drivers/block/Kconfig b/drivers/block/Kconfig
-index a796407..382be94 100644
+index b81ddfe..97deaca 100644
 --- a/drivers/block/Kconfig
 +++ b/drivers/block/Kconfig
-@@ -555,4 +555,13 @@ config BLK_DEV_RBD
- 
- 	  If unsure, say N.
+@@ -541,4 +541,13 @@ config BLK_DEV_RSXX
+ 	  To compile this driver as a module, choose M here: the
+ 	  module will be called rsxx.
  
 +config BLK_DEV_TAP
 +       tristate "Blktap userspace devices"
@@ -17,12 +17,12 @@ index a796407..382be94 100644
 +
  endif # BLK_DEV
 diff --git a/drivers/block/Makefile b/drivers/block/Makefile
-index 5b79505..b9d958e 100644
+index ca07399..ab7db8c 100644
 --- a/drivers/block/Makefile
 +++ b/drivers/block/Makefile
-@@ -43,3 +43,5 @@ obj-$(CONFIG_BLK_DEV_RBD)     += rbd.o
- obj-$(CONFIG_BLK_DEV_PCIESSD_MTIP32XX)	+= mtip32xx/
+@@ -44,3 +44,5 @@ obj-$(CONFIG_BLK_DEV_RSXX) += rsxx/
  
+ nvme-y		:= nvme-core.o nvme-scsi.o
  swim_mod-y	:= swim.o swim_asm.o
 +
 +obj-$(CONFIG_BLK_DEV_TAP)	+= blktap2/
@@ -285,7 +285,7 @@ index 03bbb56..f17c673 100644
  #include "blktap.h"
  
 diff --git a/drivers/block/blktap2/ring.c b/drivers/block/blktap2/ring.c
-index 5295eaf..035a91b 100644
+index 5295eaf..8dc7efb 100644
 --- a/drivers/block/blktap2/ring.c
 +++ b/drivers/block/blktap2/ring.c
 @@ -4,6 +4,7 @@
@@ -305,7 +305,17 @@ index 5295eaf..035a91b 100644
  	struct page *page = NULL;
  	int err;
  
-@@ -465,7 +466,6 @@ static unsigned int blktap_ring_poll(struct file *filp, poll_table *wait)
+@@ -350,8 +351,7 @@ blktap_ring_mmap(struct file *filp, struct vm_area_struct *vma)
+ 
+ 	vma->vm_private_data = tap;
+ 
+-	vma->vm_flags |= VM_DONTCOPY;
+-	vma->vm_flags |= VM_RESERVED;
++	vma->vm_flags |= VM_DONTCOPY | VM_DONTEXPAND | VM_DONTDUMP;
+ 
+ 	vma->vm_ops = &blktap_ring_vm_operations;
+ 
+@@ -465,7 +465,6 @@ static unsigned int blktap_ring_poll(struct file *filp, poll_table *wait)
  	RING_PUSH_REQUESTS(&ring->ring);
  
  	if (work ||
@@ -314,7 +324,7 @@ index 5295eaf..035a91b 100644
  		return POLLIN | POLLRDNORM;
  
 diff --git a/drivers/block/blktap2/sysfs.c b/drivers/block/blktap2/sysfs.c
-index 4cbb0ce..626350b1 100644
+index 4cbb0ce..626350b 100644
 --- a/drivers/block/blktap2/sysfs.c
 +++ b/drivers/block/blktap2/sysfs.c
 @@ -51,48 +51,7 @@ blktap_sysfs_get_name(struct device *dev, struct device_attribute *attr, char *b
@@ -420,13 +430,13 @@ index 4cbb0ce..626350b1 100644
  {
  	int i, ret;
  	struct blktap *tap;
-diff --git a/include/linux/Kbuild b/include/linux/Kbuild
-index fa21760..7056c29 100644
---- a/include/linux/Kbuild
-+++ b/include/linux/Kbuild
-@@ -76,6 +76,7 @@ header-y += bfs_fs.h
+diff --git a/include/uapi/linux/Kbuild b/include/uapi/linux/Kbuild
+index bdc6e87..5a32e88 100644
+--- a/include/uapi/linux/Kbuild
++++ b/include/uapi/linux/Kbuild
+@@ -65,6 +65,7 @@ header-y += baycom.h
+ header-y += bfs_fs.h
  header-y += binfmts.h
- header-y += blk_types.h
  header-y += blkpg.h
 +header-y += blktap.h
  header-y += blktrace_api.h

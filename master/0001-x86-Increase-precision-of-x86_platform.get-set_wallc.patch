@@ -1,7 +1,7 @@
-From 285c2f28da2ae4ee846d2481658a0bab8f6e32c2 Mon Sep 17 00:00:00 2001
+From 3565184ed0c1ea46bea5b792da5f72a83c43e49b Mon Sep 17 00:00:00 2001
 From: David Vrabel <david.vrabel@citrix.com>
-Date: Fri, 10 May 2013 13:46:27 +0100
-Subject: [PATCH 1/3] x86: increase precision of x86_platform.get/set_wallclock()
+Date: Mon, 13 May 2013 18:56:06 +0100
+Subject: [PATCH] x86: Increase precision of x86_platform.get/set_wallclock()
 
 All the virtualized platforms (KVM, lguest and Xen) have persistent
 wallclocks that have more than one second of precision.
@@ -18,7 +18,18 @@ guests may start with a more accurate wallclock time and a Xen dom0
 can maintain a more accurate wallclock for guests.
 
 Signed-off-by: David Vrabel <david.vrabel@citrix.com>
-Cc: Thomas Gleixner <tglx@linutronix.de>
+Signed-off-by: John Stultz <john.stultz@linaro.org>
+---
+ arch/x86/include/asm/mc146818rtc.h |    4 ++--
+ arch/x86/include/asm/x86_init.h    |    6 ++++--
+ arch/x86/kernel/kvmclock.c         |    9 +++------
+ arch/x86/kernel/rtc.c              |   17 +++++++----------
+ arch/x86/lguest/boot.c             |    4 ++--
+ arch/x86/platform/efi/efi.c        |   10 ++++++----
+ arch/x86/xen/time.c                |   19 ++++++-------------
+ include/linux/efi.h                |    4 ++--
+ 8 files changed, 32 insertions(+), 41 deletions(-)
+
 diff --git a/arch/x86/include/asm/mc146818rtc.h b/arch/x86/include/asm/mc146818rtc.h
 index d354fb7..a55c7ef 100644
 --- a/arch/x86/include/asm/mc146818rtc.h
@@ -35,10 +46,10 @@ index d354fb7..a55c7ef 100644
  #define RTC_IRQ 8
  
 diff --git a/arch/x86/include/asm/x86_init.h b/arch/x86/include/asm/x86_init.h
-index 38155f6..787aad7 100644
+index d8d9922..828a156 100644
 --- a/arch/x86/include/asm/x86_init.h
 +++ b/arch/x86/include/asm/x86_init.h
-@@ -153,6 +153,8 @@ struct x86_cpuinit_ops {
+@@ -142,6 +142,8 @@ struct x86_cpuinit_ops {
  	void (*fixup_cpu_id)(struct cpuinfo_x86 *c, int node);
  };
  
@@ -47,7 +58,7 @@ index 38155f6..787aad7 100644
  /**
   * struct x86_platform_ops - platform specific runtime functions
   * @calibrate_tsc:		calibrate TSC
-@@ -167,8 +169,8 @@ struct x86_cpuinit_ops {
+@@ -156,8 +158,8 @@ struct x86_cpuinit_ops {
   */
  struct x86_platform_ops {
  	unsigned long (*calibrate_tsc)(void);
@@ -59,10 +70,10 @@ index 38155f6..787aad7 100644
  	bool (*is_untracked_pat_range)(u64 start, u64 end);
  	void (*nmi_init)(void);
 diff --git a/arch/x86/kernel/kvmclock.c b/arch/x86/kernel/kvmclock.c
-index f1b42b3..c0a261c 100644
+index d2c3812..0db81ab 100644
 --- a/arch/x86/kernel/kvmclock.c
 +++ b/arch/x86/kernel/kvmclock.c
-@@ -47,10 +47,9 @@ static struct pvclock_wall_clock wall_clock;
+@@ -48,10 +48,9 @@ static struct pvclock_wall_clock wall_clock;
   * have elapsed since the hypervisor wrote the data. So we try to account for
   * that with system time
   */
@@ -72,15 +83,16 @@ index f1b42b3..c0a261c 100644
  	struct pvclock_vcpu_time_info *vcpu_time;
 -	struct timespec ts;
  	int low, high;
+ 	int cpu;
  
- 	low = (int)__pa_symbol(&wall_clock);
-@@ -59,13 +58,11 @@ static unsigned long kvm_get_wallclock(void)
- 	native_write_msr(msr_kvm_wall_clock, low, high);
+@@ -64,14 +63,12 @@ static unsigned long kvm_get_wallclock(void)
+ 	cpu = smp_processor_id();
  
- 	vcpu_time = &get_cpu_var(hv_clock);
+ 	vcpu_time = &hv_clock[cpu].pvti;
 -	pvclock_read_wallclock(&wall_clock, vcpu_time, &ts);
 +	pvclock_read_wallclock(&wall_clock, vcpu_time, now);
- 	put_cpu_var(hv_clock);
+ 
+ 	preempt_enable();
 -
 -	return ts.tv_sec;
  }
@@ -91,7 +103,7 @@ index f1b42b3..c0a261c 100644
  	return -1;
  }
 diff --git a/arch/x86/kernel/rtc.c b/arch/x86/kernel/rtc.c
-index ef2ee0e..aefbf7f 100644
+index 198eb20..0aa2939 100644
 --- a/arch/x86/kernel/rtc.c
 +++ b/arch/x86/kernel/rtc.c
 @@ -38,8 +38,9 @@ EXPORT_SYMBOL(rtc_lock);
@@ -114,7 +126,7 @@ index ef2ee0e..aefbf7f 100644
  {
  	unsigned int status, year, mon, day, hour, min, sec, century = 0;
  	unsigned long flags;
-@@ -108,7 +109,8 @@ unsigned long mach_get_cmos_time(void)
+@@ -107,7 +108,8 @@ unsigned long mach_get_cmos_time(void)
  	} else
  		year += CMOS_YEARS_OFFS;
  
@@ -124,7 +136,7 @@ index ef2ee0e..aefbf7f 100644
  }
  
  /* Routines for accessing the CMOS RAM/RTC. */
-@@ -136,18 +138,13 @@ EXPORT_SYMBOL(rtc_cmos_write);
+@@ -135,18 +137,13 @@ EXPORT_SYMBOL(rtc_cmos_write);
  
  int update_persistent_clock(struct timespec now)
  {
@@ -144,12 +156,12 @@ index ef2ee0e..aefbf7f 100644
 +	x86_platform.get_wallclock(ts);
  }
  
- unsigned long long native_read_tsc(void)
+ 
 diff --git a/arch/x86/lguest/boot.c b/arch/x86/lguest/boot.c
-index 642d880..8cfd3db 100644
+index 7114c63..8424d5a 100644
 --- a/arch/x86/lguest/boot.c
 +++ b/arch/x86/lguest/boot.c
-@@ -881,9 +881,9 @@ int lguest_setup_irq(unsigned int irq)
+@@ -882,9 +882,9 @@ int lguest_setup_irq(unsigned int irq)
   * It would be far better for everyone if the Guest had its own clock, but
   * until then the Host gives us the time on every interrupt.
   */
@@ -162,21 +174,21 @@ index 642d880..8cfd3db 100644
  
  /*
 diff --git a/arch/x86/platform/efi/efi.c b/arch/x86/platform/efi/efi.c
-index e96607f..6a9dcb2 100644
+index 55856b2..dd3b825 100644
 --- a/arch/x86/platform/efi/efi.c
 +++ b/arch/x86/platform/efi/efi.c
-@@ -254,8 +254,9 @@ static efi_status_t __init phys_efi_get_time(efi_time_t *tm,
+@@ -352,8 +352,9 @@ static efi_status_t __init phys_efi_get_time(efi_time_t *tm,
  	return status;
  }
  
 -int efi_set_rtc_mmss(unsigned long nowtime)
 +int efi_set_rtc_mmss(const struct timespec *now)
  {
-+	unsigned long   nowtime = now->tv_sec;
++	unsigned long nowtime = now->tv_sec;
  	efi_status_t 	status;
  	efi_time_t 	eft;
  	efi_time_cap_t 	cap;
-@@ -290,7 +291,7 @@ int efi_set_rtc_mmss(unsigned long nowtime)
+@@ -388,7 +389,7 @@ int efi_set_rtc_mmss(unsigned long nowtime)
  	return 0;
  }
  
@@ -185,7 +197,7 @@ index e96607f..6a9dcb2 100644
  {
  	efi_status_t status;
  	efi_time_t eft;
-@@ -300,8 +301,9 @@ unsigned long efi_get_time(void)
+@@ -398,8 +399,9 @@ unsigned long efi_get_time(void)
  	if (status != EFI_SUCCESS)
  		pr_err("Oops: efitime: can't read time!\n");
  
@@ -198,7 +210,7 @@ index e96607f..6a9dcb2 100644
  
  /*
 diff --git a/arch/x86/xen/time.c b/arch/x86/xen/time.c
-index 0296a95..bb9c314 100644
+index 3d88bfd..a1947ac 100644
 --- a/arch/x86/xen/time.c
 +++ b/arch/x86/xen/time.c
 @@ -191,32 +191,25 @@ static void xen_read_wallclock(struct timespec *ts)
@@ -241,10 +253,10 @@ index 0296a95..bb9c314 100644
  
  static struct clocksource xen_clocksource __read_mostly = {
 diff --git a/include/linux/efi.h b/include/linux/efi.h
-index 5782114..4f2c6f2 100644
+index 2bc0ad7..0068bba 100644
 --- a/include/linux/efi.h
 +++ b/include/linux/efi.h
-@@ -508,8 +508,8 @@ extern u64 efi_mem_attribute (unsigned long phys_addr, unsigned long size);
+@@ -594,8 +594,8 @@ extern u64 efi_mem_attribute (unsigned long phys_addr, unsigned long size);
  extern int __init efi_uart_console_only (void);
  extern void efi_initialize_iomem_resources(struct resource *code_resource,
  		struct resource *data_resource, struct resource *bss_resource);
@@ -255,3 +267,6 @@ index 5782114..4f2c6f2 100644
  extern void efi_reserve_boot_services(void);
  extern struct efi_memory_map memmap;
  
+-- 
+1.7.1
+

@@ -1,7 +1,7 @@
-From 257cc5592218b5440c2c663e129b36482e1dbb82 Mon Sep 17 00:00:00 2001
+From 65a45fa2f640f72757ef00f2bc83f9654d65a62b Mon Sep 17 00:00:00 2001
 From: David Vrabel <david.vrabel@citrix.com>
-Date: Tue, 16 Jul 2013 11:45:48 +0100
-Subject: [PATCH 2/3] xen/p2m: avoid unneccesary TLB flush in m2p_remove_override()
+Date: Fri, 19 Jul 2013 15:51:59 +0100
+Subject: [PATCH] xen/p2m: avoid unneccesary TLB flush in m2p_remove_override()
 
 In m2p_remove_override() when removing the grant map from the kernel
 mapping and replacing with a mapping to the original page, the grant
@@ -10,6 +10,8 @@ it again after updating the mapping.
 
 Signed-off-by: David Vrabel <david.vrabel@citrix.com>
 Cc: Stefano Stabellini <stefano.stabellini@eu.citrix.com>
+Signed-off-by: Konrad Rzeszutek Wilk <konrad.wilk@oracle.com>
+Reviewed-by: Stefano Stabellini <stefano.stabellini@eu.citrix.com>
 ---
  arch/x86/xen/p2m.c |    1 -
  1 files changed, 0 insertions(+), 1 deletions(-)
@@ -27,5 +29,5 @@ index 95fb2aa..74672ee 100644
  		}
  	}
 -- 
-1.7.2.5
+1.7.1
 

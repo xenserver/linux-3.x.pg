@@ -2,13 +2,13 @@
 # Parent 64b7dc6739b0268ef44b5acb537736a06ae7c51e
 
 diff --git a/drivers/misc/Kconfig b/drivers/misc/Kconfig
-index 98a442d..a62dca4 100644
+index c002d86..d9652c4 100644
 --- a/drivers/misc/Kconfig
 +++ b/drivers/misc/Kconfig
-@@ -517,4 +517,14 @@ source "drivers/misc/lis3lv02d/Kconfig"
- source "drivers/misc/carma/Kconfig"
+@@ -536,4 +536,14 @@ source "drivers/misc/carma/Kconfig"
  source "drivers/misc/altera-stapl/Kconfig"
  source "drivers/misc/mei/Kconfig"
+ source "drivers/misc/vmw_vmci/Kconfig"
 +
 +config UKLOG
 +	tristate "User level printk support through procfs"
@@ -21,14 +21,17 @@ index 98a442d..a62dca4 100644
 +
  endmenu
 diff --git a/drivers/misc/Makefile b/drivers/misc/Makefile
-index b88df7a..8e46d40 100644
+index c235d5b..6eb8829 100644
 --- a/drivers/misc/Makefile
 +++ b/drivers/misc/Makefile
-@@ -50,3 +50,4 @@ obj-y				+= carma/
+@@ -50,6 +50,7 @@ obj-y				+= carma/
  obj-$(CONFIG_USB_SWITCH_FSA9480) += fsa9480.o
  obj-$(CONFIG_ALTERA_STAPL)	+=altera-stapl/
  obj-$(CONFIG_INTEL_MEI)		+= mei/
 ++obj-$(CONFIG_UKLOG)		+= uklog.o
+ obj-$(CONFIG_VMWARE_VMCI)	+= vmw_vmci/
+ obj-$(CONFIG_LATTICE_ECP3_CONFIG)	+= lattice-ecp3-config.o
+ obj-$(CONFIG_SRAM)		+= sram.o
 diff --git a/drivers/misc/uklog.c b/drivers/misc/uklog.c
 new file mode 100644
 index 0000000..79ab056
