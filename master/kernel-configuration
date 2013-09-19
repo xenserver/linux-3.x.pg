@@ -20,7 +20,7 @@ index 9ed796c..cdac6bc 100644
  
 diff --git a/buildconfigs/linux-defconfig_xen_x86_32 b/buildconfigs/linux-defconfig_xen_x86_32
 new file mode 100644
-index 0000000..bcb1337
+index 0000000..a040f5a
 --- /dev/null
 +++ b/buildconfigs/linux-defconfig_xen_x86_32
 @@ -0,0 +1,3840 @@
@@ -1201,7 +1201,10 @@ index 0000000..bcb1337
 +CONFIG_DCB=y
 +CONFIG_DNS_RESOLVER=y
 +# CONFIG_BATMAN_ADV is not set
-+CONFIG_OPENVSWITCH=m
++# CONFIG_OPENVSWITCH is not set
++CONFIG_VSOCKETS=m
++CONFIG_NETLINK_MMAP=y
++CONFIG_NETLINK_DIAG=y
 +CONFIG_RPS=y
 +CONFIG_RFS_ACCEL=y
 +CONFIG_XPS=y
@@ -3863,7 +3866,7 @@ index 0000000..bcb1337
 +CONFIG_UCS2_STRING=y
 diff --git a/buildconfigs/linux-defconfig_xen_x86_64 b/buildconfigs/linux-defconfig_xen_x86_64
 new file mode 100644
-index 0000000..8bdbb22
+index 0000000..4a1d61e
 --- /dev/null
 +++ b/buildconfigs/linux-defconfig_xen_x86_64
 @@ -0,0 +1,3808 @@
@@ -5002,7 +5005,10 @@ index 0000000..8bdbb22
 +CONFIG_DCB=y
 +CONFIG_DNS_RESOLVER=y
 +# CONFIG_BATMAN_ADV is not set
-+CONFIG_OPENVSWITCH=m
++# CONFIG_OPENVSWITCH is not set
++CONFIG_VSOCKETS=m
++CONFIG_NETLINK_MMAP=y
++CONFIG_NETLINK_DIAG=y
 +CONFIG_RPS=y
 +CONFIG_RFS_ACCEL=y
 +CONFIG_XPS=y
