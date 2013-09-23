@@ -1,0 +1,1947 @@
+From 5ee531351f2f4a60e8ddc591225e17e0ed51cbd4 Mon Sep 17 00:00:00 2001
+From: Konrad Rzeszutek Wilk <konrad.wilk@oracle.com>
+Date: Fri, 15 Jun 2012 16:40:48 -0400
+Subject: [PATCH 1/6] xen/oprofile: Patch from Michael Petullo
+
+http://www.flyn.org/patches/linux-xen-passive-oprofile/linux-3.2-xen-passive-oprofile.patch.gz
+
+>> I have ported Anil's passive profile-capable OProfile patch to Linux
+>> 3.2. I have be able to hobble this patch along to new kernel versions, but
+>> it is in need of additional work if it is to be submitted upstream. Please
+>> see:
+>>
+>> http://www.flyn.org/patches/linux-xen-passive-oprofile/linux-3.2-xen-passive-oprofile.patch.gz
+>>
+>> With this patch applied to Linux 3.2, I can perform passive
+>> profiling of an unprivileged Xen domain.
+
+> What version of oprofile did you use?
+
+Fedora's oprofile-0.9.6-21.fc16.x86_64.
+
+Signed-off-by: Konrad Rzeszutek Wilk <konrad.wilk@oracle.com>
+
+Conflicts:
+
+	include/xen/interface/xen.h
+
+Header from folded patch '0002-xen-oprofile-Compile-fix.patch':
+
+From 9f615ea3c80ff4c8b0f08ec9d1a0c85518cf9a1b Mon Sep 17 00:00:00 2001
+From: Konrad Rzeszutek Wilk <konrad.wilk@oracle.com>
+Date: Fri, 15 Jun 2012 17:00:03 -0400
+Subject: [PATCH 2/6] xen/oprofile: Compile fix
+
+Its now fashionable to use syscore_ops.
+
+Signed-off-by: Konrad Rzeszutek Wilk <konrad.wilk@oracle.com>
+
+Header from folded patch '0003-xen-oprofile-The-arch_-variants-for-init-exec-weren-.patch':
+
+From 49247a72dc2f0f6fd3edda4d9c9159b5c85f5db0 Mon Sep 17 00:00:00 2001
+From: Konrad Rzeszutek Wilk <konrad.wilk@oracle.com>
+Date: Tue, 19 Jun 2012 15:03:14 -0400
+Subject: [PATCH 3/6] xen/oprofile: The arch_ variants for init/exec weren't being called.
+
+Signed-off-by: Konrad Rzeszutek Wilk <konrad.wilk@oracle.com>
+
+Header from folded patch '0004-xen-oprofile-Fix-compile-issues-when-CONFIG_XEN-is-n.patch':
+
+From c23319dffecb4b7dbd7aa4aaae3ec732180786df Mon Sep 17 00:00:00 2001
+From: Konrad Rzeszutek Wilk <konrad.wilk@oracle.com>
+Date: Thu, 21 Jun 2012 10:44:08 -0400
+Subject: [PATCH 4/6] xen/oprofile: Fix compile issues when CONFIG_XEN is not defined.
+
+Signed-off-by: Konrad Rzeszutek Wilk <konrad.wilk@oracle.com>
+
+Header from folded patch '0005-xen-oprofile-Switch-from-syscore_ops-to-platform_ops.patch':
+
+From b9e39a5ec7271738326eaeccc9420264dda56e88 Mon Sep 17 00:00:00 2001
+From: Konrad Rzeszutek Wilk <konrad.wilk@oracle.com>
+Date: Wed, 11 Jul 2012 10:46:28 -0400
+Subject: [PATCH 5/6] xen/oprofile: Switch from syscore_ops to platform_ops.
+
+Signed-off-by: Konrad Rzeszutek Wilk <konrad.wilk@oracle.com>
+
+Header from folded patch '0006-xen-oprofile-Expose-the-oprofile_arch_exit_fnc-point.patch':
+
+From f0be9187733736889c08df448bffd179ba69c538 Mon Sep 17 00:00:00 2001
+From: Konrad Rzeszutek Wilk <konrad.wilk@oracle.com>
+Date: Fri, 17 Aug 2012 10:55:51 -0400
+Subject: [PATCH 6/6] xen/oprofile: Expose the oprofile_arch_exit_fnc pointer.
+
+Otherwise during rmmod of oprofile it would oops b/c the generic
+oprofile_arch_exit had never been called.
+
+Signed-off-by: Konrad Rzeszutek Wilk <konrad.wilk@oracle.com>
+
+Header from folded patch 'xen-interface-xenoprof-64bit-escape-code.patch':
+
+(from xen-unstable.hg 24571:1e27e827e6a8)
+
+xenoprof: Make the escape code consistent across 32 and  64-bit xen
+
+At the moment, the xenoprof escape code is defined as "~0UL".
+Unfortunately, this expands to 0xffffffff on 32-bit systems
+and 0xffffffffffffffff on 64-bit systems; with the result that
+while 32-on-32 and 64-in-64 work fine, 32-on-64 (also known as
+"compat mode") is broken.
+
+This patch makes the definition consistent across architectures.
+In so doing, it will break old-32-bit-on-new-Xen, and vice versa;
+but this was seen as an acceptable thing to do.
+
+Signed-off-by: George Dunlap <george.dunlap@eu.citrix.com>
+
+diff --git a/arch/x86/include/asm/xen/hypercall.h b/arch/x86/include/asm/xen/hypercall.h
+index e709884..be81673 100644
+--- a/arch/x86/include/asm/xen/hypercall.h
++++ b/arch/x86/include/asm/xen/hypercall.h
+@@ -465,6 +465,12 @@ HYPERVISOR_tmem_op(
+ 	return _hypercall1(int, tmem_op, op);
+ }
+ 
++static inline int
++HYPERVISOR_xenoprof_op(unsigned int op, void *arg)
++{
++	return _hypercall2(int, xenoprof_op, op, arg);
++}
++
+ static inline void
+ MULTI_fpu_taskswitch(struct multicall_entry *mcl, int set)
+ {
+diff --git a/arch/x86/oprofile/Makefile b/arch/x86/oprofile/Makefile
+index 1599f56..51d1259 100644
+--- a/arch/x86/oprofile/Makefile
++++ b/arch/x86/oprofile/Makefile
+@@ -6,6 +6,12 @@ DRIVER_OBJS = $(addprefix ../../../drivers/oprofile/, \
+ 		oprofilefs.o oprofile_stats.o  \
+ 		timer_int.o nmi_timer_int.o )
+ 
++ifdef CONFIG_XEN
++XENOPROF_COMMON_OBJS = $(addprefix ../../../drivers/xen/xenoprof/, \
++			 xenoprofile.o)
++DRIVER_OBJS				:= $(DRIVER_OBJS) \
++					   $(XENOPROF_COMMON_OBJS) xenoprof.o
++endif 
+ oprofile-y				:= $(DRIVER_OBJS) init.o backtrace.o
+ oprofile-$(CONFIG_X86_LOCAL_APIC) 	+= nmi_int.o op_model_amd.o \
+ 					   op_model_ppro.o op_model_p4.o
+diff --git a/arch/x86/oprofile/xenoprof.c b/arch/x86/oprofile/xenoprof.c
+new file mode 100644
+index 0000000..3823e46
+--- /dev/null
++++ b/arch/x86/oprofile/xenoprof.c
+@@ -0,0 +1,172 @@
++/**
++ * @file xenoprof.c
++ *
++ * @remark Copyright 2002 OProfile authors
++ * @remark Read the file COPYING
++ *
++ * @author John Levon <levon@xxxxxxxxxxxxxxxxx>
++ *
++ * Modified by Aravind Menon and Jose Renato Santos for Xen
++ * These modifications are:
++ * Copyright (C) 2005 Hewlett-Packard Co.
++ *
++ * x86-specific part
++ * Copyright (c) 2006 Isaku Yamahata <yamahata at valinux co jp>
++ *                    VA Linux Systems Japan K.K.
++ */
++
++#include <linux/init.h>
++#include <linux/oprofile.h>
++#include <linux/sched.h>
++#include <linux/vmalloc.h>
++#include <asm/pgtable.h>
++
++#include <xen/interface/xen.h>
++#include <asm/xen/hypercall.h>
++#include <xen/xen-ops.h>
++#include <xen/interface/xenoprof.h>
++#include <xen/xenoprof.h>
++#include "op_counter.h"
++
++static unsigned int num_events = 0;
++struct op_counter_config xen_counter_config[OP_MAX_COUNTER];
++
++void __init xenoprof_arch_init_counter(struct xenoprof_init *init)
++{
++	num_events = init->num_events;
++	/* just in case - make sure we do not overflow event list 
++	   (i.e. xen_counter_config list) */
++	if (num_events > OP_MAX_COUNTER) {
++		num_events = OP_MAX_COUNTER;
++		init->num_events = num_events;
++	}
++}
++
++void xenoprof_arch_counter(void)
++{
++	int i;
++	struct xenoprof_counter counter;
++
++	for (i=0; i<num_events; i++) {
++		counter.ind       = i;
++		counter.count     = (uint64_t)xen_counter_config[i].count;
++		counter.enabled   = (uint32_t)xen_counter_config[i].enabled;
++		counter.event     = (uint32_t)xen_counter_config[i].event;
++		counter.kernel    = (uint32_t)xen_counter_config[i].kernel;
++		counter.user      = (uint32_t)xen_counter_config[i].user;
++		counter.unit_mask = (uint64_t)xen_counter_config[i].unit_mask;
++		WARN_ON(HYPERVISOR_xenoprof_op(XENOPROF_counter,
++					       &counter));
++	}
++}
++
++void xenoprof_arch_start(void) 
++{
++	/* nothing */
++}
++
++void xenoprof_arch_stop(void)
++{
++	/* nothing */
++}
++
++void xenoprof_arch_unmap_shared_buffer(struct xenoprof_shared_buffer * sbuf)
++{
++	if (sbuf->buffer) {
++		vunmap(sbuf->buffer);
++		sbuf->buffer = NULL;
++	}
++}
++
++int xenoprof_arch_map_shared_buffer(struct xenoprof_get_buffer * get_buffer,
++				    struct xenoprof_shared_buffer * sbuf)
++{
++	int npages, ret;
++	struct vm_struct *area;
++
++	sbuf->buffer = NULL;
++	if ( (ret = HYPERVISOR_xenoprof_op(XENOPROF_get_buffer, get_buffer)) )
++		return ret;
++
++	npages = (get_buffer->bufsize * get_buffer->nbuf - 1) / PAGE_SIZE + 1;
++
++	area = alloc_vm_area(npages * PAGE_SIZE, NULL);
++	if (area == NULL)
++		return -ENOMEM;
++
++	if ( (ret = xen_remap_domain_kernel_mfn_range(
++		      (unsigned long)area->addr,
++		      get_buffer->buf_gmaddr >> PAGE_SHIFT,
++		      npages, __pgprot(_KERNPG_TABLE),
++		      DOMID_SELF)) ) {
++		vunmap(area->addr);
++		return ret;
++	}
++
++	sbuf->buffer = area->addr;
++	return ret;
++}
++
++int xenoprof_arch_set_passive(struct xenoprof_passive * pdomain,
++			      struct xenoprof_shared_buffer * sbuf)
++{
++	int ret;
++	int npages;
++	struct vm_struct *area;
++	pgprot_t prot = __pgprot(_KERNPG_TABLE);
++
++	sbuf->buffer = NULL;
++
++	ret = HYPERVISOR_xenoprof_op(XENOPROF_set_passive, pdomain);
++	if (ret)
++		goto out;
++
++	npages = (pdomain->bufsize * pdomain->nbuf - 1) / PAGE_SIZE + 1;
++
++	area = alloc_vm_area(npages * PAGE_SIZE, NULL);
++	if (area == NULL) {
++		ret = -ENOMEM;
++		goto out;
++	}
++
++	ret = xen_remap_domain_kernel_mfn_range(
++		(unsigned long)area->addr & PAGE_MASK,
++		pdomain->buf_gmaddr >> PAGE_SHIFT,
++		npages, prot, DOMID_SELF);
++	if (ret) {
++		vunmap(area->addr);
++		goto out;
++	}
++	sbuf->buffer = area->addr;
++
++out:
++	return ret;
++}
++
++
++int xenoprof_create_files(struct super_block * sb, struct dentry * root)
++{
++	unsigned int i;
++
++	for (i = 0; i < num_events; ++i) {
++		struct dentry * dir;
++		char buf[2];
++ 
++		snprintf(buf, 2, "%d", i);
++		dir = oprofilefs_mkdir(sb, root, buf);
++		oprofilefs_create_ulong(sb, dir, "enabled",
++					&xen_counter_config[i].enabled);
++		oprofilefs_create_ulong(sb, dir, "event",
++					&xen_counter_config[i].event);
++		oprofilefs_create_ulong(sb, dir, "count",
++					&xen_counter_config[i].count);
++		oprofilefs_create_ulong(sb, dir, "unit_mask",
++					&xen_counter_config[i].unit_mask);
++		oprofilefs_create_ulong(sb, dir, "kernel",
++					&xen_counter_config[i].kernel);
++		oprofilefs_create_ulong(sb, dir, "user",
++					&xen_counter_config[i].user);
++	}
++
++	return 0;
++}
+diff --git a/arch/x86/xen/mmu.c b/arch/x86/xen/mmu.c
+index fdc3ba2..3503cc5 100644
+--- a/arch/x86/xen/mmu.c
++++ b/arch/x86/xen/mmu.c
+@@ -2503,7 +2503,7 @@ static int remap_area_mfn_pte_fn(pte_t *ptep, pgtable_t token,
+ 	return 0;
+ }
+ 
+-int xen_remap_domain_mfn_range(struct vm_area_struct *vma,
++static int __xen_remap_domain_mfn_range(struct mm_struct *mm,
+ 			       unsigned long addr,
+ 			       xen_pfn_t mfn, int nr,
+ 			       pgprot_t prot, unsigned domid,
+@@ -2521,8 +2521,6 @@ int xen_remap_domain_mfn_range(struct vm_area_struct *vma,
+ 
+ 	prot = __pgprot(pgprot_val(prot) | _PAGE_IOMAP);
+ 
+-	BUG_ON(!((vma->vm_flags & (VM_PFNMAP | VM_IO)) == (VM_PFNMAP | VM_IO)));
+-
+ 	rmd.mfn = mfn;
+ 	rmd.prot = prot;
+ 
+@@ -2531,7 +2529,7 @@ int xen_remap_domain_mfn_range(struct vm_area_struct *vma,
+ 		range = (unsigned long)batch << PAGE_SHIFT;
+ 
+ 		rmd.mmu_update = mmu_update;
+-		err = apply_to_page_range(vma->vm_mm, addr, range,
++		err = apply_to_page_range(mm, addr, range,
+ 					  remap_area_mfn_pte_fn, &rmd);
+ 		if (err)
+ 			goto out;
+@@ -2551,8 +2549,30 @@ out:
+ 
+ 	return err;
+ }
++
++int xen_remap_domain_mfn_range(struct vm_area_struct *vma,
++                               unsigned long addr,
++                               xen_pfn_t mfn, int nr,
++                               pgprot_t prot, unsigned domid,
++			       struct page **pages)
++{
++
++	BUG_ON(!((vma->vm_flags & (VM_PFNMAP | VM_IO)) == (VM_PFNMAP | VM_IO)));
++
++	return __xen_remap_domain_mfn_range(vma->vm_mm, addr,
++	                                    mfn, nr, prot, domid, pages);
++}
+ EXPORT_SYMBOL_GPL(xen_remap_domain_mfn_range);
+ 
++int xen_remap_domain_kernel_mfn_range(unsigned long addr,
++                                      unsigned long mfn, int nr,
++                                      pgprot_t prot, unsigned domid)
++{
++	return __xen_remap_domain_mfn_range(&init_mm, addr, 
++	                                    mfn, nr, prot, domid, NULL);
++}
++EXPORT_SYMBOL_GPL(xen_remap_domain_kernel_mfn_range);
++
+ /* Returns: 0 success */
+ int xen_unmap_domain_mfn_range(struct vm_area_struct *vma,
+ 			       int numpgs, struct page **pages)
+diff --git a/drivers/oprofile/buffer_sync.c b/drivers/oprofile/buffer_sync.c
+index d93b2b6..c008748 100644
+--- a/drivers/oprofile/buffer_sync.c
++++ b/drivers/oprofile/buffer_sync.c
+@@ -43,6 +43,10 @@ static cpumask_var_t marked_cpus;
+ static DEFINE_SPINLOCK(task_mortuary);
+ static void process_task_mortuary(void);
+ 
++#ifdef CONFIG_XEN
++static int cpu_current_xen_domain[NR_CPUS];
++#endif
++
+ /* Take ownership of the task struct and place it on the
+  * list for processing. Only after two full buffer syncs
+  * does the task eventually get freed, because by then
+@@ -152,6 +156,13 @@ int sync_start(void)
+ {
+ 	int err;
+ 
++#ifdef CONFIG_XEN
++	int i;
++
++	for (i = 0; i < NR_CPUS; i++)
++		cpu_current_xen_domain[i] = XEN_COORDINATOR_DOMAIN;
++#endif
++
+ 	if (!zalloc_cpumask_var(&marked_cpus, GFP_KERNEL))
+ 		return -ENOMEM;
+ 
+@@ -276,15 +287,38 @@ static void add_cpu_switch(int i)
+ 	last_cookie = INVALID_COOKIE;
+ }
+ 
+-static void add_kernel_ctx_switch(unsigned int in_kernel)
++static void add_cpu_mode_switch(unsigned int cpu_mode)
+ {
+ 	add_event_entry(ESCAPE_CODE);
+-	if (in_kernel)
+-		add_event_entry(KERNEL_ENTER_SWITCH_CODE);
+-	else
+-		add_event_entry(KERNEL_EXIT_SWITCH_CODE);
++	switch(cpu_mode)
++	{
++		case CPU_MODE_USER:
++			add_event_entry(USER_ENTER_SWITCH_CODE);
++			break;
++		case CPU_MODE_KERNEL:
++			add_event_entry(KERNEL_ENTER_SWITCH_CODE);
++			break;
++#ifdef CONFIG_XEN
++		case CPU_MODE_XEN:
++			add_event_entry(XEN_ENTER_SWITCH_CODE);
++			break;
++#endif
++		default:
++			break;
++	}
++
++	return;
+ }
+ 
++#ifdef CONFIG_XEN
++static void add_xen_domain_switch(unsigned long domain_id)
++{
++	add_event_entry(ESCAPE_CODE);
++	add_event_entry(XEN_DOMAIN_SWITCH_CODE);
++	add_event_entry(domain_id);
++}
++#endif
++
+ static void
+ add_user_ctx_switch(struct task_struct const *task, unsigned long cookie)
+ {
+@@ -363,12 +397,12 @@ static inline void add_sample_entry(unsigned long offset, unsigned long event)
+  * for later lookup from userspace. Return 0 on failure.
+  */
+ static int
+-add_sample(struct mm_struct *mm, struct op_sample *s, int in_kernel)
++add_sample(struct mm_struct *mm, struct op_sample *s, int cpu_mode)
+ {
+ 	unsigned long cookie;
+ 	off_t offset;
+ 
+-	if (in_kernel) {
++	if (cpu_mode >= CPU_MODE_KERNEL) {
+ 		add_sample_entry(s->eip, s->event);
+ 		return 1;
+ 	}
+@@ -493,7 +527,7 @@ void sync_buffer(int cpu)
+ 	unsigned long val;
+ 	struct task_struct *new;
+ 	unsigned long cookie = 0;
+-	int in_kernel = 1;
++	int cpu_mode = CPU_MODE_KERNEL;
+ 	sync_buffer_state state = sb_buffer_start;
+ 	unsigned int i;
+ 	unsigned long available;
+@@ -505,6 +539,13 @@ void sync_buffer(int cpu)
+ 
+ 	add_cpu_switch(cpu);
+ 
++#ifdef CONFIG_XEN
++	/* We need to assign the first samples in this CPU buffer to the
++	 * same domain that we were processing at the last sync_buffer */
++	if(cpu_current_xen_domain[cpu] != XEN_COORDINATOR_DOMAIN)
++		add_xen_domain_switch(cpu_current_xen_domain[cpu]);
++#endif
++
+ 	op_cpu_buffer_reset(cpu);
+ 	available = op_cpu_buffer_entries(cpu);
+ 
+@@ -521,10 +562,11 @@ void sync_buffer(int cpu)
+ 			}
+ 			if (flags & KERNEL_CTX_SWITCH) {
+ 				/* kernel/userspace switch */
+-				in_kernel = flags & IS_KERNEL;
++				/* XXX: crap change this to use cpu_mode explicitly */
++				cpu_mode = flags & CPU_MODE_MASK;
+ 				if (state == sb_buffer_start)
+ 					state = sb_sample_start;
+-				add_kernel_ctx_switch(flags & IS_KERNEL);
++				add_cpu_mode_switch(cpu_mode);
+ 			}
+ 			if (flags & USER_CTX_SWITCH
+ 			    && op_cpu_buffer_get_data(&entry, &val)) {
+@@ -537,16 +579,32 @@ void sync_buffer(int cpu)
+ 					cookie = get_exec_dcookie(mm);
+ 				add_user_ctx_switch(new, cookie);
+ 			}
++#ifdef CONFIG_XEN
++			/* xen domain switch */
++			if (flags & XEN_DOMAIN_SWITCH
++				&& op_cpu_buffer_get_data(&entry, &val)) {
++				cpu_current_xen_domain[cpu] = val;
++				add_xen_domain_switch(val);
++			}
++#endif
+ 			if (op_cpu_buffer_get_size(&entry))
+ 				add_data(&entry, mm);
+ 			continue;
+ 		}
+ 
++#ifdef CONFIG_XEN
++		if(cpu_current_xen_domain[cpu] != XEN_COORDINATOR_DOMAIN)
++		{
++			add_sample_entry(sample->eip, sample->event);
++			continue;
++		}
++#endif
++			
+ 		if (state < sb_bt_start)
+ 			/* ignore sample */
+ 			continue;
+ 
+-		if (add_sample(mm, sample, in_kernel))
++		if (add_sample(mm, sample, cpu_mode))
+ 			continue;
+ 
+ 		/* ignore backtraces if failed to add a sample */
+diff --git a/drivers/oprofile/cpu_buffer.c b/drivers/oprofile/cpu_buffer.c
+index 8aa73fa..982f732 100644
+--- a/drivers/oprofile/cpu_buffer.c
++++ b/drivers/oprofile/cpu_buffer.c
+@@ -38,6 +38,11 @@ static void wq_sync_buffer(struct work_struct *work);
+ #define DEFAULT_TIMER_EXPIRE (HZ / 10)
+ static int work_enabled;
+ 
++
++#ifdef CONFIG_XEN
++static int current_xen_domain = XEN_COORDINATOR_DOMAIN;
++#endif
++
+ unsigned long oprofile_get_cpu_buffer_size(void)
+ {
+ 	return oprofile_cpu_buffer_size;
+@@ -75,7 +80,7 @@ int alloc_cpu_buffers(void)
+ 		struct oprofile_cpu_buffer *b = &per_cpu(op_cpu_buffer, i);
+ 
+ 		b->last_task = NULL;
+-		b->last_is_kernel = -1;
++		b->last_cpu_mode = -1;
+ 		b->tracing = 0;
+ 		b->buffer_size = buffer_size;
+ 		b->sample_received = 0;
+@@ -180,7 +185,7 @@ unsigned long op_cpu_buffer_entries(int cpu)
+ 
+ static int
+ op_add_code(struct oprofile_cpu_buffer *cpu_buf, unsigned long backtrace,
+-	    int is_kernel, struct task_struct *task)
++	    int cpu_mode, struct task_struct *task)
+ {
+ 	struct op_entry entry;
+ 	struct op_sample *sample;
+@@ -192,17 +197,20 @@ op_add_code(struct oprofile_cpu_buffer *cpu_buf, unsigned long backtrace,
+ 	if (backtrace)
+ 		flags |= TRACE_BEGIN;
+ 
+-	/* notice a switch from user->kernel or vice versa */
+-	is_kernel = !!is_kernel;
+-	if (cpu_buf->last_is_kernel != is_kernel) {
+-		cpu_buf->last_is_kernel = is_kernel;
+-		flags |= KERNEL_CTX_SWITCH;
+-		if (is_kernel)
+-			flags |= IS_KERNEL;
++	/* switch in cpu_mode */
++	if (cpu_buf->last_cpu_mode != cpu_mode) {
++		cpu_buf->last_cpu_mode = cpu_mode;
++		flags |= (KERNEL_CTX_SWITCH | cpu_mode);
+ 	}
+ 
+ 	/* notice a task switch */
++/* XXX: yuck ! do something about this too. */
++#ifndef CONFIG_XEN
+ 	if (cpu_buf->last_task != task) {
++#else
++	if ((cpu_buf->last_task != task)
++		&& (current_xen_domain == XEN_COORDINATOR_DOMAIN)) {
++#endif
+ 		cpu_buf->last_task = task;
+ 		flags |= USER_CTX_SWITCH;
+ 	}
+@@ -251,14 +259,14 @@ op_add_sample(struct oprofile_cpu_buffer *cpu_buf,
+ /*
+  * This must be safe from any context.
+  *
+- * is_kernel is needed because on some architectures you cannot
+- * tell if you are in kernel or user space simply by looking at
+- * pc. We tag this in the buffer by generating kernel enter/exit
++ * cpu_mode is needed because on some architectures you cannot
++ * tell if you are in user/kernel(/xen) space simply by looking at
++ * pc. We tag this in the buffer by generating user/kernel(/xen) enter
+  * events whenever is_kernel changes
+  */
+ static int
+ log_sample(struct oprofile_cpu_buffer *cpu_buf, unsigned long pc,
+-	   unsigned long backtrace, int is_kernel, unsigned long event,
++	   unsigned long backtrace, int cpu_mode, unsigned long event,
+ 	   struct task_struct *task)
+ {
+ 	struct task_struct *tsk = task ? task : current;
+@@ -269,7 +277,7 @@ log_sample(struct oprofile_cpu_buffer *cpu_buf, unsigned long pc,
+ 		return 0;
+ 	}
+ 
+-	if (op_add_code(cpu_buf, backtrace, is_kernel, tsk))
++	if (op_add_code(cpu_buf, backtrace, cpu_mode, tsk))
+ 		goto fail;
+ 
+ 	if (op_add_sample(cpu_buf, pc, event))
+@@ -410,12 +418,27 @@ int oprofile_write_commit(struct op_entry *entry)
+ 	return op_cpu_buffer_write_commit(entry);
+ }
+ 
++/* XXX: yuck ! Needs clean-up */
+ void oprofile_add_pc(unsigned long pc, int is_kernel, unsigned long event)
+ {
+ 	struct oprofile_cpu_buffer *cpu_buf = &__get_cpu_var(op_cpu_buffer);
+ 	log_sample(cpu_buf, pc, 0, is_kernel, event, NULL);
+ }
+ 
++/*
++ * Equivalent to log_sample(b, ESCAPE_CODE, 1, cpu_mode, CPU_TRACE_BEGIN),
++ * Previously accessible through oprofile_add_pc().
++ */
++void oprofile_add_mode(int cpu_mode)
++{
++       struct oprofile_cpu_buffer *cpu_buf = &__get_cpu_var(op_cpu_buffer);
++
++       if (op_add_code(cpu_buf, 1, cpu_mode, current))
++               cpu_buf->sample_lost_overflow++;
++
++       return;
++}
++
+ void oprofile_add_trace(unsigned long pc)
+ {
+ 	struct oprofile_cpu_buffer *cpu_buf = &__get_cpu_var(op_cpu_buffer);
+@@ -440,6 +463,28 @@ fail:
+ 	return;
+ }
+ 
++#ifdef CONFIG_XEN
++int oprofile_add_domain_switch(int32_t domain_id)
++{
++	struct op_entry entry;
++	struct op_sample *sample;
++
++	sample = op_cpu_buffer_write_reserve(&entry, 1);
++	if (!sample)
++        	return 0;
++
++	sample->eip = ESCAPE_CODE;
++	sample->event = XEN_DOMAIN_SWITCH;
++
++	op_cpu_buffer_add_data(&entry, domain_id);
++	op_cpu_buffer_write_commit(&entry);
++
++	current_xen_domain = domain_id;
++
++	return 1;
++}
++#endif
++
+ /*
+  * This serves to avoid cpu buffer overflow, and makes sure
+  * the task mortuary progresses
+diff --git a/drivers/oprofile/cpu_buffer.h b/drivers/oprofile/cpu_buffer.h
+index e1d097e..a31d453 100644
+--- a/drivers/oprofile/cpu_buffer.h
++++ b/drivers/oprofile/cpu_buffer.h
+@@ -41,7 +41,7 @@ struct op_entry;
+ struct oprofile_cpu_buffer {
+ 	unsigned long buffer_size;
+ 	struct task_struct *last_task;
+-	int last_is_kernel;
++	int last_cpu_mode;
+ 	int tracing;
+ 	unsigned long sample_received;
+ 	unsigned long sample_lost_overflow;
+@@ -63,7 +63,7 @@ static inline void op_cpu_buffer_reset(int cpu)
+ {
+ 	struct oprofile_cpu_buffer *cpu_buf = &per_cpu(op_cpu_buffer, cpu);
+ 
+-	cpu_buf->last_is_kernel = -1;
++	cpu_buf->last_cpu_mode = -1;
+ 	cpu_buf->last_task = NULL;
+ }
+ 
+@@ -112,10 +112,22 @@ int op_cpu_buffer_get_data(struct op_entry *entry, unsigned long *val)
+ 	return size;
+ }
+ 
++/* data flags */
++/* cpu modes */
++/* */
++#define CPU_MODE_BEGIN		(0UL)
++#define CPU_MODE_USER		(CPU_MODE_BEGIN + 0x0)
++#define CPU_MODE_KERNEL		(CPU_MODE_BEGIN + 0x1)
++#ifdef CONFIG_XEN
++#define CPU_MODE_XEN		(CPU_MODE_BEGIN + 0x2)
++#endif
++#define CPU_MODE_END		(CPU_MODE_BEGIN + 0x3)
++#define CPU_MODE_MASK		0x3
++
+ /* extra data flags */
+-#define KERNEL_CTX_SWITCH	(1UL << 0)
+-#define IS_KERNEL		(1UL << 1)
+ #define TRACE_BEGIN		(1UL << 2)
+ #define USER_CTX_SWITCH		(1UL << 3)
++#define KERNEL_CTX_SWITCH	(1UL << 4)
++#define XEN_DOMAIN_SWITCH	(1UL << 5)
+ 
+ #endif /* OPROFILE_CPU_BUFFER_H */
+diff --git a/drivers/oprofile/event_buffer.h b/drivers/oprofile/event_buffer.h
+index a8d5bb3..6437433 100644
+--- a/drivers/oprofile/event_buffer.h
++++ b/drivers/oprofile/event_buffer.h
+@@ -30,6 +30,11 @@ void wake_up_buffer_waiter(void);
+ #define INVALID_COOKIE ~0UL
+ #define NO_COOKIE 0UL
+ 
++#ifdef CONFIG_XEN
++#define XEN_COORDINATOR_DOMAIN -1
++#endif
++
++
+ extern const struct file_operations event_buffer_fops;
+ 
+ /* mutex between sync_cpu_buffers() and the
+diff --git a/drivers/oprofile/oprof.c b/drivers/oprofile/oprof.c
+index ed2c3ec..d513d98 100644
+--- a/drivers/oprofile/oprof.c
++++ b/drivers/oprofile/oprof.c
+@@ -22,6 +22,11 @@
+ #include "buffer_sync.h"
+ #include "oprofile_stats.h"
+ 
++#ifdef CONFIG_XEN
++#include <xen/xen.h>
++#endif
++#include <xen/xenoprof.h>
++
+ struct oprofile_operations oprofile_ops;
+ 
+ unsigned long oprofile_started;
+@@ -35,6 +40,35 @@ static DEFINE_MUTEX(start_mutex);
+  */
+ static int timer = 0;
+ 
++#ifdef CONFIG_XEN
++int oprofile_xen_set_active(int active_domains[], unsigned int adomains)
++{
++	int err;
++
++	if (!oprofile_ops.xen_set_active)
++		return -EINVAL;
++
++	mutex_lock(&start_mutex);
++	err = oprofile_ops.xen_set_active(active_domains, adomains);
++	mutex_unlock(&start_mutex);
++	return err;
++}
++
++int oprofile_xen_set_passive(int passive_domains[], unsigned int pdomains)
++{
++	int err;
++
++	if (!oprofile_ops.xen_set_passive)
++		return -EINVAL;
++
++	mutex_lock(&start_mutex);
++	err = oprofile_ops.xen_set_passive(passive_domains, pdomains);
++	mutex_unlock(&start_mutex);
++	return err;
++}
++#endif
++
++
+ int oprofile_setup(void)
+ {
+ 	int err;
+@@ -241,17 +275,29 @@ int oprofile_set_ulong(unsigned long *addr, unsigned long val)
+ 
+ static int timer_mode;
+ 
++int (*oprofile_arch_init_func)(struct oprofile_operations * ops);
++void (*oprofile_arch_exit_func)(void);
++
+ static int __init oprofile_init(void)
+ {
+ 	int err;
+ 
++	if (xen_pv_domain()) {
++		oprofile_arch_init_func = xenoprofile_init;
++		oprofile_arch_exit_func = xenoprofile_exit;
++	} else {
++		oprofile_arch_init_func = oprofile_arch_init;
++		oprofile_arch_exit_func = oprofile_arch_exit;
++	}
++
++
+ 	/* always init architecture to setup backtrace support */
+ 	timer_mode = 0;
+-	err = oprofile_arch_init(&oprofile_ops);
++	err = oprofile_arch_init_func(&oprofile_ops);
+ 	if (!err) {
+ 		if (!timer && !oprofilefs_register())
+ 			return 0;
+-		oprofile_arch_exit();
++		oprofile_arch_exit_func();
+ 	}
+ 
+ 	/* setup timer mode: */
+@@ -271,7 +317,7 @@ static void __exit oprofile_exit(void)
+ {
+ 	oprofilefs_unregister();
+ 	if (!timer_mode)
+-		oprofile_arch_exit();
++		oprofile_arch_exit_func();
+ }
+ 
+ 
+diff --git a/drivers/oprofile/oprof.h b/drivers/oprofile/oprof.h
+index d32ef81..158067f 100644
+--- a/drivers/oprofile/oprof.h
++++ b/drivers/oprofile/oprof.h
+@@ -48,4 +48,9 @@ static inline int op_nmi_timer_init(struct oprofile_operations *ops)
+ int oprofile_set_ulong(unsigned long *addr, unsigned long val);
+ int oprofile_set_timeout(unsigned long time);
+ 
++#ifdef CONFIG_XEN
++int oprofile_xen_set_active(int active_domains[], unsigned int adomains);
++int oprofile_xen_set_passive(int passive_domains[], unsigned int pdomains);
++#endif
++
+ #endif /* OPROF_H */
+diff --git a/drivers/oprofile/oprofile_files.c b/drivers/oprofile/oprofile_files.c
+index 84a208d..7eb2286 100644
+--- a/drivers/oprofile/oprofile_files.c
++++ b/drivers/oprofile/oprofile_files.c
+@@ -10,6 +10,10 @@
+ #include <linux/fs.h>
+ #include <linux/oprofile.h>
+ #include <linux/jiffies.h>
++#include <asm/uaccess.h>
++#include <linux/slab.h>
++#include <linux/ctype.h>
++#include <linux/gfp.h>
+ 
+ #include "event_buffer.h"
+ #include "oprofile_stats.h"
+@@ -175,6 +179,207 @@ static const struct file_operations dump_fops = {
+ 	.llseek		= noop_llseek,
+ };
+ 
++#ifdef CONFIG_XEN
++
++#define TMPBUFSIZE 512
++
++static unsigned int adomains = 0;
++static int active_domains[MAX_OPROF_DOMAINS + 1];
++static DEFINE_MUTEX(adom_mutex);
++
++static ssize_t adomain_write(struct file * file, char const __user * buf,
++			     size_t count, loff_t * offset)
++{
++	char *tmpbuf;
++	char *startp, *endp;
++	int i;
++	unsigned long val;
++	ssize_t retval = count;
++
++	if (*offset)
++		return -EINVAL;
++	if (count > TMPBUFSIZE - 1)
++		return -EINVAL;
++
++	if (!(tmpbuf = kmalloc(TMPBUFSIZE, GFP_KERNEL)))
++		return -ENOMEM;
++
++	if (copy_from_user(tmpbuf, buf, count)) {
++		kfree(tmpbuf);
++		return -EFAULT;
++	}
++	tmpbuf[count] = 0;
++
++	mutex_lock(&adom_mutex);
++
++	startp = tmpbuf;
++	/* Parse one more than MAX_OPROF_DOMAINS, for easy error checking */
++	for (i = 0; i <= MAX_OPROF_DOMAINS; i++) {
++		val = simple_strtoul(startp, &endp, 0);
++		if (endp == startp)
++			break;
++		while (ispunct(*endp) || isspace(*endp))
++			endp++;
++		active_domains[i] = val;
++		if (active_domains[i] != val)
++			/* Overflow, force error below */
++			i = MAX_OPROF_DOMAINS + 1;
++		startp = endp;
++	}
++	/* Force error on trailing junk */
++	adomains = *startp ? MAX_OPROF_DOMAINS + 1 : i;
++
++	kfree(tmpbuf);
++
++	if (adomains > MAX_OPROF_DOMAINS
++	    || oprofile_xen_set_active(active_domains, adomains)) {
++		adomains = 0;
++		retval = -EINVAL;
++	}
++
++	mutex_unlock(&adom_mutex);
++	return retval;
++}
++
++static ssize_t adomain_read(struct file * file, char __user * buf,
++			    size_t count, loff_t * offset)
++{
++	char * tmpbuf;
++	size_t len;
++	int i;
++	ssize_t retval;
++
++	if (!(tmpbuf = kmalloc(TMPBUFSIZE, GFP_KERNEL)))
++		return -ENOMEM;
++
++	mutex_lock(&adom_mutex);
++
++	len = 0;
++	for (i = 0; i < adomains; i++)
++		len += snprintf(tmpbuf + len,
++				len < TMPBUFSIZE ? TMPBUFSIZE - len : 0,
++				"%u ", active_domains[i]);
++	WARN_ON(len > TMPBUFSIZE);
++	if (len != 0 && len <= TMPBUFSIZE)
++		tmpbuf[len-1] = '\n';
++
++	mutex_unlock(&adom_mutex);
++
++	retval = simple_read_from_buffer(buf, count, offset, tmpbuf, len);
++
++	kfree(tmpbuf);
++	return retval;
++}
++
++
++static const struct file_operations active_domain_ops = {
++	.read		= adomain_read,
++	.write		= adomain_write,
++};
++
++static unsigned int pdomains = 0;
++static int passive_domains[MAX_OPROF_DOMAINS];
++static DEFINE_MUTEX(pdom_mutex);
++
++static ssize_t pdomain_write(struct file * file, char const __user * buf,
++			     size_t count, loff_t * offset)
++{
++	char *tmpbuf;
++	char *startp, *endp;
++	int i;
++	unsigned long val;
++	ssize_t retval = count;
++
++	if (*offset)
++		return -EINVAL;
++	if (count > TMPBUFSIZE - 1)
++		return -EINVAL;
++
++	if (!(tmpbuf = kmalloc(TMPBUFSIZE, GFP_KERNEL)))
++		return -ENOMEM;
++
++	if (copy_from_user(tmpbuf, buf, count)) {
++		kfree(tmpbuf);
++		return -EFAULT;
++	}
++	tmpbuf[count] = 0;
++
++	mutex_lock(&pdom_mutex);
++
++	startp = tmpbuf;
++	/* Parse one more than MAX_OPROF_DOMAINS, for easy error checking */
++	for (i = 0; i <= MAX_OPROF_DOMAINS; i++) {
++		val = simple_strtoul(startp, &endp, 0);
++		if (endp == startp)
++			break;
++		while (ispunct(*endp) || isspace(*endp))
++			endp++;
++		passive_domains[i] = val;
++		if (passive_domains[i] != val)
++			/* Overflow, force error below */
++			i = MAX_OPROF_DOMAINS + 1;
++		startp = endp;
++	}
++	/* Force error on trailing junk */
++	pdomains = *startp ? MAX_OPROF_DOMAINS + 1 : i;
++
++	kfree(tmpbuf);
++
++	if (pdomains > MAX_OPROF_DOMAINS)
++	{
++		pdomains = 0;
++		retval = -EINVAL;
++		goto out;
++	}
++	
++	if(oprofile_xen_set_passive(passive_domains, pdomains))
++	{
++		pdomains = 0;
++		retval = -EINVAL;
++		goto out;
++	}
++
++out:
++	mutex_unlock(&pdom_mutex);
++	return retval;
++}
++
++static ssize_t pdomain_read(struct file * file, char __user * buf,
++			    size_t count, loff_t * offset)
++{
++	char * tmpbuf;
++	size_t len;
++	int i;
++	ssize_t retval;
++
++	if (!(tmpbuf = kmalloc(TMPBUFSIZE, GFP_KERNEL)))
++		return -ENOMEM;
++
++	mutex_lock(&pdom_mutex);
++
++	len = 0;
++	for (i = 0; i < pdomains; i++)
++		len += snprintf(tmpbuf + len,
++				len < TMPBUFSIZE ? TMPBUFSIZE - len : 0,
++				"%u ", passive_domains[i]);
++	WARN_ON(len > TMPBUFSIZE);
++	if (len != 0 && len <= TMPBUFSIZE)
++		tmpbuf[len-1] = '\n';
++
++	mutex_unlock(&pdom_mutex);
++
++	retval = simple_read_from_buffer(buf, count, offset, tmpbuf, len);
++
++	kfree(tmpbuf);
++	return retval;
++}
++
++static const struct file_operations passive_domain_ops = {
++	.read		= pdomain_read,
++	.write		= pdomain_write,
++};
++
++#endif /* CONFIG_XEN */
+ void oprofile_create_files(struct super_block *sb, struct dentry *root)
+ {
+ 	/* reinitialize default values */
+@@ -185,6 +390,10 @@ void oprofile_create_files(struct super_block *sb, struct dentry *root)
+ 
+ 	oprofilefs_create_file(sb, root, "enable", &enable_fops);
+ 	oprofilefs_create_file_perm(sb, root, "dump", &dump_fops, 0666);
++#ifdef CONFIG_XEN
++	oprofilefs_create_file(sb, root, "active_domains", &active_domain_ops);
++	oprofilefs_create_file(sb, root, "passive_domains", &passive_domain_ops);
++#endif
+ 	oprofilefs_create_file(sb, root, "buffer", &event_buffer_fops);
+ 	oprofilefs_create_ulong(sb, root, "buffer_size", &oprofile_buffer_size);
+ 	oprofilefs_create_ulong(sb, root, "buffer_watershed", &oprofile_buffer_watershed);
+diff --git a/drivers/xen/xenoprof/xenoprofile.c b/drivers/xen/xenoprof/xenoprofile.c
+new file mode 100644
+index 0000000..4be72b9
+--- /dev/null
++++ b/drivers/xen/xenoprof/xenoprofile.c
+@@ -0,0 +1,552 @@
++/**
++ * @file xenoprofile.c
++ *
++ * @remark Copyright 2002 OProfile authors
++ * @remark Read the file COPYING
++ *
++ * @author John Levon <levon@xxxxxxxxxxxxxxxxx>
++ *
++ * Modified by Aravind Menon and Jose Renato Santos for Xen
++ * These modifications are:
++ * Copyright (C) 2005 Hewlett-Packard Co.
++ *
++ * Separated out arch-generic part
++ * Copyright (c) 2006 Isaku Yamahata <yamahata at valinux co jp>
++ *                    VA Linux Systems Japan K.K.
++ */
++
++#include <linux/init.h>
++#include <linux/notifier.h>
++#include <linux/smp.h>
++#include <linux/oprofile.h>
++#include <linux/slab.h>
++#include <linux/interrupt.h>
++#include <linux/vmalloc.h>
++#include <linux/platform_device.h>
++#include <asm/pgtable.h>
++#include <xen/evtchn.h>
++#include <xen/events.h>
++#include <xen/xenoprof.h>
++#include <xen/interface/xen.h>
++#include <xen/interface/xenoprof.h>
++#include "../../../drivers/oprofile/cpu_buffer.h"
++#include "../../../drivers/oprofile/event_buffer.h"
++
++#define MAX_XENOPROF_SAMPLES 16
++
++/* sample buffers shared with Xen */
++static xenoprof_buf_t *xenoprof_buf[MAX_VIRT_CPUS];
++/* Shared buffer area */
++static struct xenoprof_shared_buffer shared_buffer;
++
++/* Passive sample buffers shared with Xen */
++static xenoprof_buf_t *p_xenoprof_buf[MAX_OPROF_DOMAINS][MAX_VIRT_CPUS];
++/* Passive shared buffer area */
++static struct xenoprof_shared_buffer p_shared_buffer[MAX_OPROF_DOMAINS];
++
++static int xenoprof_start(void);
++static void xenoprof_stop(void);
++
++static int xenoprof_enabled = 0;
++static int xenoprof_is_primary = 0;
++static int active_defined;
++
++extern unsigned long oprofile_backtrace_depth;
++
++/* Number of buffers in shared area (one per VCPU) */
++static int nbuf;
++/* Mappings of VIRQ_XENOPROF to irq number (per cpu) */
++static int ovf_irq[NR_CPUS];
++/* cpu model type string - copied from Xen on XENOPROF_init command */
++static char cpu_type[XENOPROF_CPU_TYPE_SIZE];
++
++#ifdef CONFIG_PM
++
++static int xenoprof_suspend(struct platform_device *dev, pm_message_t state)
++{
++	if (xenoprof_enabled)
++		xenoprof_stop();
++	return 0;
++}
++
++static int xenoprof_resume(struct platform_device *dev)
++{
++	if (xenoprof_enabled)
++		xenoprof_start();
++	return 0;
++}
++
++static struct platform_driver oprofile_driver = {
++	.driver		= {
++		.name		= "oprofile-xen",
++	},
++	.resume		= xenoprof_resume,
++	.suspend	= xenoprof_suspend,
++};
++
++static struct platform_device *oprofile_pdev;
++
++static void __init init_driverfs(void)
++{
++	int ret;
++
++	ret = platform_driver_register(&oprofile_driver);
++	if (ret)
++		return ret;
++
++	oprofile_pdev =	platform_device_register_simple(
++				oprofile_driver.driver.name, 0, NULL, 0);
++	if (IS_ERR(oprofile_pdev)) {
++		ret = PTR_ERR(oprofile_pdev);
++		platform_driver_unregister(&oprofile_driver);
++	}
++
++	return ret;
++}
++
++
++static void exit_driverfs(void)
++{
++	platform_device_unregister(oprofile_pdev);
++	platform_driver_unregister(&oprofile_driver);
++}
++
++#else
++#define init_driverfs() do { } while (0)
++#define exit_driverfs() do { } while (0)
++#endif /* CONFIG_PM */
++
++static unsigned long long oprofile_samples;
++static unsigned long long p_oprofile_samples;
++
++static unsigned int pdomains;
++static struct xenoprof_passive passive_domains[MAX_OPROF_DOMAINS];
++
++/* Check whether the given entry is an escape code */
++static int xenoprof_is_escape(xenoprof_buf_t * buf, int tail)
++{
++	return (buf->event_log[tail].eip == XENOPROF_ESCAPE_CODE);
++}
++
++/* Get the event at the given entry  */
++static uint8_t xenoprof_get_event(xenoprof_buf_t * buf, int tail)
++{
++	return (buf->event_log[tail].event);
++}
++
++static void xenoprof_add_pc(xenoprof_buf_t *buf, int is_passive)
++{
++	int head, tail, size;
++	int tracing = 0;
++
++	head = buf->event_head;
++	tail = buf->event_tail;
++	size = buf->event_size;
++
++	while (tail != head) {
++		if (xenoprof_is_escape(buf, tail) &&
++		    xenoprof_get_event(buf, tail) == XENOPROF_TRACE_BEGIN) {
++			tracing=1;
++			oprofile_add_pc(ESCAPE_CODE, buf->event_log[tail].mode, 
++					TRACE_BEGIN); 
++			if (!is_passive)
++				oprofile_samples++;
++			else
++				p_oprofile_samples++;
++			
++		} else {
++			oprofile_add_pc(buf->event_log[tail].eip,
++					buf->event_log[tail].mode,
++					buf->event_log[tail].event);
++			if (!tracing) {
++				if (!is_passive)
++					oprofile_samples++;
++				else
++					p_oprofile_samples++;
++			}
++       
++		}
++		tail++;
++		if(tail==size)
++		    tail=0;
++	}
++	buf->event_tail = tail;
++}
++
++static void xenoprof_handle_passive(void)
++{
++	int i, j;
++	int flag_domain, flag_switch = 0;
++	
++	for (i = 0; i < pdomains; i++) {
++		flag_domain = 0;
++		for (j = 0; j < passive_domains[i].nbuf; j++) {
++			xenoprof_buf_t *buf = p_xenoprof_buf[i][j];
++			if (buf->event_head == buf->event_tail)
++				continue;
++			if (!flag_domain) {
++				if (!oprofile_add_domain_switch(
++					passive_domains[i].domain_id))
++					goto done;
++				flag_domain = 1;
++			}
++			xenoprof_add_pc(buf, 1);
++			flag_switch = 1;
++		}
++	}
++done:
++	if (flag_switch)
++		oprofile_add_domain_switch(XEN_COORDINATOR_DOMAIN);
++}
++
++static irqreturn_t 
++xenoprof_ovf_interrupt(int irq, void * dev_id)
++{
++	struct xenoprof_buf * buf;
++	static unsigned long flag;
++
++	buf = xenoprof_buf[smp_processor_id()];
++
++	xenoprof_add_pc(buf, 0);
++
++	if (xenoprof_is_primary && !test_and_set_bit(0, &flag)) {
++		xenoprof_handle_passive();
++		smp_mb__before_clear_bit();
++		clear_bit(0, &flag);
++	}
++
++	return IRQ_HANDLED;
++}
++
++
++static void unbind_virq(void)
++{
++	unsigned int i;
++
++	for_each_online_cpu(i) {
++		if (ovf_irq[i] >= 0) {
++			unbind_from_irqhandler(ovf_irq[i], NULL);
++			ovf_irq[i] = -1;
++		}
++	}
++}
++
++
++static int bind_virq(void)
++{
++	unsigned int i;
++	int result;
++
++	for_each_online_cpu(i) {
++		result = bind_virq_to_irqhandler(VIRQ_XENOPROF,
++						 i,
++						 xenoprof_ovf_interrupt,
++						 IRQF_DISABLED|IRQF_NOBALANCING,
++						 "xenoprof",
++						 NULL);
++
++		if (result < 0) {
++			unbind_virq();
++			return result;
++		}
++
++		ovf_irq[i] = result;
++	}
++		
++	return 0;
++}
++
++
++static void unmap_passive_list(void)
++{
++	int i;
++	for (i = 0; i < pdomains; i++)
++		xenoprof_arch_unmap_shared_buffer(&p_shared_buffer[i]);
++	pdomains = 0;
++}
++
++
++static int map_xenoprof_buffer(int max_samples)
++{
++	struct xenoprof_get_buffer get_buffer;
++	struct xenoprof_buf *buf;
++	int ret, i;
++
++	if ( shared_buffer.buffer )
++		return 0;
++
++	get_buffer.max_samples = max_samples;
++	ret = xenoprof_arch_map_shared_buffer(&get_buffer, &shared_buffer);
++	if (ret)
++		return ret;
++	nbuf = get_buffer.nbuf;
++
++	for (i=0; i< nbuf; i++) {
++		buf = (struct xenoprof_buf*) 
++			&shared_buffer.buffer[i * get_buffer.bufsize];
++		BUG_ON(buf->vcpu_id >= MAX_VIRT_CPUS);
++		xenoprof_buf[buf->vcpu_id] = buf;
++	}
++
++	return 0;
++}
++
++
++static int xenoprof_setup(void)
++{
++	int ret;
++
++	if ( (ret = map_xenoprof_buffer(MAX_XENOPROF_SAMPLES)) )
++		return ret;
++
++	if ( (ret = bind_virq()) )
++		return ret;
++
++	if (xenoprof_is_primary) {
++		/* Define dom0 as an active domain if not done yet */
++		if (!active_defined) {
++			domid_t domid;
++			ret = HYPERVISOR_xenoprof_op(
++				XENOPROF_reset_active_list, NULL);
++			if (ret)
++				goto err;
++			domid = 0;
++			ret = HYPERVISOR_xenoprof_op(
++				XENOPROF_set_active, &domid);
++			if (ret)
++				goto err;
++			active_defined = 1;
++		}
++
++		if (oprofile_backtrace_depth > 0) {
++			ret = HYPERVISOR_xenoprof_op(XENOPROF_set_backtrace, 
++						     &oprofile_backtrace_depth);
++			if (ret)
++				oprofile_backtrace_depth = 0;
++		}
++
++		ret = HYPERVISOR_xenoprof_op(XENOPROF_reserve_counters, NULL);
++		if (ret)
++			goto err;
++		
++		xenoprof_arch_counter();
++		ret = HYPERVISOR_xenoprof_op(XENOPROF_setup_events, NULL);
++		if (ret)
++			goto err;
++	}
++
++	ret = HYPERVISOR_xenoprof_op(XENOPROF_enable_virq, NULL);
++	if (ret)
++		goto err;
++
++	xenoprof_enabled = 1;
++	return 0;
++ err:
++	unbind_virq();
++	return ret;
++}
++
++
++static void xenoprof_shutdown(void)
++{
++	xenoprof_enabled = 0;
++
++	WARN_ON(HYPERVISOR_xenoprof_op(XENOPROF_disable_virq, NULL));
++
++	if (xenoprof_is_primary) {
++		WARN_ON(HYPERVISOR_xenoprof_op(XENOPROF_release_counters,
++					       NULL));
++		active_defined = 0;
++	}
++
++	unbind_virq();
++
++	xenoprof_arch_unmap_shared_buffer(&shared_buffer);
++	if (xenoprof_is_primary)
++		unmap_passive_list();
++}
++
++
++static int xenoprof_start(void)
++{
++	int ret = 0;
++
++	if (xenoprof_is_primary)
++		ret = HYPERVISOR_xenoprof_op(XENOPROF_start, NULL);
++	if (!ret)
++		xenoprof_arch_start();
++	return ret;
++}
++
++
++static void xenoprof_stop(void)
++{
++	if (xenoprof_is_primary)
++		WARN_ON(HYPERVISOR_xenoprof_op(XENOPROF_stop, NULL));
++	xenoprof_arch_stop();
++}
++
++
++static int xenoprof_set_active(int * active_domains,
++			       unsigned int adomains)
++{
++	int ret = 0;
++	int i;
++	int set_dom0 = 0;
++	domid_t domid;
++
++	if (!xenoprof_is_primary)
++		return 0;
++
++	if (adomains > MAX_OPROF_DOMAINS)
++		return -E2BIG;
++
++	ret = HYPERVISOR_xenoprof_op(XENOPROF_reset_active_list, NULL);
++	if (ret)
++		return ret;
++
++	for (i=0; i<adomains; i++) {
++		domid = active_domains[i];
++		if (domid != active_domains[i]) {
++			ret = -EINVAL;
++			goto out;
++		}
++		ret = HYPERVISOR_xenoprof_op(XENOPROF_set_active, &domid);
++		if (ret)
++			goto out;
++		if (active_domains[i] == 0)
++			set_dom0 = 1;
++	}
++	/* dom0 must always be active but may not be in the list */ 
++	if (!set_dom0) {
++		domid = 0;
++		ret = HYPERVISOR_xenoprof_op(XENOPROF_set_active, &domid);
++	}
++
++out:
++	if (ret)
++		WARN_ON(HYPERVISOR_xenoprof_op(XENOPROF_reset_active_list,
++					       NULL));
++	active_defined = !ret;
++	return ret;
++}
++
++static int xenoprof_set_passive(int * p_domains,
++                                unsigned int pdoms)
++{
++	int ret;
++	unsigned int i, j;
++	struct xenoprof_buf *buf;
++
++	if (!xenoprof_is_primary)
++        	return 0;
++
++	if (pdoms > MAX_OPROF_DOMAINS)
++		return -E2BIG;
++
++	ret = HYPERVISOR_xenoprof_op(XENOPROF_reset_passive_list, NULL);
++	if (ret)
++		return ret;
++	unmap_passive_list();
++
++	for (i = 0; i < pdoms; i++) {
++		passive_domains[i].domain_id = p_domains[i];
++		passive_domains[i].max_samples = 2048;
++		ret = xenoprof_arch_set_passive(&passive_domains[i],
++						&p_shared_buffer[i]);
++		if (ret)
++		{
++			goto out;
++		}
++		for (j = 0; j < passive_domains[i].nbuf; j++) {
++			buf = (struct xenoprof_buf *)
++				&p_shared_buffer[i].buffer[
++				j * passive_domains[i].bufsize];
++			BUG_ON(buf->vcpu_id >= MAX_VIRT_CPUS);
++			p_xenoprof_buf[i][buf->vcpu_id] = buf;
++		}
++	}
++
++	pdomains = pdoms;
++	return 0;
++
++out:
++	for (j = 0; j < i; j++)
++		xenoprof_arch_unmap_shared_buffer(&p_shared_buffer[i]);
++
++	return ret;
++}
++
++
++/* The dummy backtrace function to keep oprofile happy
++ * The real backtrace is done in xen
++ */
++static void xenoprof_dummy_backtrace(struct pt_regs * const regs, 
++				     unsigned int depth)
++{
++	/* this should never be called */
++	BUG();
++	return;
++}
++
++
++static struct oprofile_operations xenoprof_ops = {
++#ifdef HAVE_XENOPROF_CREATE_FILES
++	.create_files 	= xenoprof_create_files,
++#endif
++	.xen_set_active	= xenoprof_set_active,
++	.xen_set_passive    = xenoprof_set_passive,
++	.setup 		= xenoprof_setup,
++	.shutdown	= xenoprof_shutdown,
++	.start		= xenoprof_start,
++	.stop		= xenoprof_stop,
++	.backtrace	= xenoprof_dummy_backtrace
++};
++
++
++/* in order to get driverfs right */
++static int using_xenoprof;
++
++int __init xenoprofile_init(struct oprofile_operations * ops)
++{
++	struct xenoprof_init init;
++	unsigned int i;
++	int ret;
++
++	ret = HYPERVISOR_xenoprof_op(XENOPROF_init, &init);
++	if (!ret) {
++		xenoprof_arch_init_counter(&init);
++		xenoprof_is_primary = init.is_primary;
++
++		/*  cpu_type is detected by Xen */
++		cpu_type[XENOPROF_CPU_TYPE_SIZE-1] = 0;
++		strncpy(cpu_type, init.cpu_type, XENOPROF_CPU_TYPE_SIZE - 1);
++		xenoprof_ops.cpu_type = cpu_type;
++
++		init_driverfs();
++		using_xenoprof = 1;
++		*ops = xenoprof_ops;
++
++		for (i=0; i<NR_CPUS; i++)
++			ovf_irq[i] = -1;
++
++		active_defined = 0;
++	}
++
++	printk(KERN_INFO "%s: ret %d, events %d, xenoprof_is_primary %d\n",
++	       __func__, ret, init.num_events, xenoprof_is_primary);
++	return ret;
++}
++
++
++void xenoprofile_exit(void)
++{
++	if (using_xenoprof)
++		exit_driverfs();
++
++	xenoprof_arch_unmap_shared_buffer(&shared_buffer);
++	if (xenoprof_is_primary) {
++		unmap_passive_list();
++		WARN_ON(HYPERVISOR_xenoprof_op(XENOPROF_shutdown, NULL));
++        }
++}
+diff --git a/include/linux/oprofile.h b/include/linux/oprofile.h
+index a4c5624..f2138ac 100644
+--- a/include/linux/oprofile.h
++++ b/include/linux/oprofile.h
+@@ -19,6 +19,9 @@
+ #include <linux/errno.h>
+ #include <linux/printk.h>
+ #include <linux/atomic.h>
++#ifdef CONFIG_XEN
++#include <xen/interface/xenoprof.h>
++#endif
+  
+ /* Each escaped entry is prefixed by ESCAPE_CODE
+  * then one of the following codes, then the
+@@ -31,14 +34,18 @@
+ #define CPU_SWITCH_CODE			2
+ #define COOKIE_SWITCH_CODE		3
+ #define KERNEL_ENTER_SWITCH_CODE	4
+-#define KERNEL_EXIT_SWITCH_CODE		5
++#define USER_ENTER_SWITCH_CODE		5
+ #define MODULE_LOADED_CODE		6
+ #define CTX_TGID_CODE			7
+ #define TRACE_BEGIN_CODE		8
+ #define TRACE_END_CODE			9
+ #define XEN_ENTER_SWITCH_CODE		10
++#ifndef CONFIG_XEN
+ #define SPU_PROFILING_CODE		11
+ #define SPU_CTX_SWITCH_CODE		12
++#else
++#define XEN_DOMAIN_SWITCH_CODE		11
++#endif
+ #define IBS_FETCH_CODE			13
+ #define IBS_OP_CODE			14
+ 
+@@ -52,6 +59,12 @@ struct oprofile_operations {
+ 	/* create any necessary configuration files in the oprofile fs.
+ 	 * Optional. */
+ 	int (*create_files)(struct super_block * sb, struct dentry * root);
++#ifdef CONFIG_XEN
++	/* setup active domains with Xen */
++	int (*xen_set_active)(int *active_domains, unsigned int adomains);
++	/* setup passive domains with Xen */
++	int (*xen_set_passive)(int *passive_domains, unsigned int pdomains);
++#endif
+ 	/* Do any necessary interrupt setup. Optional. */
+ 	int (*setup)(void);
+ 	/* Do any necessary interrupt shutdown. Optional. */
+@@ -117,9 +130,16 @@ void oprofile_add_ext_hw_sample(unsigned long pc, struct pt_regs * const regs,
+  * backtrace. */
+ void oprofile_add_pc(unsigned long pc, int is_kernel, unsigned long event);
+ 
++/* Record when the cpu mode switches between user/kernel/xen(hypervisor) */
++void oprofile_add_mode(int cpu_mode);
++
+ /* add a backtrace entry, to be called from the ->backtrace callback */
+ void oprofile_add_trace(unsigned long eip);
+ 
++#ifdef CONFIG_XEN
++/* add a xen domain switch entry */
++int oprofile_add_domain_switch(int32_t domain_id);
++#endif
+ 
+ /**
+  * Create a file of the given name as a child of the given root, with
+diff --git a/include/xen/interface/xen.h b/include/xen/interface/xen.h
+index 53ec416..34adebe 100644
+--- a/include/xen/interface/xen.h
++++ b/include/xen/interface/xen.h
+@@ -79,6 +79,7 @@
+ #define VIRQ_CONSOLE    2  /* (DOM0) Bytes received on emergency console. */
+ #define VIRQ_DOM_EXC    3  /* (DOM0) Exceptional event for some domain.   */
+ #define VIRQ_DEBUGGER   6  /* (DOM0) A domain has paused for debugging.   */
++#define VIRQ_XENOPROF   7  /* V. XenOprofile interrupt: new sample available */
+ #define VIRQ_PCPU_STATE 9  /* (DOM0) PCPU state changed                   */
+ 
+ /* Architecture-specific VIRQ definitions. */
+diff --git a/include/xen/interface/xenoprof.h b/include/xen/interface/xenoprof.h
+new file mode 100644
+index 0000000..e80081b
+--- /dev/null
++++ b/include/xen/interface/xenoprof.h
+@@ -0,0 +1,140 @@
++/******************************************************************************
++ * xenoprof.h
++ * 
++ * Interface for enabling system wide profiling based on hardware performance
++ * counters
++ * 
++ * Permission is hereby granted, free of charge, to any person obtaining a copy
++ * of this software and associated documentation files (the "Software"), to
++ * deal in the Software without restriction, including without limitation the
++ * rights to use, copy, modify, merge, publish, distribute, sublicense, and/or
++ * sell copies of the Software, and to permit persons to whom the Software is
++ * furnished to do so, subject to the following conditions:
++ *
++ * The above copyright notice and this permission notice shall be included in
++ * all copies or substantial portions of the Software.
++ *
++ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
++ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
++ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
++ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
++ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
++ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
++ * DEALINGS IN THE SOFTWARE.
++ *
++ * Copyright (C) 2005 Hewlett-Packard Co.
++ * Written by Aravind Menon & Jose Renato Santos
++ */
++
++#ifndef __XEN_PUBLIC_XENOPROF_H__
++#define __XEN_PUBLIC_XENOPROF_H__
++
++#include "xen.h"
++
++/*
++ * Commands to HYPERVISOR_xenoprof_op().
++ */
++#define XENOPROF_init                0
++#define XENOPROF_reset_active_list   1
++#define XENOPROF_reset_passive_list  2
++#define XENOPROF_set_active          3
++#define XENOPROF_set_passive         4
++#define XENOPROF_reserve_counters    5
++#define XENOPROF_counter             6
++#define XENOPROF_setup_events        7
++#define XENOPROF_enable_virq         8
++#define XENOPROF_start               9
++#define XENOPROF_stop               10
++#define XENOPROF_disable_virq       11
++#define XENOPROF_release_counters   12
++#define XENOPROF_shutdown           13
++#define XENOPROF_get_buffer         14
++#define XENOPROF_set_backtrace      15
++#define XENOPROF_last_op            15
++
++#define MAX_OPROF_EVENTS    32
++#define MAX_OPROF_DOMAINS   25
++#define XENOPROF_CPU_TYPE_SIZE 64
++
++#define DEFINE_XEN_GUEST_HANDLE(x)
++
++/* Xenoprof performance events (not Xen events) */
++struct event_log {
++    uint64_t eip;
++    uint8_t mode;
++    uint8_t event;
++};
++
++/* PC value that indicates a special code */
++#define XENOPROF_ESCAPE_CODE (~0ULL)
++/* Transient events for the xenoprof->oprofile cpu buf */
++#define XENOPROF_TRACE_BEGIN 1
++
++/* Xenoprof buffer shared between Xen and domain - 1 per VCPU */
++struct xenoprof_buf {
++    uint32_t event_head;
++    uint32_t event_tail;
++    uint32_t event_size;
++    uint32_t vcpu_id;
++    uint64_t xen_samples;
++    uint64_t kernel_samples;
++    uint64_t user_samples;
++    uint64_t lost_samples;
++    struct event_log event_log[1];
++};
++#ifndef __XEN__
++typedef struct xenoprof_buf xenoprof_buf_t;
++DEFINE_XEN_GUEST_HANDLE(xenoprof_buf_t);
++#endif
++
++struct xenoprof_init {
++    int32_t  num_events;
++    int32_t  is_primary;
++    char cpu_type[XENOPROF_CPU_TYPE_SIZE];
++};
++typedef struct xenoprof_init xenoprof_init_t;
++DEFINE_XEN_GUEST_HANDLE(xenoprof_init_t);
++
++struct xenoprof_get_buffer {
++    int32_t  max_samples;
++    int32_t  nbuf;
++    int32_t  bufsize;
++    uint64_t buf_gmaddr;
++};
++typedef struct xenoprof_get_buffer xenoprof_get_buffer_t;
++DEFINE_XEN_GUEST_HANDLE(xenoprof_get_buffer_t);
++
++struct xenoprof_counter {
++    uint32_t ind;
++    uint64_t count;
++    uint32_t enabled;
++    uint32_t event;
++    uint32_t hypervisor;
++    uint32_t kernel;
++    uint32_t user;
++    uint64_t unit_mask;
++};
++typedef struct xenoprof_counter xenoprof_counter_t;
++DEFINE_XEN_GUEST_HANDLE(xenoprof_counter_t);
++
++typedef struct xenoprof_passive {
++    uint16_t domain_id;
++    int32_t  max_samples;
++    int32_t  nbuf;
++    int32_t  bufsize;
++    uint64_t buf_gmaddr;
++} xenoprof_passive_t;
++DEFINE_XEN_GUEST_HANDLE(xenoprof_passive_t);
++
++
++#endif /* __XEN_PUBLIC_XENOPROF_H__ */
++
++/*
++ * Local variables:
++ * mode: C
++ * c-set-style: "BSD"
++ * c-basic-offset: 4
++ * tab-width: 4
++ * indent-tabs-mode: nil
++ * End:
++ */
+diff --git a/include/xen/xen-ops.h b/include/xen/xen-ops.h
+index d6fe062..6842e24 100644
+--- a/include/xen/xen-ops.h
++++ b/include/xen/xen-ops.h
+@@ -33,5 +33,9 @@ int xen_remap_domain_mfn_range(struct vm_area_struct *vma,
+ int xen_unmap_domain_mfn_range(struct vm_area_struct *vma,
+ 			       int numpgs, struct page **pages);
+ 
++int xen_remap_domain_kernel_mfn_range(unsigned long addr,
++			       unsigned long mfn, int nr,
++			       pgprot_t prot, unsigned domid);
++
+ bool xen_running_on_version_or_later(unsigned int major, unsigned int minor);
+ #endif /* INCLUDE_XEN_OPS_H */
+diff --git a/include/xen/xenoprof.h b/include/xen/xenoprof.h
+new file mode 100644
+index 0000000..89fb8d3
+--- /dev/null
++++ b/include/xen/xenoprof.h
+@@ -0,0 +1,68 @@
++/******************************************************************************
++ * xen/xenoprof.h
++ *
++ * Copyright (c) 2006 Isaku Yamahata <yamahata at valinux co jp>
++ *                    VA Linux Systems Japan K.K.
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License as published by
++ * the Free Software Foundation; either version 2 of the License, or
++ * (at your option) any later version.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ *
++ * You should have received a copy of the GNU General Public License
++ * along with this program; if not, write to the Free Software
++ * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
++ *
++ */
++
++#ifndef __XEN_XENOPROF_H__
++#define __XEN_XENOPROF_H__
++
++#ifdef CONFIG_XEN
++#if defined(CONFIG_X86) || defined(CONFIG_X86_64)
++/* xenoprof x86 specific */
++struct super_block;
++struct dentry;
++int xenoprof_create_files(struct super_block * sb, struct dentry * root);
++#define HAVE_XENOPROF_CREATE_FILES
++
++struct xenoprof_init;
++void xenoprof_arch_init_counter(struct xenoprof_init *init);
++void xenoprof_arch_counter(void);
++void xenoprof_arch_start(void);
++void xenoprof_arch_stop(void);
++
++struct xenoprof_arch_shared_buffer {
++	/* nothing */
++};
++struct xenoprof_shared_buffer;
++void xenoprof_arch_unmap_shared_buffer(struct xenoprof_shared_buffer* sbuf);
++struct xenoprof_get_buffer;
++int xenoprof_arch_map_shared_buffer(struct xenoprof_get_buffer* get_buffer, struct xenoprof_shared_buffer* sbuf);
++struct xenoprof_passive;
++int xenoprof_arch_set_passive(struct xenoprof_passive* pdomain, struct xenoprof_shared_buffer* sbuf);
++#endif
++
++/* xenoprof common */
++struct oprofile_operations;
++int xenoprofile_init(struct oprofile_operations * ops);
++void xenoprofile_exit(void);
++
++struct xenoprof_shared_buffer {
++	char					*buffer;
++	struct xenoprof_arch_shared_buffer	arch;
++};
++#else
++static int xenoprofile_init(struct oprofile_operations *ops)
++{
++	return -ENOSYS;
++}
++static void xenoprofile_exit(void) { }
++
++#endif /* CONFIG_XEN */
++#endif /* __XEN_XENOPROF_H__ */
