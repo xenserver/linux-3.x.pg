@@ -63,6 +63,7 @@ net-core__order-3_frag_allocator_causes_swiotlb_bouncing_under_xen.patch
 # Debugging/hacks
 #
 0001-xen-add-xen_trace-for-adding-trace-records-to-the-Xe.patch
+0001-xen-oprofile-Patch-from-Michael-Petullo.patch
 
 #
 # Kernel Configuration.
