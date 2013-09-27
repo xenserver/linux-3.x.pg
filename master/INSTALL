@@ -1,0 +1,65 @@
+Follow the steps below to build and install RPMs for the Linux kernel
+with the XenServer patchqueue.
+
+0. Install build dependencies, including:
+    * git
+    * guilt
+    * module-init-tools
+    * patch >= 2.5.4
+    * bash >= 2.0.3
+    * sh-utils
+    * tar
+    * bzip2
+    * findutils
+    * gzip
+    * m4
+    * perl
+    * make >= 3.78
+    * gcc >= 2.96-98
+    * binutils >= 2.12
+    * redhat-rpm-config >= 8.0.32.1
+
+    You will also need to ensure that git has user information, e.g.:
+      git config --global user.name "Your Name"
+      git config --global user.email "your.email@domain.tld"
+    This is required so that guilt patches can be applied correctly.
+
+1. Clone the Linux repository:
+    git clone <url-to>/linux-3.x.git
+
+2. Clone the patchqueue:
+    git clone <url-to>/linux-3.x.pg.git linux-3.x/.git/patches
+
+3. Create an empty guilt status file:
+    touch linux-3.x/.git/patches/master/status
+
+4. Change into the main repository and apply the patches:
+    cd linux-3.x
+    guilt push -a
+
+5. Create a source archive:
+    git archive --format=tar --prefix=linux-3.10.11-01/ HEAD \
+     | bzip2 > linux-3.10.11-01.tar.bz2
+
+6. Generate a spec file:
+    sed -e "s/@REPO_VERSION@/3.10.11/g" \
+        -e "s/@LINUX_VERSION@/3.10.11-01/g" \
+        -e "s/@XS_RELEASE@/1/g" \
+        -e "s/@PKG_VERSION@/3.10.11/g" \
+        -e "s/@PKG_RELEASE@/1/g" \
+        -e "s/@COMPANY_NAME@/Citrix/g" \
+        < mk/kernel.spec.in > kernel.spec
+
+7. Copy the tarball, specfile and config to RPM build locations:
+    cp linux-3.10.11-01.tar.bz2 /usr/src/redhat/SOURCES/
+    cp buildconfigs/linux-defconfig_xen_x86_32 \
+        /usr/src/redhat/SOURCES/kernel-3.10.11-01-i686.config
+    cp kernel.spec /usr/src/redhat/SPECS/kernel.spec
+
+8. Build RPMs
+    cd /usr/src/redhat/SPECS
+    rpmbuild -ba kernel.spec --target i686
+
+9. Install RPMs
+    cd /usr/src/redhat/RPMS/i686
+    rpm -ivh kernel-*3.10.11-1.i686.rpm
