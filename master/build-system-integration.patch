@@ -136,10 +136,10 @@ index 0000000..7afc26b
 +	@ :
 diff --git a/mk/kernel.spec.in b/mk/kernel.spec.in
 new file mode 100644
-index 0000000..27ec79b
+index 0000000..7f31804
 --- /dev/null
 +++ b/mk/kernel.spec.in
-@@ -0,0 +1,272 @@
+@@ -0,0 +1,285 @@
 +# -*- rpm-spec -*-
 +
 +# The full kernel uname version
@@ -333,6 +333,10 @@ index 0000000..27ec79b
 +if [ -e Module.symvers ]; then
 +    install -m 644 Module.symvers $RPM_BUILD_ROOT${SOURCE}
 +fi
++cp System.map $RPM_BUILD_ROOT${SOURCE}
++if [ -s Module.markers ]; then
++      cp Module.markers $RPM_BUILD_ROOT${SOURCE}
++fi
 +# then drop all but the needed Makefiles/Kconfig files
 +rm -rf $RPM_BUILD_ROOT${SOURCE}/Documentation
 +rm -rf $RPM_BUILD_ROOT${SOURCE}/scripts
@@ -346,23 +350,30 @@ index 0000000..27ec79b
 +rm -f $RPM_BUILD_ROOT${SOURCE}/scripts/*.o
 +rm -f $RPM_BUILD_ROOT${SOURCE}/scripts/*/*.o
 +
-+install -d -m 755 $RPM_BUILD_ROOT${SOURCE}/arch/x86/include
 +if [ -d arch/x86/include ] ; then
-+    cp -a arch/x86/include/asm $RPM_BUILD_ROOT${SOURCE}/arch/x86/include
-+    cp -a arch/x86/include/generated $RPM_BUILD_ROOT${SOURCE}/arch/x86/include
++    cp -a --parents arch/x86/include $RPM_BUILD_ROOT${SOURCE}
++fi
++if [ -d arch/x86/syscalls ] ; then
++    cp -a --parents arch/x86/syscalls $RPM_BUILD_ROOT${SOURCE}
 +fi
 +
-+install -d -m 755 $RPM_BUILD_ROOT${SOURCE}/include
-+dirs=$(find include -mindepth 1 -maxdepth 1 -path include/asm-\* -prune -o -type d -print)
-+cp -a ${dirs} include/asm-generic $RPM_BUILD_ROOT${SOURCE}/include
-+if [ ! -d arch/x86/include ] ; then
-+    cp -a `readlink include/asm` $RPM_BUILD_ROOT${SOURCE}/include
-+fi
++cp -a include $RPM_BUILD_ROOT${SOURCE}/include
 +
-+# Make sure the Makefile and version.h have a matching timestamp so that
-+# external modules can be built
++rm -f $RPM_BUILD_ROOT${SOURCE}/include/Kbuild
++cp -a include/generated/uapi/linux/version.h $RPM_BUILD_ROOT${SOURCE}/include/linux/
++cp -a include/generated/autoconf.h $RPM_BUILD_ROOT${SOURCE}/include/linux/
++
++# Copy .config to include/config/auto.conf so "make prepare" is unnecessary.
++cp $RPM_BUILD_ROOT${SOURCE}/.config $RPM_BUILD_ROOT${SOURCE}/include/config/auto.conf
++
++# Make sure the Makefile, .config, auto.conf, autoconf.h and version.h have a matching 
++# timestamp so that external modules can be built
++touch -r $RPM_BUILD_ROOT${SOURCE}/Makefile $RPM_BUILD_ROOT${SOURCE}/.config
++touch -r $RPM_BUILD_ROOT${SOURCE}/Makefile $RPM_BUILD_ROOT${SOURCE}/include/config/auto.conf
++touch -r $RPM_BUILD_ROOT${SOURCE}/Makefile $RPM_BUILD_ROOT${SOURCE}/include/linux/autoconf.h
 +touch -r $RPM_BUILD_ROOT${SOURCE}/Makefile $RPM_BUILD_ROOT${SOURCE}/include/linux/version.h
-+touch -r $RPM_BUILD_ROOT${SOURCE}/.config $RPM_BUILD_ROOT${SOURCE}/include/linux/autoconf.h
++touch -r $RPM_BUILD_ROOT${SOURCE}/Makefile $RPM_BUILD_ROOT${SOURCE}/include/generated/autoconf.h
++touch -r $RPM_BUILD_ROOT${SOURCE}/Makefile $RPM_BUILD_ROOT${SOURCE}/include/generated/uapi/linux/version.h
 +
 +# Firmware is provided by the linux-firmware package.
 +rm -rf $RPM_BUILD_ROOT/lib/firmware
@@ -410,5 +421,7 @@ index 0000000..27ec79b
 +%verify(not mtime) /usr/src/kernels/%{uname}-%{target}
 +
 +%changelog
++* Wed Sep 25 2013 Malcolm Crossley <malcolm.crossley@eu.citrix.com> - 3.10
++- Synced with elrepo kernel-ml packaging style
 +* Thu Mar 29 2012 Simon Rowe <simon.rowe@eu.citrix.com> - 3.3.0-rc3
 +- Packaged for XenServer
