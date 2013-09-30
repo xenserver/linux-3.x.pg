@@ -1,32 +1,12 @@
-diff --git a/arch/x86/kernel/apic/io_apic.c b/arch/x86/kernel/apic/io_apic.c
-index 9ed796c..cdac6bc 100644
---- a/arch/x86/kernel/apic/io_apic.c
-+++ b/arch/x86/kernel/apic/io_apic.c
-@@ -3492,9 +3492,13 @@ static int __init io_apic_get_unique_id(int ioapic, int apic_id)
- 	 * 'stuck on smp_invalidate_needed IPI wait' messages.
- 	 */
- 	if (apic->check_apicid_used(&apic_id_map, apic_id)) {
--
-+		printk("apic->check_apicid_used = %pF, apic_id_map = %lx, get_physical_broadcast() = %d",
-+		       apic->check_apicid_used, apic_id_map.mask[0],
-+		       get_physical_broadcast());
- 		for (i = 0; i < get_physical_broadcast(); i++) {
--			if (!apic->check_apicid_used(&apic_id_map, i))
-+			int ret = apic->check_apicid_used(&apic_id_map, i);
-+			printk(KERN_ERR "apic->check_apicid_used(%d) = %d\n", i, ret);
-+			if (!ret)
- 				break;
- 		}
- 
 diff --git a/buildconfigs/linux-defconfig_xen_x86_32 b/buildconfigs/linux-defconfig_xen_x86_32
 new file mode 100644
-index 0000000..5bb9107
+index 0000000..c494fbe
 --- /dev/null
 +++ b/buildconfigs/linux-defconfig_xen_x86_32
 @@ -0,0 +1,3840 @@
 +#
 +# Automatically generated file; DO NOT EDIT.
-+# Linux/i386 3.10.11 Kernel Configuration
++# Linux/i386 3.10.11-0 Kernel Configuration
 +#
 +# CONFIG_64BIT is not set
 +CONFIG_X86_32=y
@@ -420,7 +400,7 @@ index 0000000..5bb9107
 +CONFIG_DMI=y
 +CONFIG_SWIOTLB=y
 +CONFIG_IOMMU_HELPER=y
-+CONFIG_NR_CPUS=8
++CONFIG_NR_CPUS=15
 +CONFIG_SCHED_SMT=y
 +CONFIG_SCHED_MC=y
 +# CONFIG_PREEMPT_NONE is not set
@@ -4247,7 +4227,7 @@ index 0000000..0bcf11d
 +CONFIG_SWIOTLB=y
 +CONFIG_IOMMU_HELPER=y
 +# CONFIG_MAXSMP is not set
-+CONFIG_NR_CPUS=8
++CONFIG_NR_CPUS=15
 +CONFIG_SCHED_SMT=y
 +CONFIG_SCHED_MC=y
 +# CONFIG_PREEMPT_NONE is not set
