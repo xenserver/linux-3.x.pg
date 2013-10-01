@@ -22,6 +22,8 @@ linux-stable-3.10-to-3.10.11.patch
 0006-x86-xen-Sync-the-CMOS-RTC-as-well-as-the-Xen-wallclo.patch
 # 65a45fa2f640f72757ef00f2bc83f9654d65a62b (3.11-rc1)
 0001-xen-p2m-avoid-unneccesary-TLB-flush-in-m2p_remove_ov.patch
+# 7e44892c1b6bb499cb2f6d5c0f4afcc077a26074 (3.11-rc4)
+0001-igb-fix-vlan-filtering-in-promisc-mode-when-not-in-V.patch
 # 73cc4bb0c79eebe1f0e92b700d9fe8d1c9b061bb (3.12-rc1)
 0001-xen-evtchn-improve-scalability-by-using-per-user-loc.patch
 
