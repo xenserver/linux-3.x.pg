@@ -42,6 +42,7 @@ blktap2-fixups.patch
 #
 # x86
 #
+0001-xen-Fix-possible-user-space-selector-corruption.patch
 
 #
 # Xen
