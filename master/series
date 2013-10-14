@@ -64,22 +64,7 @@ blktap2-fixups.patch
 0001-xen-p2m-check-MFN-is-in-range-before-using-the-m2p-t.patch
 
 # Netback
-revert-94f950c4060cd9b1989c565284beb159b9705a50.patch
-
-0001-xen-netback-remove-dead-code.patch
-0001-xen-netback-enable-user-to-unload-netback-module.patch
-0001-xen-netback-don-t-de-reference-vif-pointer-after-hav.patch
-0001-xen-netback-split-event-channels-support-for-Xen-bac.patch-REBASE
-0001-xen-netback-double-free-on-unload.patch
-0001-xen-Use-more-current-logging-styles.patch
-0001-xen-netback-xenbus.c-use-more-current-logging-styles.patch
-0001-xen-netback-remove-page-tracking-facility.patch
-0001-xen-netback-switch-to-NAPI-kthread-1-1-model.patch
-0001-xen-netback-rename-functions.patch
-0001-xen-netback-fix-possible-format-string-flaw.patch
 0001-xen-netback-count-number-required-slots-for-an-skb-m.patch
-0001-xen-netback-Don-t-destroy-the-netdev-until-the-vif-i.patch
-0001-xen-netback-Handle-backend-state-transitions-in-a-mo.patch
 
 # Blkback
 blkback-debug-ring.diff
