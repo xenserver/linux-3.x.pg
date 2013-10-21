@@ -1,6 +1,6 @@
 diff --git a/buildconfigs/linux-defconfig_xen_x86_32 b/buildconfigs/linux-defconfig_xen_x86_32
 new file mode 100644
-index 0000000..c494fbe
+index 0000000..8346fa2
 --- /dev/null
 +++ b/buildconfigs/linux-defconfig_xen_x86_32
 @@ -0,0 +1,3840 @@
@@ -400,7 +400,7 @@ index 0000000..c494fbe
 +CONFIG_DMI=y
 +CONFIG_SWIOTLB=y
 +CONFIG_IOMMU_HELPER=y
-+CONFIG_NR_CPUS=15
++CONFIG_NR_CPUS=8
 +CONFIG_SCHED_SMT=y
 +CONFIG_SCHED_MC=y
 +# CONFIG_PREEMPT_NONE is not set
@@ -4227,7 +4227,7 @@ index 0000000..0bcf11d
 +CONFIG_SWIOTLB=y
 +CONFIG_IOMMU_HELPER=y
 +# CONFIG_MAXSMP is not set
-+CONFIG_NR_CPUS=15
++CONFIG_NR_CPUS=8
 +CONFIG_SCHED_SMT=y
 +CONFIG_SCHED_MC=y
 +# CONFIG_PREEMPT_NONE is not set
