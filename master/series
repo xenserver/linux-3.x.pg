@@ -40,6 +40,8 @@ linux-stable-3.10-to-3.10.11.patch
 0006-xen-balloon-remove-BUG_ON-in-increase_reservation.patch
 # 24f69373e212d4356268fbb1d01c5735423c300d (3.12-rc3)
 0007-xen-balloon-don-t-alloc-page-while-non-preemptible.patch
+# a9fbf4d591da6cd1d3eaab826c7c15f77fc8f6a3 (3.12-rc4)
+0001-xen-hvc-allow-xenboot-console-to-be-used-again.patch
 
 #
 # Build system integration
