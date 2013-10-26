@@ -1,0 +1,17 @@
+What is this repository?
+========================
+
+This is the repository of XenServer-specific patches to the Linux
+kernel.
+
+To contribute bug fixes, e-mail them to the XenServer mailing list:
+
+    xs-devel@lists.xenserver.org
+
+For new features, please work with the upstream Linux project and
+request backports by e-mailing the XenServer development mailing list.
+
+Installing
+==========
+There is information in the INSTALL file on building and installing an
+RPM based on this repository.

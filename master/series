@@ -22,8 +22,26 @@ linux-stable-3.10-to-3.10.11.patch
 0006-x86-xen-Sync-the-CMOS-RTC-as-well-as-the-Xen-wallclo.patch
 # 65a45fa2f640f72757ef00f2bc83f9654d65a62b (3.11-rc1)
 0001-xen-p2m-avoid-unneccesary-TLB-flush-in-m2p_remove_ov.patch
+# 7e44892c1b6bb499cb2f6d5c0f4afcc077a26074 (3.11-rc4)
+0001-igb-fix-vlan-filtering-in-promisc-mode-when-not-in-V.patch
 # 73cc4bb0c79eebe1f0e92b700d9fe8d1c9b061bb (3.12-rc1)
 0001-xen-evtchn-improve-scalability-by-using-per-user-loc.patch
+# ee0726407feaf504dff304fb603652fb2d778b42 (3.12-rc1)
+0001-xen-m2p-use-GNTTABOP_unmap_and_replace-to-reinstate-.patch
+# cd9151e26d31048b2b5e00fd02e110e07d2200c9 (3.12-rc1)
+0002-xen-balloon-set-a-mapping-for-ballooned-out-pages.patch
+# 04660bb5d0e4104e01a8fc34e5d51de1d84c09bf (3.12-rc1)
+0003-xen-balloon-don-t-set-P2M-entry-for-auto-translated-.patch
+# d7f8f48d1eb3186b1b80b2ed9a7adab191f753e9 (3.12-rc1)
+0004-xen-p2m-Don-t-call-get_balloon_scratch_page-twice-ke.patch
+# 2bad07ce28a0f61c1e776f99aa05f85e4e689e24 (3.12-rc1)
+0005-xen-balloon-ensure-preemption-is-disabled-when-using.patch
+# 6a6f6e72eca5ed999689c69d1ac411fe319844a0 (3.12-rc1)
+0006-xen-balloon-remove-BUG_ON-in-increase_reservation.patch
+# 24f69373e212d4356268fbb1d01c5735423c300d (3.12-rc3)
+0007-xen-balloon-don-t-alloc-page-while-non-preemptible.patch
+# a9fbf4d591da6cd1d3eaab826c7c15f77fc8f6a3 (3.12-rc4)
+0001-xen-hvc-allow-xenboot-console-to-be-used-again.patch
 
 #
 # Build system integration
@@ -40,6 +58,7 @@ blktap2-fixups.patch
 #
 # x86
 #
+0001-xen-Fix-possible-user-space-selector-corruption.patch
 
 #
 # Xen
@@ -58,6 +77,7 @@ blkback-debug-ring.diff
 drivers-misc-uklog.patch
 pciback-do-bus-reset-if-function-reset-failed.patch
 net-core__order-3_frag_allocator_causes_swiotlb_bouncing_under_xen.patch
+force-multipackage-inside-dom0.patch
 
 #
 # Debugging/hacks
