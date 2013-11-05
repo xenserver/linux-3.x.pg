@@ -42,6 +42,8 @@ linux-stable-3.10-to-3.10.11.patch
 0007-xen-balloon-don-t-alloc-page-while-non-preemptible.patch
 # a9fbf4d591da6cd1d3eaab826c7c15f77fc8f6a3 (3.12-rc4)
 0001-xen-hvc-allow-xenboot-console-to-be-used-again.patch
+# 74d332c13b2148ae934ea94dac1745ae92efe8e5 (net-next)
+net-next-net-device-allocation-improvements.patch
 
 #
 # Build system integration
