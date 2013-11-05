@@ -1,0 +1,139 @@
+From b103f358d9f6f58658f1a6dc08912ab921dd86f1 Mon Sep 17 00:00:00 2001
+From: Wei Liu <wei.liu2@citrix.com>
+Date: Thu, 16 May 2013 23:26:11 +0000
+Subject: [PATCH] xen-netback: enable user to unload netback module
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+This patch enables user to unload netback module, which is useful when user
+wants to upgrade to a newer netback module without rebooting the host.
+
+Netfront cannot handle netback removal event. As we cannot fix all possible
+frontends we add module get / put along with vif get / put to avoid
+mis-unloading of netback. To unload netback module, user needs to shutdown all
+VMs or migrate them to another host or unplug all vifs before hand.
+
+Signed-off-by: Wei Liu <wei.liu2@citrix.com>
+Acked-by: Ian Campbell <ian.campbell@citrix.com>¬
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ drivers/net/xen-netback/common.h    |    1 +
+ drivers/net/xen-netback/interface.c |   19 ++++++++++++++++++-
+ drivers/net/xen-netback/netback.c   |   20 ++++++++++++++++++++
+ drivers/net/xen-netback/xenbus.c    |    5 +++++
+ 4 files changed, 44 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/net/xen-netback/common.h b/drivers/net/xen-netback/common.h
+index 9d7f172..6102a6c 100644
+--- a/drivers/net/xen-netback/common.h
++++ b/drivers/net/xen-netback/common.h
+@@ -120,6 +120,7 @@ void xenvif_get(struct xenvif *vif);
+ void xenvif_put(struct xenvif *vif);
+ 
+ int xenvif_xenbus_init(void);
++void xenvif_xenbus_fini(void);
+ 
+ int xenvif_schedulable(struct xenvif *vif);
+ 
+diff --git a/drivers/net/xen-netback/interface.c b/drivers/net/xen-netback/interface.c
+index d984141..82202c2 100644
+--- a/drivers/net/xen-netback/interface.c
++++ b/drivers/net/xen-netback/interface.c
+@@ -316,6 +316,8 @@ int xenvif_connect(struct xenvif *vif, unsigned long tx_ring_ref,
+ 	if (vif->irq)
+ 		return 0;
+ 
++	__module_get(THIS_MODULE);
++
+ 	err = xen_netbk_map_frontend_rings(vif, tx_ring_ref, rx_ring_ref);
+ 	if (err < 0)
+ 		goto err;
+@@ -343,6 +345,7 @@ int xenvif_connect(struct xenvif *vif, unsigned long tx_ring_ref,
+ err_unmap:
+ 	xen_netbk_unmap_frontend_rings(vif);
+ err:
++	module_put(THIS_MODULE);
+ 	return err;
+ }
+ 
+@@ -360,18 +363,32 @@ void xenvif_carrier_off(struct xenvif *vif)
+ 
+ void xenvif_disconnect(struct xenvif *vif)
+ {
++	/* Disconnect funtion might get called by generic framework
++	 * even before vif connects, so we need to check if we really
++	 * need to do a module_put.
++	 */
++	int need_module_put = 0;
++
+ 	if (netif_carrier_ok(vif->dev))
+ 		xenvif_carrier_off(vif);
+ 
+ 	atomic_dec(&vif->refcnt);
+ 	wait_event(vif->waiting_to_free, atomic_read(&vif->refcnt) == 0);
+ 
+-	if (vif->irq)
++	if (vif->irq) {
+ 		unbind_from_irqhandler(vif->irq, vif);
++		/* vif->irq is valid, we had a module_get in
++		 * xenvif_connect.
++		 */
++		need_module_put = 1;
++	}
+ 
+ 	unregister_netdev(vif->dev);
+ 
+ 	xen_netbk_unmap_frontend_rings(vif);
+ 
+ 	free_netdev(vif->dev);
++
++	if (need_module_put)
++		module_put(THIS_MODULE);
+ }
+diff --git a/drivers/net/xen-netback/netback.c b/drivers/net/xen-netback/netback.c
+index 295a9c2..2d9477f 100644
+--- a/drivers/net/xen-netback/netback.c
++++ b/drivers/net/xen-netback/netback.c
+@@ -1949,5 +1949,25 @@ failed_init:
+ 
+ module_init(netback_init);
+ 
++static void __exit netback_fini(void)
++{
++	int i, j;
++
++	xenvif_xenbus_fini();
++
++	for (i = 0; i < xen_netbk_group_nr; i++) {
++		struct xen_netbk *netbk = &xen_netbk[i];
++		del_timer_sync(&netbk->net_timer);
++		kthread_stop(netbk->task);
++		for (j = 0; j < MAX_PENDING_REQS; j++) {
++			if (netbk->mmap_pages[i])
++				__free_page(netbk->mmap_pages[i]);
++		}
++	}
++
++	vfree(xen_netbk);
++}
++module_exit(netback_fini);
++
+ MODULE_LICENSE("Dual BSD/GPL");
+ MODULE_ALIAS("xen-backend:vif");
+diff --git a/drivers/net/xen-netback/xenbus.c b/drivers/net/xen-netback/xenbus.c
+index 410018c..d230c14 100644
+--- a/drivers/net/xen-netback/xenbus.c
++++ b/drivers/net/xen-netback/xenbus.c
+@@ -485,3 +485,8 @@ int xenvif_xenbus_init(void)
+ {
+ 	return xenbus_register_backend(&netback_driver);
+ }
++
++void xenvif_xenbus_fini(void)
++{
++	return xenbus_unregister_driver(&netback_driver);
++}
+-- 
+1.7.10.4
+

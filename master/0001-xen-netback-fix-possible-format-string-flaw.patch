@@ -1,0 +1,31 @@
+From a9677bc024dcaafcf36c1cc4b0706b87be26ee5f Mon Sep 17 00:00:00 2001
+From: Kees Cook <keescook@chromium.org>
+Date: Tue, 10 Sep 2013 21:39:11 -0700
+Subject: [PATCH] xen-netback: fix possible format string flaw
+
+This makes sure a format string cannot accidentally leak into the
+kthread_run() call.
+
+Signed-off-by: Kees Cook <keescook@chromium.org>
+Acked-by: Ian Campbell <ian.campbell@citrix.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ drivers/net/xen-netback/interface.c |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/net/xen-netback/interface.c b/drivers/net/xen-netback/interface.c
+index 625c6f4..77fee1d 100644
+--- a/drivers/net/xen-netback/interface.c
++++ b/drivers/net/xen-netback/interface.c
+@@ -406,7 +406,7 @@ int xenvif_connect(struct xenvif *vif, unsigned long tx_ring_ref,
+ 
+ 	init_waitqueue_head(&vif->wq);
+ 	vif->task = kthread_create(xenvif_kthread,
+-				   (void *)vif, vif->dev->name);
++				   (void *)vif, "%s", vif->dev->name);
+ 	if (IS_ERR(vif->task)) {
+ 		pr_warn("Could not allocate kthread for %s\n", vif->dev->name);
+ 		err = PTR_ERR(vif->task);
+-- 
+1.7.10.4
+
