@@ -1,0 +1,36 @@
+From f1db320ec5788d5fcc05c0285bd0980319185497 Mon Sep 17 00:00:00 2001
+From: Wei Liu <wei.liu2@citrix.com>
+Date: Thu, 16 May 2013 23:24:28 +0000
+Subject: [PATCH] xen-netback: remove dead code
+
+The array mmap_pages is never touched in the initialization function. This is
+remnant of mapping mechanism, which does not exist upstream. In current
+upstream code this array only tracks usage of pages inside netback. Those
+pages are allocated when contructing a SKB and passed directly to network
+subsystem.
+
+Signed-off-by: Wei Liu <wei.liu2@citrix.com>
+Acked-by: Ian Campbell <ian.campbell@citrix.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ drivers/net/xen-netback/netback.c |    4 ----
+ 1 file changed, 4 deletions(-)
+
+diff --git a/drivers/net/xen-netback/netback.c b/drivers/net/xen-netback/netback.c
+index 37984e6..295a9c2 100644
+--- a/drivers/net/xen-netback/netback.c
++++ b/drivers/net/xen-netback/netback.c
+@@ -1939,10 +1939,6 @@ static int __init netback_init(void)
+ failed_init:
+ 	while (--group >= 0) {
+ 		struct xen_netbk *netbk = &xen_netbk[group];
+-		for (i = 0; i < MAX_PENDING_REQS; i++) {
+-			if (netbk->mmap_pages[i])
+-				__free_page(netbk->mmap_pages[i]);
+-		}
+ 		del_timer(&netbk->net_timer);
+ 		kthread_stop(netbk->task);
+ 	}
+-- 
+1.7.10.4
+
