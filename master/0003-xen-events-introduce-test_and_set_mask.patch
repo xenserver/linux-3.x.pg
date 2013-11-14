@@ -1,0 +1,62 @@
+From dfa33baf8dd79cc746c7a2c9c2f05e319bdfa7f9 Mon Sep 17 00:00:00 2001
+From: Wei Liu <wei.liu2@citrix.com>
+Date: Thu, 7 Mar 2013 15:50:27 +0000
+Subject: [PATCH 03/16] xen/events: introduce test_and_set_mask()
+
+In preparation for adding event channel port ops, add
+test_and_set_mask().
+
+Signed-off-by: Wei Liu <wei.liu2@citrix.com>
+Signed-off-by: David Vrabel <david.vrabel@citrix.com>
+Reviewed-by: Konrad Rzeszutek Wilk <konrad.wilk@oracle.com>
+Reviewed-by: Boris Ostrovsky <boris.ostrovsky@oracle.com>
+---
+ drivers/xen/events.c |   11 ++++++++---
+ 1 file changed, 8 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/xen/events.c b/drivers/xen/events.c
+index 1e2c74b..359e983 100644
+--- a/drivers/xen/events.c
++++ b/drivers/xen/events.c
+@@ -352,6 +352,12 @@ static inline int test_evtchn(int port)
+ 	return sync_test_bit(port, BM(&s->evtchn_pending[0]));
+ }
+ 
++static inline int test_and_set_mask(int port)
++{
++	struct shared_info *s = HYPERVISOR_shared_info;
++	return sync_test_and_set_bit(port, BM(&s->evtchn_mask[0]));
++}
++
+ 
+ /**
+  * notify_remote_via_irq - send event to remote end of event channel via irq
+@@ -1493,7 +1499,6 @@ void rebind_evtchn_irq(int evtchn, int irq)
+ /* Rebind an evtchn so that it gets delivered to a specific cpu */
+ static int rebind_irq_to_cpu(unsigned irq, unsigned tcpu)
+ {
+-	struct shared_info *s = HYPERVISOR_shared_info;
+ 	struct evtchn_bind_vcpu bind_vcpu;
+ 	int evtchn = evtchn_from_irq(irq);
+ 	int masked;
+@@ -1516,7 +1521,7 @@ static int rebind_irq_to_cpu(unsigned irq, unsigned tcpu)
+ 	 * Mask the event while changing the VCPU binding to prevent
+ 	 * it being delivered on an unexpected VCPU.
+ 	 */
+-	masked = sync_test_and_set_bit(evtchn, BM(s->evtchn_mask));
++	masked = test_and_set_mask(evtchn);
+ 
+ 	/*
+ 	 * If this fails, it usually just indicates that we're dealing with a
+@@ -1548,7 +1553,7 @@ static int retrigger_evtchn(int evtchn)
+ 	if (!VALID_EVTCHN(evtchn))
+ 		return 0;
+ 
+-	masked = sync_test_and_set_bit(evtchn, BM(s->evtchn_mask));
++	masked = test_and_set_mask(evtchn);
+ 	sync_set_bit(evtchn, BM(s->evtchn_pending));
+ 	if (!masked)
+ 		unmask_evtchn(evtchn);
+-- 
+1.7.10.4
+

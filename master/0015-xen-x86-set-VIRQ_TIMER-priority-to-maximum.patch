@@ -1,0 +1,34 @@
+From 4a4f5343cb6fefd5b943f4a8d82ad57445913575 Mon Sep 17 00:00:00 2001
+From: David Vrabel <david.vrabel@citrix.com>
+Date: Mon, 23 Sep 2013 12:52:21 +0100
+Subject: [PATCH 15/16] xen/x86: set VIRQ_TIMER priority to maximum
+
+Commit bee980d9e (xen/events: Handle VIRQ_TIMER before any other hardirq
+in event loop) effectively made the VIRQ_TIMER the highest priority event
+when using the 2-level ABI.
+
+Set the VIRQ_TIMER priority to the highest so this behaviour is retained
+when using the FIFO-based ABI.
+
+Signed-off-by: David Vrabel <david.vrabel@citrix.com>
+Reviewed-by: Konrad Rzeszutek Wilk <konrad.wilk@oracle.com>
+Reviewed-by: Boris Ostrovsky <boris.ostrovsky@oracle.com>
+---
+ arch/x86/xen/time.c |    1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/arch/x86/xen/time.c b/arch/x86/xen/time.c
+index ee36589..10e11c1 100644
+--- a/arch/x86/xen/time.c
++++ b/arch/x86/xen/time.c
+@@ -447,6 +447,7 @@ void xen_setup_timer(int cpu)
+ 				      IRQF_NOBALANCING|IRQF_TIMER|
+ 				      IRQF_FORCE_RESUME,
+ 				      name, NULL);
++	(void)xen_set_irq_priority(irq, XEN_IRQ_PRIORITY_MAX);
+ 
+ 	memcpy(evt, xen_clockevent, sizeof(*evt));
+ 
+-- 
+1.7.10.4
+

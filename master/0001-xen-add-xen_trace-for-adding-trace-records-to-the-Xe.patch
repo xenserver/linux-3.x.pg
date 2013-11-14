@@ -9,17 +9,17 @@ trace records to Xen's trace buffer.
 This may be useful for investigating interactions between different
 domains.
 diff --git a/drivers/xen/Makefile b/drivers/xen/Makefile
-index eabd0ee..b9c8638 100644
+index 1e782c9..c8fd94f 100644
 --- a/drivers/xen/Makefile
 +++ b/drivers/xen/Makefile
 @@ -4,6 +4,7 @@ obj-$(CONFIG_HOTPLUG_CPU)		+= cpu_hotplug.o
  endif
  obj-$(CONFIG_X86)			+= fallback.o
- obj-y	+= grant-table.o features.o events.o balloon.o
+ obj-y	+= grant-table.o features.o balloon.o
 +obj-y	+= trace.o
+ obj-y	+= events/
  obj-y	+= xenbus/
  
- nostackp := $(call cc-option, -fno-stack-protector)
 diff --git a/drivers/xen/trace.c b/drivers/xen/trace.c
 new file mode 100644
 index 0000000..7b5fe5a

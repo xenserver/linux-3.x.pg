@@ -1,0 +1,87 @@
+From 573bad95aa9e3c44b9df83fd49de596b8c5ef68e Mon Sep 17 00:00:00 2001
+From: David Vrabel <david.vrabel@citrix.com>
+Date: Mon, 23 Sep 2013 21:03:38 +0100
+Subject: [PATCH 12/16] xen/evtchn: support more than 4096 ports
+
+Remove the check during unbind for NR_EVENT_CHANNELS as this limits
+support to less than 4096 ports.
+
+Signed-off-by: David Vrabel <david.vrabel@citrix.com>
+Reviewed-by: Konrad Rzeszutek Wilk <konrad.wilk@oracle.com>
+Reviewed-by: Boris Ostrovsky <boris.ostrovsky@oracle.com>
+---
+ drivers/xen/events/events_base.c     |   13 +++++++++++++
+ drivers/xen/events/events_internal.h |    5 -----
+ drivers/xen/evtchn.c                 |    2 +-
+ include/xen/events.h                 |    2 ++
+ 4 files changed, 16 insertions(+), 6 deletions(-)
+
+diff --git a/drivers/xen/events/events_base.c b/drivers/xen/events/events_base.c
+index c6d64f1..9d0d88c 100644
+--- a/drivers/xen/events/events_base.c
++++ b/drivers/xen/events/events_base.c
+@@ -952,6 +952,19 @@ static int find_virq(unsigned int virq, unsigned int cpu)
+ 	return rc;
+ }
+ 
++/**
++ * xen_evtchn_nr_channels - number of usable event channel ports
++ *
++ * This may be less than the maximum supported by the current
++ * hypervisor ABI. Use xen_evtchn_max_channels() for the maximum
++ * supported.
++ */
++unsigned xen_evtchn_nr_channels(void)
++{
++        return evtchn_ops->nr_channels();
++}
++EXPORT_SYMBOL_GPL(xen_evtchn_nr_channels);
++
+ int bind_virq_to_irq(unsigned int virq, unsigned int cpu)
+ {
+ 	struct evtchn_bind_virq bind_virq;
+diff --git a/drivers/xen/events/events_internal.h b/drivers/xen/events/events_internal.h
+index a3d9aec..2862e1c 100644
+--- a/drivers/xen/events/events_internal.h
++++ b/drivers/xen/events/events_internal.h
+@@ -85,11 +85,6 @@ static inline unsigned xen_evtchn_max_channels(void)
+ 	return evtchn_ops->max_channels();
+ }
+ 
+-static inline unsigned xen_evtchn_nr_channels(void)
+-{
+-	return evtchn_ops->nr_channels();
+-}
+-
+ /*
+  * Do any ABI specific setup for a bound event channel before it can
+  * be unmasked and used.
+diff --git a/drivers/xen/evtchn.c b/drivers/xen/evtchn.c
+index 8b3a69a..0b53c0b 100644
+--- a/drivers/xen/evtchn.c
++++ b/drivers/xen/evtchn.c
+@@ -417,7 +417,7 @@ static long evtchn_ioctl(struct file *file,
+ 			break;
+ 
+ 		rc = -EINVAL;
+-		if (unbind.port >= NR_EVENT_CHANNELS)
++		if (unbind.port >= xen_evtchn_nr_channels())
+ 			break;
+ 
+ 		rc = -ENOTCONN;
+diff --git a/include/xen/events.h b/include/xen/events.h
+index 32ae0f2..55b42cc 100644
+--- a/include/xen/events.h
++++ b/include/xen/events.h
+@@ -7,6 +7,8 @@
+ #include <asm/xen/hypercall.h>
+ #include <asm/xen/events.h>
+ 
++unsigned xen_evtchn_nr_channels(void);
++
+ int bind_evtchn_to_irq(unsigned int evtchn);
+ int bind_evtchn_to_irqhandler(unsigned int evtchn,
+ 			      irq_handler_t handler,
+-- 
+1.7.10.4
+

@@ -89,6 +89,24 @@ revert-94f950c4060cd9b1989c565284beb159b9705a50.patch
 # Blkback
 blkback-debug-ring.diff
 
+# FIFO-based event channel ABI
+0001-xen-events-refactor-retrigger_dynirq-and-resend_irq_.patch
+0002-xen-events-remove-unnecessary-init_evtchn_cpu_bindin.patch
+0003-xen-events-introduce-test_and_set_mask.patch
+0004-xen-events-replace-raw-bit-ops-with-functions.patch
+0005-xen-events-move-drivers-xen-events.c-into-drivers-xe.patch
+0006-xen-events-move-2-level-specific-code-into-its-own-f.patch
+0007-xen-events-add-struct-evtchn_ops-for-the-low-level-p.patch
+0008-xen-events-allow-setup-of-irq_info-to-fail.patch
+0009-xen-events-add-a-evtchn_op-for-port-setup.patch
+0010-xen-events-Refactor-evtchn_to_irq-array-to-be-dynami.patch
+0011-xen-events-add-xen_evtchn_mask_all.patch
+0012-xen-evtchn-support-more-than-4096-ports.patch
+0013-xen-events-Add-the-hypervisor-interface-for-the-FIFO.patch
+0014-xen-events-allow-event-channel-priority-to-be-set.patch
+0015-xen-x86-set-VIRQ_TIMER-priority-to-maximum.patch
+0016-xen-events-use-the-FIFO-based-ABI-if-available.patch
+
 #
 # Local patches.
 #

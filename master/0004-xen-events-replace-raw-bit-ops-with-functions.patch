@@ -1,0 +1,38 @@
+From 35178be09fae14d8d08364aa55b5a35d3d1eb898 Mon Sep 17 00:00:00 2001
+From: Wei Liu <wei.liu2@citrix.com>
+Date: Thu, 7 Mar 2013 15:50:28 +0000
+Subject: [PATCH 04/16] xen/events: replace raw bit ops with functions
+
+In preparation for adding event channel port ops, use set_evtchn()
+instead of sync_set_bit().
+
+Signed-off-by: Wei Liu <wei.liu2@citrix.com>
+Signed-off-by: David Vrabel <david.vrabel@citrix.com>
+Reviewed-by: Konrad Rzeszutek Wilk <konrad.wilk@oracle.com>
+Reviewed-by: Boris Ostrovsky <boris.ostrovsky@oracle.com>
+---
+ drivers/xen/events.c |    3 +--
+ 1 file changed, 1 insertion(+), 2 deletions(-)
+
+diff --git a/drivers/xen/events.c b/drivers/xen/events.c
+index 359e983..fec5da4 100644
+--- a/drivers/xen/events.c
++++ b/drivers/xen/events.c
+@@ -1548,13 +1548,12 @@ static int set_affinity_irq(struct irq_data *data, const struct cpumask *dest,
+ static int retrigger_evtchn(int evtchn)
+ {
+ 	int masked;
+-	struct shared_info *s = HYPERVISOR_shared_info;
+ 
+ 	if (!VALID_EVTCHN(evtchn))
+ 		return 0;
+ 
+ 	masked = test_and_set_mask(evtchn);
+-	sync_set_bit(evtchn, BM(s->evtchn_pending));
++	set_evtchn(evtchn);
+ 	if (!masked)
+ 		unmask_evtchn(evtchn);
+ 
+-- 
+1.7.10.4
+
