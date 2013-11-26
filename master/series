@@ -84,6 +84,7 @@ revert-94f950c4060cd9b1989c565284beb159b9705a50.patch
 0001-xen-netback-count-number-required-slots-for-an-skb-m.patch
 0001-xen-netback-Don-t-destroy-the-netdev-until-the-vif-i.patch
 0001-xen-netback-Handle-backend-state-transitions-in-a-mo.patch
+0001-xen-netback-stop-the-VIF-thread-before-unbinding-IRQ.patch
 
 # Blkback
 blkback-debug-ring.diff
@@ -95,6 +96,7 @@ drivers-misc-uklog.patch
 pciback-do-bus-reset-if-function-reset-failed.patch
 net-core__order-3_frag_allocator_causes_swiotlb_bouncing_under_xen.patch
 force-multipackage-inside-dom0.patch
+call-kexec-before-offlining-noncrashing-cpus.patch
 
 #
 # Debugging/hacks
