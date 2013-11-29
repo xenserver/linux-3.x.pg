@@ -1,4 +1,4 @@
-From 44f9ee348fcba4837790841eef8fd0f7a788a1a8 Mon Sep 17 00:00:00 2001
+From 2296e02179ce2459f1f035e2b07b9f48f148e330 Mon Sep 17 00:00:00 2001
 From: Paul Durrant <paul.durrant@citrix.com>
 Date: Wed, 27 Nov 2013 14:40:41 +0000
 Subject: [PATCH net-next v2] xen-netback: improve guest-receive-side flow
@@ -89,7 +89,7 @@ index 55b8dec..9d4b4cf 100644
  extern bool separate_tx_rx_irq;
  
 diff --git a/drivers/net/xen-netback/interface.c b/drivers/net/xen-netback/interface.c
-index 49d3cd8..61331d1 100644
+index 49d3cd8..22783ec 100644
 --- a/drivers/net/xen-netback/interface.c
 +++ b/drivers/net/xen-netback/interface.c
 @@ -46,11 +46,6 @@ int xenvif_schedulable(struct xenvif *vif)
@@ -115,7 +115,7 @@ index 49d3cd8..61331d1 100644
  
  	return IRQ_HANDLED;
  }
-@@ -121,6 +116,7 @@ static irqreturn_t xenvif_interrupt(int irq, void *dev_id)
+@@ -121,24 +116,35 @@ static irqreturn_t xenvif_interrupt(int irq, void *dev_id)
  static int xenvif_start_xmit(struct sk_buff *skb, struct net_device *dev)
  {
  	struct xenvif *vif = netdev_priv(dev);
@@ -123,8 +123,9 @@ index 49d3cd8..61331d1 100644
  
  	BUG_ON(skb->dev != dev);
  
-@@ -128,17 +124,27 @@ static int xenvif_start_xmit(struct sk_buff *skb, struct net_device *dev)
- 	if (vif->task == NULL)
+ 	/* Drop the packet if vif is not ready */
+-	if (vif->task == NULL)
++	if (vif->task == NULL || !xenvif_schedulable(vif))
  		goto drop;
  
 -	/* Drop the packet if the target domain has no receive buffers. */
