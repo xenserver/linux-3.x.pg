@@ -1,0 +1,50 @@
+From ecf245c5a783baef5b38bc2a7e5de4ca1f115b0b Mon Sep 17 00:00:00 2001
+From: Paul Durrant <paul.durrant@citrix.com>
+Date: Fri, 29 Nov 2013 13:32:40 +0000
+Subject: [PATCH net-next] xen-netback: minor state model fixes
+
+xenvif_start_xmit() relies on checking vif->task for NULL to determine
+whether the vif is ready to accept packets. The task thread is stopped in
+xenvif_disconnect() but task is not set to NULL. Thus on a re-connect the
+check will give a false positive.
+Also since commit ea732dff5cfa10789007bf4a5b935388a0bb2a8f it should not
+be possible for xenvif_connect() to be called if the vif is already connected
+so change the check of vif->tx_irq to a BUG_ON() and also add a
+BUG_ON(vif->task).
+
+Signed-off-by: Paul Durrant <paul.durrant@citrix.com>
+---
+ drivers/net/xen-netback/interface.c |    9 +++++----
+ 1 file changed, 5 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/net/xen-netback/interface.c b/drivers/net/xen-netback/interface.c
+index 2329ccc..d42efbf 100644
+--- a/drivers/net/xen-netback/interface.c
++++ b/drivers/net/xen-netback/interface.c
+@@ -370,9 +370,8 @@ int xenvif_connect(struct xenvif *vif, unsigned long tx_ring_ref,
+ {
+ 	int err = -ENOMEM;
+ 
+-	/* Already connected through? */
+-	if (vif->tx_irq)
+-		return 0;
++	BUG_ON(vif->tx_irq);
++	BUG_ON(vif->task);
+ 
+ 	err = xenvif_map_frontend_rings(vif, tx_ring_ref, rx_ring_ref);
+ 	if (err < 0)
+@@ -461,8 +460,10 @@ void xenvif_disconnect(struct xenvif *vif)
+ 	if (netif_carrier_ok(vif->dev))
+ 		xenvif_carrier_off(vif);
+ 
+-	if (vif->task)
++	if (vif->task) {
+ 		kthread_stop(vif->task);
++		vif->task = NULL;
++	}
+ 
+ 	if (vif->tx_irq) {
+ 		if (vif->tx_irq == vif->rx_irq)
+-- 
+1.7.10.4
+

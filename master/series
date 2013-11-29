@@ -94,6 +94,7 @@ revert-94f950c4060cd9b1989c565284beb159b9705a50.patch
 
 # Netback: submitted but not yet upstream
 0001-xen-netback-fix-fragment-detection-in-checksum-setup.patch
+0001-xen-netback-minor-state-model-fixes.patch
 0001-xen-netback-improve-guest-receive-side-flow-control.patch
 
 # Blkback
