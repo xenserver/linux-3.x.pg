@@ -30,10 +30,10 @@ Cc: Wei Liu <wei.liu2@citrix.com>
 Cc: Ian Campbell <ian.campbell@citrix.com>
 Cc: David Vrabel <david.vrabel@citrix.com>
 diff --git a/drivers/net/xen-netback/common.h b/drivers/net/xen-netback/common.h
-index 55b8dec..9d4b4cf 100644
+index 5715318..b9a152f 100644
 --- a/drivers/net/xen-netback/common.h
 +++ b/drivers/net/xen-netback/common.h
-@@ -136,12 +136,10 @@ struct xenvif {
+@@ -132,12 +132,10 @@ struct xenvif {
  	char rx_irq_name[IFNAMSIZ+4]; /* DEVNAME-rx */
  	struct xen_netif_rx_back_ring rx;
  	struct sk_buff_head rx_queue;
@@ -49,7 +49,7 @@ index 55b8dec..9d4b4cf 100644
  
  	/* Given MAX_BUFFER_OFFSET of 4096 the worst case is that each
  	 * head/fragment page uses 2 copy operations because it
-@@ -197,8 +195,6 @@ void xenvif_xenbus_fini(void);
+@@ -191,8 +189,6 @@ void xenvif_xenbus_fini(void);
  
  int xenvif_schedulable(struct xenvif *vif);
  
@@ -58,7 +58,7 @@ index 55b8dec..9d4b4cf 100644
  int xenvif_must_stop_queue(struct xenvif *vif);
  
  /* (Un)Map communication rings. */
-@@ -210,21 +206,20 @@ int xenvif_map_frontend_rings(struct xenvif *vif,
+@@ -204,21 +200,20 @@ int xenvif_map_frontend_rings(struct xenvif *vif,
  /* Check for SKBs from frontend and schedule backend processing */
  void xenvif_check_rx_xenvif(struct xenvif *vif);
  
@@ -89,7 +89,7 @@ index 55b8dec..9d4b4cf 100644
  extern bool separate_tx_rx_irq;
  
 diff --git a/drivers/net/xen-netback/interface.c b/drivers/net/xen-netback/interface.c
-index 49d3cd8..22783ec 100644
+index c4442e9..4fb0aab 100644
 --- a/drivers/net/xen-netback/interface.c
 +++ b/drivers/net/xen-netback/interface.c
 @@ -46,11 +46,6 @@ int xenvif_schedulable(struct xenvif *vif)
@@ -173,7 +173,7 @@ index 49d3cd8..22783ec 100644
  static struct net_device_stats *xenvif_get_stats(struct net_device *dev)
  {
  	struct xenvif *vif = netdev_priv(dev);
-@@ -378,6 +378,8 @@ int xenvif_connect(struct xenvif *vif, unsigned long tx_ring_ref,
+@@ -372,6 +372,8 @@ int xenvif_connect(struct xenvif *vif, unsigned long tx_ring_ref,
  	if (err < 0)
  		goto err;
  
@@ -182,7 +182,7 @@ index 49d3cd8..22783ec 100644
  	if (tx_evtchn == rx_evtchn) {
  		/* feature-split-event-channels == 0 */
  		err = bind_interdomain_evtchn_to_irqhandler(
-@@ -410,7 +412,6 @@ int xenvif_connect(struct xenvif *vif, unsigned long tx_ring_ref,
+@@ -404,7 +406,6 @@ int xenvif_connect(struct xenvif *vif, unsigned long tx_ring_ref,
  		disable_irq(vif->rx_irq);
  	}
  
@@ -191,10 +191,10 @@ index 49d3cd8..22783ec 100644
  				   (void *)vif, "%s", vif->dev->name);
  	if (IS_ERR(vif->task)) {
 diff --git a/drivers/net/xen-netback/netback.c b/drivers/net/xen-netback/netback.c
-index e99fbbf..ee39a6f 100644
+index 1e07a62..5702030 100644
 --- a/drivers/net/xen-netback/netback.c
 +++ b/drivers/net/xen-netback/netback.c
-@@ -137,36 +137,19 @@ static inline pending_ring_idx_t nr_pending_reqs(struct xenvif *vif)
+@@ -140,36 +140,19 @@ static inline pending_ring_idx_t nr_pending_reqs(struct xenvif *vif)
  		vif->pending_prod + vif->pending_cons;
  }
  
@@ -204,7 +204,7 @@ index e99fbbf..ee39a6f 100644
 -	int max = DIV_ROUND_UP(vif->dev->mtu, PAGE_SIZE);
 -
 -	/* XXX FIXME: RX path dependent on MAX_SKB_FRAGS */
--	if (vif->can_sg || vif->gso_mask || vif->gso_prefix_mask)
+-	if (vif->can_sg || vif->gso || vif->gso_prefix)
 -		max += MAX_SKB_FRAGS + 1; /* extra_info + frags */
 -
 -	return max;
@@ -240,7 +240,7 @@ index e99fbbf..ee39a6f 100644
  }
  
  /*
-@@ -209,93 +192,6 @@ static bool start_new_rx_buffer(int offset, unsigned long size, int head)
+@@ -212,93 +195,6 @@ static bool start_new_rx_buffer(int offset, unsigned long size, int head)
  	return false;
  }
  
@@ -334,7 +334,7 @@ index e99fbbf..ee39a6f 100644
  struct netrx_pending_operations {
  	unsigned copy_prod, copy_cons;
  	unsigned meta_prod, meta_cons;
-@@ -556,12 +452,12 @@ struct skb_cb_overlay {
+@@ -533,12 +429,12 @@ struct skb_cb_overlay {
  	int meta_slots_used;
  };
  
@@ -349,7 +349,7 @@ index e99fbbf..ee39a6f 100644
  {
  	s8 status;
  	u16 flags;
-@@ -570,8 +466,6 @@ void xenvif_rx_action(struct xenvif *vif)
+@@ -547,8 +443,6 @@ void xenvif_rx_action(struct xenvif *vif)
  	struct sk_buff *skb;
  	LIST_HEAD(notify);
  	int ret;
@@ -358,7 +358,7 @@ index e99fbbf..ee39a6f 100644
  	unsigned long offset;
  	struct skb_cb_overlay *sco;
  	int need_to_notify = 0;
-@@ -583,23 +477,35 @@ void xenvif_rx_action(struct xenvif *vif)
+@@ -560,23 +454,35 @@ void xenvif_rx_action(struct xenvif *vif)
  
  	skb_queue_head_init(&rxq);
  
@@ -405,16 +405,16 @@ index e99fbbf..ee39a6f 100644
  	}
  
  	BUG_ON(npo.meta_prod > ARRAY_SIZE(vif->meta));
-@@ -613,8 +519,6 @@ void xenvif_rx_action(struct xenvif *vif)
+@@ -590,8 +496,6 @@ void xenvif_rx_action(struct xenvif *vif)
  	while ((skb = __skb_dequeue(&rxq)) != NULL) {
  		sco = (struct skb_cb_overlay *)skb->cb;
  
 -		vif = netdev_priv(skb->dev);
 -
- 		if ((1 << vif->meta[npo.meta_cons].gso_type) &
- 		    vif->gso_prefix_mask) {
+ 		if (vif->meta[npo.meta_cons].gso_size && vif->gso_prefix) {
  			resp = RING_GET_RESPONSE(&vif->rx,
-@@ -680,25 +584,12 @@ void xenvif_rx_action(struct xenvif *vif)
+ 						 vif->rx.rsp_prod_pvt++);
+@@ -655,25 +559,12 @@ void xenvif_rx_action(struct xenvif *vif)
  		if (ret)
  			need_to_notify = 1;
  
@@ -440,7 +440,7 @@ index e99fbbf..ee39a6f 100644
  }
  
  void xenvif_check_rx_xenvif(struct xenvif *vif)
-@@ -1792,7 +1683,7 @@ static struct xen_netif_rx_response *make_rx_response(struct xenvif *vif,
+@@ -1575,7 +1466,7 @@ static struct xen_netif_rx_response *make_rx_response(struct xenvif *vif,
  
  static inline int rx_work_todo(struct xenvif *vif)
  {
@@ -449,7 +449,7 @@ index e99fbbf..ee39a6f 100644
  }
  
  static inline int tx_work_todo(struct xenvif *vif)
-@@ -1842,8 +1733,6 @@ int xenvif_map_frontend_rings(struct xenvif *vif,
+@@ -1625,8 +1516,6 @@ int xenvif_map_frontend_rings(struct xenvif *vif,
  	rxs = (struct xen_netif_rx_sring *)addr;
  	BACK_RING_INIT(&vif->rx, rxs, PAGE_SIZE);
  
@@ -458,7 +458,7 @@ index e99fbbf..ee39a6f 100644
  	return 0;
  
  err:
-@@ -1851,9 +1740,23 @@ err:
+@@ -1634,9 +1523,23 @@ err:
  	return err;
  }
  
@@ -482,7 +482,7 @@ index e99fbbf..ee39a6f 100644
  
  	while (!kthread_should_stop()) {
  		wait_event_interruptible(vif->wq,
-@@ -1862,12 +1765,20 @@ int xenvif_kthread(void *data)
+@@ -1645,12 +1548,20 @@ int xenvif_kthread(void *data)
  		if (kthread_should_stop())
  			break;
  
