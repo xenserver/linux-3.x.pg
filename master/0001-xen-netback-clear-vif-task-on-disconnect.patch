@@ -1,0 +1,78 @@
+From 7fdb8042cb56f0f5a6d0565b94a906e2ee149b84 Mon Sep 17 00:00:00 2001
+From: Paul Durrant <paul.durrant@citrix.com>
+Date: Fri, 29 Nov 2013 13:32:40 +0000
+Subject: [PATCH] xen-netback: clear vif->task on disconnect
+
+xenvif_start_xmit() relies on checking vif->task for NULL to determine
+whether the vif is ready to accept packets. The task thread is stopped in
+xenvif_disconnect() but task is not set to NULL. Thus, on a re-connect the
+check will give a false positive.
+
+Also since commit ea732dff5cfa10789007bf4a5b935388a0bb2a8f (Handle backend
+state transitions in a more robust way) it should not be possible for
+xenvif_connect() to be called if the vif is already connected so change the
+check of vif->tx_irq to a BUG_ON() and also add a BUG_ON(vif->task).
+
+Signed-off-by: Paul Durrant <paul.durrant@citrix.com>
+Cc: Wei Liu <wei.liu2@citrix.com>
+Cc: Ian Campbell <ian.campbell@citrix.com>
+Cc: David Vrabel <david.vrabel@citrix.com>
+---
+ drivers/net/xen-netback/interface.c |   20 ++++++++++++--------
+ 1 file changed, 12 insertions(+), 8 deletions(-)
+
+diff --git a/drivers/net/xen-netback/interface.c b/drivers/net/xen-netback/interface.c
+index 2329ccc..870f1fa 100644
+--- a/drivers/net/xen-netback/interface.c
++++ b/drivers/net/xen-netback/interface.c
+@@ -368,11 +368,11 @@ int xenvif_connect(struct xenvif *vif, unsigned long tx_ring_ref,
+ 		   unsigned long rx_ring_ref, unsigned int tx_evtchn,
+ 		   unsigned int rx_evtchn)
+ {
++	struct task_struct *task;
+ 	int err = -ENOMEM;
+ 
+-	/* Already connected through? */
+-	if (vif->tx_irq)
+-		return 0;
++	BUG_ON(vif->tx_irq);
++	BUG_ON(vif->task);
+ 
+ 	err = xenvif_map_frontend_rings(vif, tx_ring_ref, rx_ring_ref);
+ 	if (err < 0)
+@@ -411,14 +411,16 @@ int xenvif_connect(struct xenvif *vif, unsigned long tx_ring_ref,
+ 	}
+ 
+ 	init_waitqueue_head(&vif->wq);
+-	vif->task = kthread_create(xenvif_kthread,
+-				   (void *)vif, "%s", vif->dev->name);
+-	if (IS_ERR(vif->task)) {
++	task = kthread_create(xenvif_kthread,
++			      (void *)vif, "%s", vif->dev->name);
++	if (IS_ERR(task)) {
+ 		pr_warn("Could not allocate kthread for %s\n", vif->dev->name);
+-		err = PTR_ERR(vif->task);
++		err = PTR_ERR(task);
+ 		goto err_rx_unbind;
+ 	}
+ 
++	vif->task = task;
++
+ 	rtnl_lock();
+ 	if (!vif->can_sg && vif->dev->mtu > ETH_DATA_LEN)
+ 		dev_set_mtu(vif->dev, ETH_DATA_LEN);
+@@ -461,8 +463,10 @@ void xenvif_disconnect(struct xenvif *vif)
+ 	if (netif_carrier_ok(vif->dev))
+ 		xenvif_carrier_off(vif);
+ 
+-	if (vif->task)
++	if (vif->task) {
+ 		kthread_stop(vif->task);
++		vif->task = NULL;
++	}
+ 
+ 	if (vif->tx_irq) {
+ 		if (vif->tx_irq == vif->rx_irq)
+-- 
+1.7.10.4
+
