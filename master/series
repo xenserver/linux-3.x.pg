@@ -120,3 +120,4 @@ call-kexec-before-offlining-noncrashing-cpus.patch
 #
 kernel-configuration
 abi-version
+ca-122812-debug
