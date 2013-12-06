@@ -1,5 +1,5 @@
 diff --git a/drivers/net/xen-netback/interface.c b/drivers/net/xen-netback/interface.c
-index b1ec0dc..a5e2547 100644
+index b1ec0dc..37c47cd 100644
 --- a/drivers/net/xen-netback/interface.c
 +++ b/drivers/net/xen-netback/interface.c
 @@ -100,6 +100,8 @@ static irqreturn_t xenvif_rx_interrupt(int irq, void *dev_id)
@@ -11,32 +11,15 @@ index b1ec0dc..a5e2547 100644
  	xenvif_kick_thread(vif);
  
  	return IRQ_HANDLED;
-@@ -117,6 +119,7 @@ static int xenvif_start_xmit(struct sk_buff *skb, struct net_device *dev)
- {
- 	struct xenvif *vif = netdev_priv(dev);
- 	int min_slots_needed;
-+	unsigned long flags;
- 
- 	BUG_ON(skb->dev != dev);
- 
-@@ -140,10 +143,15 @@ static int xenvif_start_xmit(struct sk_buff *skb, struct net_device *dev)
- 	 * then turn off the queue to give the ring a chance to
- 	 * drain.
- 	 */
-+	spin_lock_irqsave(&vif->rx_queue.lock, flags);
-+
- 	if (!xenvif_rx_ring_slots_available(vif, min_slots_needed))
+@@ -144,6 +146,7 @@ static int xenvif_start_xmit(struct sk_buff *skb, struct net_device *dev)
  		xenvif_stop_queue(vif);
  
--	skb_queue_tail(&vif->rx_queue, skb);
-+	__skb_queue_tail(&vif->rx_queue, skb);
-+
-+	spin_unlock_irqrestore(&vif->rx_queue.lock, flags);
+ 	skb_queue_tail(&vif->rx_queue, skb);
 +
  	xenvif_kick_thread(vif);
  
  	return NETDEV_TX_OK;
-@@ -423,6 +431,11 @@ int xenvif_connect(struct xenvif *vif, unsigned long tx_ring_ref,
+@@ -423,6 +426,11 @@ int xenvif_connect(struct xenvif *vif, unsigned long tx_ring_ref,
  
  	vif->task = task;
  
@@ -49,7 +32,7 @@ index b1ec0dc..a5e2547 100644
  	if (!vif->can_sg && vif->dev->mtu > ETH_DATA_LEN)
  		dev_set_mtu(vif->dev, ETH_DATA_LEN);
 diff --git a/drivers/net/xen-netback/netback.c b/drivers/net/xen-netback/netback.c
-index 5a10c51..63226cd 100644
+index 5a10c51..d7d95a2 100644
 --- a/drivers/net/xen-netback/netback.c
 +++ b/drivers/net/xen-netback/netback.c
 @@ -1738,12 +1738,21 @@ err:
@@ -76,21 +59,7 @@ index 5a10c51..63226cd 100644
  	if (xenvif_schedulable(vif))
  		netif_wake_queue(vif->dev);
  }
-@@ -1755,19 +1764,27 @@ int xenvif_kthread(void *data)
- 	struct sk_buff *skb;
- 
- 	while (!kthread_should_stop()) {
-+		unsigned long flags;
-+
- 		wait_event_interruptible(vif->wq,
- 					 rx_work_todo(vif) ||
- 					 kthread_should_stop());
- 		if (kthread_should_stop())
- 			break;
- 
-+		spin_lock_irqsave(&vif->rx_queue.lock, flags);
-+
- 		if (!skb_queue_empty(&vif->rx_queue))
+@@ -1765,6 +1774,8 @@ int xenvif_kthread(void *data)
  			xenvif_rx_action(vif);
  
  		vif->rx_event = false;
@@ -98,9 +67,4 @@ index 5a10c51..63226cd 100644
 +
  		if (xenvif_rx_ring_slots_available(vif, threshold))
  			xenvif_start_queue(vif);
- 
-+		spin_unlock_irqrestore(&vif->rx_queue.lock, flags);
-+
- 		cond_resched();
- 	}
  
