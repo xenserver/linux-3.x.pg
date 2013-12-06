@@ -1,7 +1,7 @@
-From d4113640a6ddc13b96426729b7ccbadf4d9f5cd1 Mon Sep 17 00:00:00 2001
+From b80703b96c74886a3873a55ba34cfd0c4da6891e Mon Sep 17 00:00:00 2001
 From: Paul Durrant <paul.durrant@citrix.com>
 Date: Wed, 27 Nov 2013 14:40:41 +0000
-Subject: [PATCH] xen-netback: improve guest-receive-side flow control
+Subject: [net-next v2] xen-netback: improve guest-receive-side flow control
 
 The way that flow control works without this patch is that, in start_xmit()
 the code uses xenvif_count_skb_slots() to predict how many slots
@@ -31,14 +31,16 @@ worse-case (but not too bad) estimate is all we really need since the only
 thing we *must* prevent is xenvif_gop_skb() consuming more slots than are
 available.
 
-This patch also adds some hysteresis as the code was pretty dumb in that
-respect and would wake the queue as soon as enough space for a single skb
-became available, basically leading to a lot of thrashing between the queue
-being stopped or active.
-
 Without this patch I can trivially stall netback permanently by just doing
 a large guest to guest file copy between two Windows Server 2008R2 VMs on a
 single host.
+
+Patch tested with frontends in:
+- Windows Server 2008R2
+- CentOS 6.0
+- Debian Squeeze
+- Debian Wheezy
+- SLES11
 
 Signed-off-by: Paul Durrant <paul.durrant@citrix.com>
 Cc: Wei Liu <wei.liu2@citrix.com>
@@ -47,7 +49,7 @@ Cc: David Vrabel <david.vrabel@citrix.com>
 Cc: Annie Li <annie.li@oracle.com>
 Cc: Konrad Rzeszutek Wilk <konrad.wilk@oracle.com>
 diff --git a/drivers/net/xen-netback/common.h b/drivers/net/xen-netback/common.h
-index 55b8dec..9d4b4cf 100644
+index 55b8dec..9b5bebd 100644
 --- a/drivers/net/xen-netback/common.h
 +++ b/drivers/net/xen-netback/common.h
 @@ -136,12 +136,10 @@ struct xenvif {
@@ -58,8 +60,8 @@ index 55b8dec..9d4b4cf 100644
 -	/* Allow xenvif_start_xmit() to peek ahead in the rx request
 -	 * ring.  This is a prediction of what rx_req_cons will be
 -	 * once all queued skbs are put on the ring.
-+	/* Set when the RX interrupt is triggered by the frontend. The worker thread
-+	 * may need to wake the queue.
++	/* Set when the RX interrupt is triggered by the frontend.
++	 * The worker thread may need to wake the queue.
  	 */
 -	RING_IDX rx_req_cons_peek;
 +	bool rx_event;
@@ -208,10 +210,10 @@ index 8010109..b1ec0dc 100644
  			      (void *)vif, "%s", vif->dev->name);
  	if (IS_ERR(task)) {
 diff --git a/drivers/net/xen-netback/netback.c b/drivers/net/xen-netback/netback.c
-index 591f8d9..5a10c51 100644
+index 591f8d9..0b5f904 100644
 --- a/drivers/net/xen-netback/netback.c
 +++ b/drivers/net/xen-netback/netback.c
-@@ -137,36 +137,23 @@ static inline pending_ring_idx_t nr_pending_reqs(struct xenvif *vif)
+@@ -137,36 +137,26 @@ static inline pending_ring_idx_t nr_pending_reqs(struct xenvif *vif)
  		vif->pending_prod + vif->pending_cons;
  }
  
@@ -232,26 +234,28 @@ index 591f8d9..5a10c51 100644
 -{
 -	RING_IDX peek   = vif->rx_req_cons_peek;
 -	RING_IDX needed = max_required_rx_slots(vif);
--
++	do {
++		prod = vif->rx.sring->req_prod;
++		cons = vif->rx.req_cons;
+ 
 -	return ((vif->rx.sring->req_prod - peek) < needed) ||
 -	       ((vif->rx.rsp_prod_pvt + XEN_NETIF_RX_RING_SIZE - peek) < needed);
 -}
-+	do {
-+		mb();
-+		prod = vif->rx.sring->req_prod;
-+		cons = vif->rx.req_cons;
++		if (prod - cons >= needed)
++			return true;
  
 -int xenvif_must_stop_queue(struct xenvif *vif)
 -{
 -	if (!xenvif_rx_ring_full(vif))
 -		return 0;
-+		if (prod - cons >= needed)
-+			return true;
++		vif->rx.sring->req_event = prod + 1;
  
 -	vif->rx.sring->req_event = vif->rx_req_cons_peek +
 -		max_required_rx_slots(vif);
 -	mb(); /* request notification /then/ check the queue */
-+		vif->rx.sring->req_event = prod + 1;
++		/* Make sure event is visible before we check prod
++		 * again.
++		 */
 +		mb();
 +	} while (vif->rx.sring->req_prod != prod);
  
@@ -260,7 +264,7 @@ index 591f8d9..5a10c51 100644
  }
  
  /*
-@@ -209,93 +196,6 @@ static bool start_new_rx_buffer(int offset, unsigned long size, int head)
+@@ -209,93 +199,6 @@ static bool start_new_rx_buffer(int offset, unsigned long size, int head)
  	return false;
  }
  
@@ -354,7 +358,7 @@ index 591f8d9..5a10c51 100644
  struct netrx_pending_operations {
  	unsigned copy_prod, copy_cons;
  	unsigned meta_prod, meta_cons;
-@@ -556,12 +456,12 @@ struct skb_cb_overlay {
+@@ -556,12 +459,12 @@ struct skb_cb_overlay {
  	int meta_slots_used;
  };
  
@@ -369,7 +373,7 @@ index 591f8d9..5a10c51 100644
  {
  	s8 status;
  	u16 flags;
-@@ -570,8 +470,6 @@ void xenvif_rx_action(struct xenvif *vif)
+@@ -570,8 +473,6 @@ void xenvif_rx_action(struct xenvif *vif)
  	struct sk_buff *skb;
  	LIST_HEAD(notify);
  	int ret;
@@ -378,7 +382,7 @@ index 591f8d9..5a10c51 100644
  	unsigned long offset;
  	struct skb_cb_overlay *sco;
  	int need_to_notify = 0;
-@@ -583,23 +481,35 @@ void xenvif_rx_action(struct xenvif *vif)
+@@ -583,29 +484,44 @@ void xenvif_rx_action(struct xenvif *vif)
  
  	skb_queue_head_init(&rxq);
  
@@ -394,7 +398,9 @@ index 591f8d9..5a10c51 100644
 +		 * slots we'll use.
 +		 */
 +
-+		max_slots_needed = DIV_ROUND_UP(skb_headlen(skb), PAGE_SIZE);
++		max_slots_needed = DIV_ROUND_UP(offset_in_page(skb->data) +
++						skb_headlen(skb),
++						PAGE_SIZE);
 +		for (i = 0; i < skb_shinfo(skb)->nr_frags; i++) {
 +			unsigned int size;
 +			size = skb_frag_size(&skb_shinfo(skb)->frags[i]);
@@ -407,6 +413,7 @@ index 591f8d9..5a10c51 100644
 +		/* If the skb may not fit then bail out now */
 +		if (!xenvif_rx_ring_slots_available(vif, max_slots_needed)) {
 +			skb_queue_head(&vif->rx_queue, skb);
++			need_to_notify = 1;
 +			break;
 +		}
  
@@ -425,7 +432,14 @@ index 591f8d9..5a10c51 100644
  	}
  
  	BUG_ON(npo.meta_prod > ARRAY_SIZE(vif->meta));
-@@ -613,8 +523,6 @@ void xenvif_rx_action(struct xenvif *vif)
+ 
+ 	if (!npo.copy_prod)
+-		return;
++		goto done;
+ 
+ 	BUG_ON(npo.copy_prod > ARRAY_SIZE(vif->grant_copy_op));
+ 	gnttab_batch_copy(vif->grant_copy_op, npo.copy_prod);
+@@ -613,8 +529,6 @@ void xenvif_rx_action(struct xenvif *vif)
  	while ((skb = __skb_dequeue(&rxq)) != NULL) {
  		sco = (struct skb_cb_overlay *)skb->cb;
  
@@ -434,7 +448,7 @@ index 591f8d9..5a10c51 100644
  		if ((1 << vif->meta[npo.meta_cons].gso_type) &
  		    vif->gso_prefix_mask) {
  			resp = RING_GET_RESPONSE(&vif->rx,
-@@ -680,25 +588,12 @@ void xenvif_rx_action(struct xenvif *vif)
+@@ -680,25 +594,13 @@ void xenvif_rx_action(struct xenvif *vif)
  		if (ret)
  			need_to_notify = 1;
  
@@ -444,6 +458,7 @@ index 591f8d9..5a10c51 100644
  		dev_kfree_skb(skb);
  	}
  
++done:
  	if (need_to_notify)
  		notify_remote_via_irq(vif->rx_irq);
 -
@@ -460,7 +475,7 @@ index 591f8d9..5a10c51 100644
  }
  
  void xenvif_check_rx_xenvif(struct xenvif *vif)
-@@ -1784,7 +1679,7 @@ static struct xen_netif_rx_response *make_rx_response(struct xenvif *vif,
+@@ -1784,7 +1686,7 @@ static struct xen_netif_rx_response *make_rx_response(struct xenvif *vif,
  
  static inline int rx_work_todo(struct xenvif *vif)
  {
@@ -469,7 +484,7 @@ index 591f8d9..5a10c51 100644
  }
  
  static inline int tx_work_todo(struct xenvif *vif)
-@@ -1834,8 +1729,6 @@ int xenvif_map_frontend_rings(struct xenvif *vif,
+@@ -1834,8 +1736,6 @@ int xenvif_map_frontend_rings(struct xenvif *vif,
  	rxs = (struct xen_netif_rx_sring *)addr;
  	BACK_RING_INIT(&vif->rx, rxs, PAGE_SIZE);
  
@@ -478,14 +493,16 @@ index 591f8d9..5a10c51 100644
  	return 0;
  
  err:
-@@ -1843,9 +1736,23 @@ err:
+@@ -1843,9 +1743,24 @@ err:
  	return err;
  }
  
 +void xenvif_stop_queue(struct xenvif *vif)
 +{
-+	if (vif->can_queue)
-+		netif_stop_queue(vif->dev);
++	if (!vif->can_queue)
++		return;
++
++	netif_stop_queue(vif->dev);
 +}
 +
 +static void xenvif_start_queue(struct xenvif *vif)
@@ -497,12 +514,11 @@ index 591f8d9..5a10c51 100644
  int xenvif_kthread(void *data)
  {
  	struct xenvif *vif = data;
-+	const int threshold = XEN_NETIF_RX_RING_SIZE / 2;
 +	struct sk_buff *skb;
  
  	while (!kthread_should_stop()) {
  		wait_event_interruptible(vif->wq,
-@@ -1854,12 +1761,20 @@ int xenvif_kthread(void *data)
+@@ -1854,12 +1769,22 @@ int xenvif_kthread(void *data)
  		if (kthread_should_stop())
  			break;
  
@@ -511,7 +527,9 @@ index 591f8d9..5a10c51 100644
  			xenvif_rx_action(vif);
  
 +		vif->rx_event = false;
-+		if (xenvif_rx_ring_slots_available(vif, threshold))
++
++		if (skb_queue_empty(&vif->rx_queue) &&
++		    netif_queue_stopped(vif->dev))
 +			xenvif_start_queue(vif);
 +
  		cond_resched();
