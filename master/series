@@ -94,6 +94,10 @@ revert-94f950c4060cd9b1989c565284beb159b9705a50.patch
 0001-xen-netback-fix-fragment-detection-in-checksum-setup.patch
 0001-xen-netback-clear-vif-task-on-disconnect.patch
 0001-xen-netback-improve-guest-receive-side-flow-control.patch
+0001-xen-netback-make-sure-skb-linear-area-covers-checksu.patch
+0001-xen-netback-napi-fix-abuse-of-budget.patch
+0002-xen-netback-napi-don-t-prematurely-request-a-tx-even.patch
+0001-xen-netback-fix-gso_prefix-check.patch
 
 # Blkback
 blkback-debug-ring.diff

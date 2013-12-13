@@ -1,0 +1,41 @@
+From c23602fed144baec487401b15d4804b2ad939d15 Mon Sep 17 00:00:00 2001
+From: Paul Durrant <paul.durrant@citrix.com>
+Date: Tue, 10 Dec 2013 13:15:21 +0000
+Subject: [PATCH net v4 2/2] xen-netback: napi: don't prematurely request a tx
+ event
+
+This patch changes the RING_FINAL_CHECK_FOR_REQUESTS in
+xenvif_build_tx_gops to a check for RING_HAS_UNCONSUMED_REQUESTS as the
+former call has the side effect of advancing the ring event pointer and
+therefore inviting another interrupt from the frontend before the napi
+poll has actually finished, thereby defeating the point of napi.
+
+The event pointer is updated by RING_FINAL_CHECK_FOR_REQUESTS in
+xenvif_poll, the napi poll function, if the work done is less than the
+budget i.e. when actually transitioning back to interrupt mode.
+
+Reported-by: Malcolm Crossley <malcolm.crossley@citrix.com>
+Signed-off-by: Paul Durrant <paul.durrant@citrix.com>
+Cc: Wei Liu <wei.liu2@citrix.com>
+Cc: Ian Campbell <ian.campbell@citrix.com>
+Cc: David Vrabel <david.vrabel@citrix.com>
+---
+ drivers/net/xen-netback/netback.c |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/net/xen-netback/netback.c b/drivers/net/xen-netback/netback.c
+index 83b4e5b..fb512a9 100644
+--- a/drivers/net/xen-netback/netback.c
++++ b/drivers/net/xen-netback/netback.c
+@@ -1381,7 +1381,7 @@ static unsigned xenvif_tx_build_gops(struct xenvif *vif, int budget)
+ 			continue;
+ 		}
+ 
+-		RING_FINAL_CHECK_FOR_REQUESTS(&vif->tx, work_to_do);
++		work_to_do = RING_HAS_UNCONSUMED_REQUESTS(&vif->tx);
+ 		if (!work_to_do)
+ 			break;
+ 
+-- 
+1.7.10.4
+
