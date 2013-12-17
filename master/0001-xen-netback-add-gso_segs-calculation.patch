@@ -1,7 +1,7 @@
-From 6ec5e35054abb976956614072d96105ffd7ce29c Mon Sep 17 00:00:00 2001
+From 7282e2e0b1e0e14f4d450a646f168cd325017887 Mon Sep 17 00:00:00 2001
 From: Paul Durrant <paul.durrant@citrix.com>
 Date: Mon, 16 Dec 2013 17:14:14 +0000
-Subject: [PATCH net-next] xen-netback: add gso_segs calculation
+Subject: [PATCH net-next v2] xen-netback: add gso_segs calculation
 
 netback already has code which parses IPv4 and v6 headers to set up checksum
 offsets and these are always applied to GSO packets being sent from
@@ -14,12 +14,16 @@ Signed-off-by: Paul Durrant <paul.durrant@citrix.com>
 Cc: Wei Liu <wei.liu2@citrix.com>
 Cc: Ian Campbell <ian.campbell@citrix.com>
 Cc: David Vrabel <david.vrabel@citrix.com>
+Cc: Eric Dumazet <eric.dumazet@gmail.com>
 ---
- drivers/net/xen-netback/netback.c |   17 +++++++++++++----
- 1 file changed, 13 insertions(+), 4 deletions(-)
+v2:
+ - Fixed header size calculation
+
+ drivers/net/xen-netback/netback.c |   19 +++++++++++++++----
+ 1 file changed, 15 insertions(+), 4 deletions(-)
 
 diff --git a/drivers/net/xen-netback/netback.c b/drivers/net/xen-netback/netback.c
-index 904e497..0af8d97 100644
+index 904e497..d376e27 100644
 --- a/drivers/net/xen-netback/netback.c
 +++ b/drivers/net/xen-netback/netback.c
 @@ -1043,10 +1043,7 @@ static int xenvif_set_skb_gso(struct xenvif *vif,
@@ -34,7 +38,7 @@ index 904e497..0af8d97 100644
  
  	return 0;
  }
-@@ -1582,6 +1579,18 @@ static int xenvif_tx_submit(struct xenvif *vif, int budget)
+@@ -1582,6 +1579,20 @@ static int xenvif_tx_submit(struct xenvif *vif, int budget)
  
  		skb_probe_transport_header(skb, 0);
  
@@ -44,7 +48,9 @@ index 904e497..0af8d97 100644
 +		 */
 +		if (skb_is_gso(skb)) {
 +			int mss = skb_shinfo(skb)->gso_size;
-+			int hdrlen = skb->transport_header + tcp_hdrlen(skb);
++			int hdrlen = skb_transport_header(skb) -
++				skb_mac_header(skb) +
++				tcp_hdrlen(skb);
 +
 +			skb_shinfo(skb)->gso_segs =
 +				DIV_ROUND_UP(skb->len - hdrlen, mss);
