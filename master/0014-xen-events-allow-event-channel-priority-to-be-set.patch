@@ -1,0 +1,64 @@
+From d167100e3a89a77f397f9800c4aa34baf49bc9fd Mon Sep 17 00:00:00 2001
+From: David Vrabel <david.vrabel@citrix.com>
+Date: Mon, 23 Sep 2013 12:47:26 +0100
+Subject: [PATCH 14/16] xen/events: allow event channel priority to be set
+
+Add xen_irq_set_priority() to set an event channels priority.  This function
+will only work with event channel ABIs that support priority (i.e., the
+FIFO-based ABI).
+
+Signed-off-by: David Vrabel <david.vrabel@citrix.com>
+Reviewed-by: Konrad Rzeszutek Wilk <konrad.wilk@oracle.com>
+Reviewed-by: Boris Ostrovsky <boris.ostrovsky@oracle.com>
+---
+ drivers/xen/events/events_base.c |   17 +++++++++++++++++
+ include/xen/events.h             |    5 +++++
+ 2 files changed, 22 insertions(+)
+
+diff --git a/drivers/xen/events/events_base.c b/drivers/xen/events/events_base.c
+index 9d0d88c..e9001fe 100644
+--- a/drivers/xen/events/events_base.c
++++ b/drivers/xen/events/events_base.c
+@@ -1117,6 +1117,23 @@ void unbind_from_irqhandler(unsigned int irq, void *dev_id)
+ }
+ EXPORT_SYMBOL_GPL(unbind_from_irqhandler);
+ 
++/**
++ * xen_set_irq_priority() - set an event channel priority.
++ * @irq:irq bound to an event channel.
++ * @priority: priority between XEN_IRQ_PRIORITY_MAX and XEN_IRQ_PRIORITY_MIN.
++ */
++int xen_set_irq_priority(unsigned irq, unsigned priority)
++{
++	struct evtchn_set_priority set_priority;
++
++	set_priority.port = evtchn_from_irq(irq);
++	set_priority.priority = priority;
++
++	return HYPERVISOR_event_channel_op(EVTCHNOP_set_priority,
++					   &set_priority);
++}
++EXPORT_SYMBOL_GPL(xen_set_irq_priority);
++
+ int evtchn_make_refcounted(unsigned int evtchn)
+ {
+ 	int irq = get_evtchn_to_irq(evtchn);
+diff --git a/include/xen/events.h b/include/xen/events.h
+index 55b42cc..c9c85cf 100644
+--- a/include/xen/events.h
++++ b/include/xen/events.h
+@@ -39,6 +39,11 @@ int bind_interdomain_evtchn_to_irqhandler(unsigned int remote_domain,
+  */
+ void unbind_from_irqhandler(unsigned int irq, void *dev_id);
+ 
++#define XEN_IRQ_PRIORITY_MAX     EVTCHN_FIFO_PRIORITY_MAX
++#define XEN_IRQ_PRIORITY_DEFAULT EVTCHN_FIFO_PRIORITY_DEFAULT
++#define XEN_IRQ_PRIORITY_MIN     EVTCHN_FIFO_PRIORITY_MIN
++int xen_set_irq_priority(unsigned irq, unsigned priority);
++
+ /*
+  * Allow extra references to event channels exposed to userspace by evtchn
+  */
+-- 
+1.7.10.4
+

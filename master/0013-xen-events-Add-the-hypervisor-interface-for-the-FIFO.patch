@@ -1,0 +1,177 @@
+From 8207aa0d817a044e915215418285d06c5e1068b1 Mon Sep 17 00:00:00 2001
+From: David Vrabel <david.vrabel@citrix.com>
+Date: Fri, 15 Mar 2013 10:55:41 +0000
+Subject: [PATCH 13/16] xen/events: Add the hypervisor interface for the
+ FIFO-based event channels
+
+Add the hypercall sub-ops and the structures for the shared data used
+in the FIFO-based event channel ABI.
+
+The design document for this new ABI is available here:
+
+    http://xenbits.xen.org/people/dvrabel/event-channels-H.pdf
+
+In summary, events are reported using a per-domain shared event array
+of event words.  Each event word has PENDING, LINKED and MASKED bits
+and a LINK field for pointing to the next event in the event queue.
+
+There are 16 event queues (with different priorities) per-VCPU.
+
+Key advantages of this new ABI include:
+
+- Support for over 100,000 events (2^17).
+- 16 different event priorities.
+- Improved fairness in event latency through the use of FIFOs.
+
+The ABI is available in Xen 4.4 and later.
+
+Signed-off-by: David Vrabel <david.vrabel@citrix.com>
+Reviewed-by: Konrad Rzeszutek Wilk <konrad.wilk@oracle.com>
+Reviewed-by: Boris Ostrovsky <boris.ostrovsky@oracle.com>
+---
+ drivers/xen/events/events_2l.c        |    8 ++--
+ include/xen/interface/event_channel.h |   68 +++++++++++++++++++++++++++++++++
+ include/xen/interface/xen.h           |    6 ---
+ 3 files changed, 72 insertions(+), 10 deletions(-)
+
+diff --git a/drivers/xen/events/events_2l.c b/drivers/xen/events/events_2l.c
+index ecb402a..d7ff917 100644
+--- a/drivers/xen/events/events_2l.c
++++ b/drivers/xen/events/events_2l.c
+@@ -38,12 +38,12 @@
+ /* Find the first set bit in a evtchn mask */
+ #define EVTCHN_FIRST_BIT(w) find_first_bit(BM(&(w)), BITS_PER_EVTCHN_WORD)
+ 
+-static DEFINE_PER_CPU(xen_ulong_t [NR_EVENT_CHANNELS/BITS_PER_EVTCHN_WORD],
++static DEFINE_PER_CPU(xen_ulong_t [EVTCHN_2L_NR_CHANNELS/BITS_PER_EVTCHN_WORD],
+ 		      cpu_evtchn_mask);
+ 
+ static unsigned evtchn_2l_max_channels(void)
+ {
+-	return NR_EVENT_CHANNELS;
++	return EVTCHN_2L_NR_CHANNELS;
+ }
+ 
+ static void evtchn_2l_bind_to_cpu(struct irq_info *info, unsigned cpu)
+@@ -316,7 +316,7 @@ irqreturn_t xen_debug_interrupt(int irq, void *dev_id)
+ 		       i % 8 == 0 ? "\n   " : " ");
+ 
+ 	printk("\nlocal cpu%d mask:\n   ", cpu);
+-	for (i = (NR_EVENT_CHANNELS/BITS_PER_EVTCHN_WORD)-1; i >= 0; i--)
++	for (i = (EVTCHN_2L_NR_CHANNELS/BITS_PER_EVTCHN_WORD)-1; i >= 0; i--)
+ 		printk("%0*"PRI_xen_ulong"%s", (int)(sizeof(cpu_evtchn[0])*2),
+ 		       cpu_evtchn[i],
+ 		       i % 8 == 0 ? "\n   " : " ");
+@@ -332,7 +332,7 @@ irqreturn_t xen_debug_interrupt(int irq, void *dev_id)
+ 	}
+ 
+ 	printk("\npending list:\n");
+-	for (i = 0; i < NR_EVENT_CHANNELS; i++) {
++	for (i = 0; i < EVTCHN_2L_NR_CHANNELS; i++) {
+ 		if (sync_test_bit(i, BM(sh->evtchn_pending))) {
+ 			int word_idx = i / BITS_PER_EVTCHN_WORD;
+ 			printk("  %d: event %d -> irq %d%s%s%s\n",
+diff --git a/include/xen/interface/event_channel.h b/include/xen/interface/event_channel.h
+index f494292..7e6acef 100644
+--- a/include/xen/interface/event_channel.h
++++ b/include/xen/interface/event_channel.h
+@@ -190,6 +190,39 @@ struct evtchn_reset {
+ };
+ typedef struct evtchn_reset evtchn_reset_t;
+ 
++/*
++ * EVTCHNOP_init_control: initialize the control block for the FIFO ABI.
++ */
++#define EVTCHNOP_init_control    11
++struct evtchn_init_control {
++	/* IN parameters. */
++	uint64_t control_gfn;
++	uint32_t offset;
++	uint32_t vcpu;
++	/* OUT parameters. */
++	uint8_t link_bits;
++	uint8_t _pad[7];
++};
++
++/*
++ * EVTCHNOP_expand_array: add an additional page to the event array.
++ */
++#define EVTCHNOP_expand_array    12
++struct evtchn_expand_array {
++	/* IN parameters. */
++	uint64_t array_gfn;
++};
++
++/*
++ * EVTCHNOP_set_priority: set the priority for an event channel.
++ */
++#define EVTCHNOP_set_priority    13
++struct evtchn_set_priority {
++	/* IN parameters. */
++	uint32_t port;
++	uint32_t priority;
++};
++
+ struct evtchn_op {
+ 	uint32_t cmd; /* EVTCHNOP_* */
+ 	union {
+@@ -207,4 +240,39 @@ struct evtchn_op {
+ };
+ DEFINE_GUEST_HANDLE_STRUCT(evtchn_op);
+ 
++/*
++ * 2-level ABI
++ */
++
++#define EVTCHN_2L_NR_CHANNELS (sizeof(xen_ulong_t) * sizeof(xen_ulong_t) * 64)
++
++/*
++ * FIFO ABI
++ */
++
++/* Events may have priorities from 0 (highest) to 15 (lowest). */
++#define EVTCHN_FIFO_PRIORITY_MAX     0
++#define EVTCHN_FIFO_PRIORITY_DEFAULT 7
++#define EVTCHN_FIFO_PRIORITY_MIN     15
++
++#define EVTCHN_FIFO_MAX_QUEUES (EVTCHN_FIFO_PRIORITY_MIN + 1)
++
++typedef uint32_t event_word_t;
++
++#define EVTCHN_FIFO_PENDING 31
++#define EVTCHN_FIFO_MASKED  30
++#define EVTCHN_FIFO_LINKED  29
++#define EVTCHN_FIFO_BUSY    28
++
++#define EVTCHN_FIFO_LINK_BITS 17
++#define EVTCHN_FIFO_LINK_MASK ((1 << EVTCHN_FIFO_LINK_BITS) - 1)
++
++#define EVTCHN_FIFO_NR_CHANNELS (1 << EVTCHN_FIFO_LINK_BITS)
++
++struct evtchn_fifo_control_block {
++	uint32_t     ready;
++	uint32_t     _rsvd;
++	event_word_t head[EVTCHN_FIFO_MAX_QUEUES];
++};
++
+ #endif /* __XEN_PUBLIC_EVENT_CHANNEL_H__ */
+diff --git a/include/xen/interface/xen.h b/include/xen/interface/xen.h
+index 53ec416..0cd5ca3 100644
+--- a/include/xen/interface/xen.h
++++ b/include/xen/interface/xen.h
+@@ -281,12 +281,6 @@ struct multicall_entry {
+ };
+ DEFINE_GUEST_HANDLE_STRUCT(multicall_entry);
+ 
+-/*
+- * Event channel endpoints per domain:
+- *  1024 if a long is 32 bits; 4096 if a long is 64 bits.
+- */
+-#define NR_EVENT_CHANNELS (sizeof(xen_ulong_t) * sizeof(xen_ulong_t) * 64)
+-
+ struct vcpu_time_info {
+ 	/*
+ 	 * Updates to the following values are preceded and followed
+-- 
+1.7.10.4
+

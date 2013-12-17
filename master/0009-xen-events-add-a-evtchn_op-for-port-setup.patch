@@ -1,0 +1,66 @@
+From 7a7b7685d084cf94efe4e3d048f1c2c7dec5dc4c Mon Sep 17 00:00:00 2001
+From: David Vrabel <david.vrabel@citrix.com>
+Date: Mon, 18 Mar 2013 16:54:57 +0000
+Subject: [PATCH 09/16] xen/events: add a evtchn_op for port setup
+
+Add a hook for port-specific setup and call it from
+xen_irq_info_common_setup().
+
+The FIFO-based ABIs may need to perform additional setup (expanding
+the event array) before a bound event channel can start to receive
+events.
+
+Signed-off-by: David Vrabel <david.vrabel@citrix.com>
+Reviewed-by: Konrad Rzeszutek Wilk <konrad.wilk@oracle.com>
+Reviewed-by: Boris Ostrovsky <boris.ostrovsky@oracle.com>
+---
+ drivers/xen/events/events_base.c     |    2 +-
+ drivers/xen/events/events_internal.h |   12 ++++++++++++
+ 2 files changed, 13 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/xen/events/events_base.c b/drivers/xen/events/events_base.c
+index 4f7d94a..929eccb 100644
+--- a/drivers/xen/events/events_base.c
++++ b/drivers/xen/events/events_base.c
+@@ -117,7 +117,7 @@ static int xen_irq_info_common_setup(struct irq_info *info,
+ 
+ 	irq_clear_status_flags(irq, IRQ_NOREQUEST|IRQ_NOAUTOEN);
+ 
+-	return 0;
++	return xen_evtchn_port_setup(info);
+ }
+ 
+ static int xen_irq_info_evtchn_setup(unsigned irq,
+diff --git a/drivers/xen/events/events_internal.h b/drivers/xen/events/events_internal.h
+index ba8142f..dc96502 100644
+--- a/drivers/xen/events/events_internal.h
++++ b/drivers/xen/events/events_internal.h
+@@ -55,6 +55,7 @@ struct irq_info {
+ #define PIRQ_SHAREABLE	(1 << 1)
+ 
+ struct evtchn_ops {
++	int (*setup)(struct irq_info *info);
+ 	void (*bind_to_cpu)(struct irq_info *info, unsigned cpu);
+ 
+ 	void (*clear_pending)(unsigned port);
+@@ -75,6 +76,17 @@ struct irq_info *info_for_irq(unsigned irq);
+ unsigned cpu_from_irq(unsigned irq);
+ unsigned cpu_from_evtchn(unsigned int evtchn);
+ 
++/*
++ * Do any ABI specific setup for a bound event channel before it can
++ * be unmasked and used.
++ */
++static inline int xen_evtchn_port_setup(struct irq_info *info)
++{
++	if (evtchn_ops->setup)
++		return evtchn_ops->setup(info);
++	return 0;
++}
++
+ static inline void xen_evtchn_port_bind_to_cpu(struct irq_info *info,
+ 					       unsigned cpu)
+ {
+-- 
+1.7.10.4
+

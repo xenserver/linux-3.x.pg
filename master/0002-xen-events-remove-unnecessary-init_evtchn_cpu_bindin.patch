@@ -1,0 +1,68 @@
+From c7754530b9a82d98d03791582c1e7a4c362a4c08 Mon Sep 17 00:00:00 2001
+From: David Vrabel <david.vrabel@citrix.com>
+Date: Wed, 13 Mar 2013 13:20:52 +0000
+Subject: [PATCH 02/16] xen/events: remove unnecessary
+ init_evtchn_cpu_bindings()
+
+Because the guest-side binding of an event to a VCPU (i.e., setting
+the local per-cpu masks) is always explicitly done after an event
+channel is bound to a port, there is no need to initialize all
+possible events as bound to VCPU 0 at start of day or after a resume.
+
+Signed-off-by: David Vrabel <david.vrabel@citrix.com>
+Reviewed-by: Konrad Rzeszutek Wilk <konrad.wilk@oracle.com>
+Reviewed-by: Boris Ostrovsky <boris.ostrovsky@oracle.com>
+---
+ drivers/xen/events.c |   22 ----------------------
+ 1 file changed, 22 deletions(-)
+
+diff --git a/drivers/xen/events.c b/drivers/xen/events.c
+index ddcdbb5..1e2c74b 100644
+--- a/drivers/xen/events.c
++++ b/drivers/xen/events.c
+@@ -334,24 +334,6 @@ static void bind_evtchn_to_cpu(unsigned int chn, unsigned int cpu)
+ 	info_for_irq(irq)->cpu = cpu;
+ }
+ 
+-static void init_evtchn_cpu_bindings(void)
+-{
+-	int i;
+-#ifdef CONFIG_SMP
+-	struct irq_info *info;
+-
+-	/* By default all event channels notify CPU#0. */
+-	list_for_each_entry(info, &xen_irq_list_head, list) {
+-		struct irq_desc *desc = irq_to_desc(info->irq);
+-		cpumask_copy(desc->irq_data.affinity, cpumask_of(0));
+-	}
+-#endif
+-
+-	for_each_possible_cpu(i)
+-		memset(per_cpu(cpu_evtchn_mask, i),
+-		       (i == 0) ? ~0 : 0, NR_EVENT_CHANNELS/8);
+-}
+-
+ static inline void clear_evtchn(int port)
+ {
+ 	struct shared_info *s = HYPERVISOR_shared_info;
+@@ -1778,8 +1760,6 @@ void xen_irq_resume(void)
+ 	unsigned int cpu, evtchn;
+ 	struct irq_info *info;
+ 
+-	init_evtchn_cpu_bindings();
+-
+ 	/* New event-channel space is not 'live' yet. */
+ 	for (evtchn = 0; evtchn < NR_EVENT_CHANNELS; evtchn++)
+ 		mask_evtchn(evtchn);
+@@ -1890,8 +1870,6 @@ void __init xen_init_IRQ(void)
+ 	for (i = 0; i < NR_EVENT_CHANNELS; i++)
+ 		evtchn_to_irq[i] = -1;
+ 
+-	init_evtchn_cpu_bindings();
+-
+ 	/* No event channels are 'live' right now. */
+ 	for (i = 0; i < NR_EVENT_CHANNELS; i++)
+ 		mask_evtchn(i);
+-- 
+1.7.10.4
+
