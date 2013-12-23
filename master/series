@@ -99,6 +99,7 @@ revert-94f950c4060cd9b1989c565284beb159b9705a50.patch
 0002-xen-netback-napi-don-t-prematurely-request-a-tx-even.patch
 0001-xen-netback-fix-gso_prefix-check.patch
 0001-xen-netback-add-gso_segs-calculation.patch
+0001-xen-netback-fix-guest-receive-side-array-sizes.patch
 
 # Blkback
 blkback-debug-ring.diff
