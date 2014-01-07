@@ -85,20 +85,21 @@ revert-94f950c4060cd9b1989c565284beb159b9705a50.patch
 0001-xen-netback-Don-t-destroy-the-netdev-until-the-vif-i.patch
 0001-xen-netback-Handle-backend-state-transitions-in-a-mo.patch
 0001-xen-netback-stop-the-VIF-thread-before-unbinding-IRQ.patch
-# 0001-xen-netback-transition-to-CLOSED-when-removing-a-VIF.patch
-# 0001-xen-netback-add-support-for-IPv6-checksum-offload-to.patch
-# 0001-xen-netback-add-support-for-IPv6-checksum-offload-fr.patch
-# 0001-xen-netback-Unconditionally-set-NETIF_F_RXCSUM.patch
-# 0001-xen-netback-handle-IPv6-TCP-GSO-packets-from-the-gue.patch
-# 0001-xen-netback-enable-IPv6-TCP-GSO-to-the-guest.patch
-# 0001-xen-netback-fix-fragment-detection-in-checksum-setup.patch
-# 0001-xen-netback-clear-vif-task-on-disconnect.patch
-# 0001-xen-netback-improve-guest-receive-side-flow-control.patch
-# 0001-xen-netback-make-sure-skb-linear-area-covers-checksu.patch
-# 0001-xen-netback-napi-fix-abuse-of-budget.patch
-# 0002-xen-netback-napi-don-t-prematurely-request-a-tx-even.patch
-# 0001-xen-netback-fix-gso_prefix-check.patch
-# 0001-xen-netback-add-gso_segs-calculation.patch
+0001-xen-netback-transition-to-CLOSED-when-removing-a-VIF.patch
+0001-xen-netback-add-support-for-IPv6-checksum-offload-to.patch
+0001-xen-netback-add-support-for-IPv6-checksum-offload-fr.patch
+0001-xen-netback-Unconditionally-set-NETIF_F_RXCSUM.patch
+0001-xen-netback-handle-IPv6-TCP-GSO-packets-from-the-gue.patch
+0001-xen-netback-enable-IPv6-TCP-GSO-to-the-guest.patch
+0001-xen-netback-fix-fragment-detection-in-checksum-setup.patch
+0001-xen-netback-clear-vif-task-on-disconnect.patch
+0001-xen-netback-improve-guest-receive-side-flow-control.patch
+0001-xen-netback-make-sure-skb-linear-area-covers-checksu.patch
+0001-xen-netback-napi-fix-abuse-of-budget.patch
+0002-xen-netback-napi-don-t-prematurely-request-a-tx-even.patch
+0001-xen-netback-fix-gso_prefix-check.patch
+0001-xen-netback-add-gso_segs-calculation.patch
+mpe-ethernet
 
 # Blkback
 blkback-debug-ring.diff

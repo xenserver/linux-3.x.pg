@@ -1,0 +1,87 @@
+diff --git a/drivers/net/xen-netback/common.h b/drivers/net/xen-netback/common.h
+index d218ccd..bd78950 100644
+--- a/drivers/net/xen-netback/common.h
++++ b/drivers/net/xen-netback/common.h
+@@ -143,6 +143,7 @@ struct xenvif {
+ 	char rx_irq_name[IFNAMSIZ+4]; /* DEVNAME-rx */
+ 	struct xen_netif_rx_back_ring rx;
+ 	struct sk_buff_head rx_queue;
++	bool rx_queue_stopped;
+ 	/* Set when the RX interrupt is triggered by the frontend.
+ 	 * The worker thread may need to wake the queue.
+ 	 */
+diff --git a/drivers/net/xen-netback/interface.c b/drivers/net/xen-netback/interface.c
+index 8d6def2..6e38946 100644
+--- a/drivers/net/xen-netback/interface.c
++++ b/drivers/net/xen-netback/interface.c
+@@ -39,7 +39,7 @@
+ #include <asm/xen/hypercall.h>
+ 
+ #define XENVIF_QUEUE_LENGTH 32
+-#define XENVIF_NAPI_WEIGHT  64
++#define XENVIF_NAPI_WEIGHT  8
+ 
+ int xenvif_schedulable(struct xenvif *vif)
+ {
+diff --git a/drivers/net/xen-netback/netback.c b/drivers/net/xen-netback/netback.c
+index addfe1d1..f0f5f57 100644
+--- a/drivers/net/xen-netback/netback.c
++++ b/drivers/net/xen-netback/netback.c
+@@ -475,6 +475,7 @@ static void xenvif_rx_action(struct xenvif *vif)
+ 	int ret;
+ 	unsigned long offset;
+ 	struct skb_cb_overlay *sco;
++	int ring_full = 0;
+ 	int need_to_notify = 0;
+ 
+ 	struct netrx_pending_operations npo = {
+@@ -507,7 +508,7 @@ static void xenvif_rx_action(struct xenvif *vif)
+ 		/* If the skb may not fit then bail out now */
+ 		if (!xenvif_rx_ring_slots_available(vif, max_slots_needed)) {
+ 			skb_queue_head(&vif->rx_queue, skb);
+-			need_to_notify = 1;
++			ring_full = 1;
+ 			break;
+ 		}
+ 
+@@ -520,8 +521,15 @@ static void xenvif_rx_action(struct xenvif *vif)
+ 
+ 	BUG_ON(npo.meta_prod > ARRAY_SIZE(vif->meta));
+ 
+-	if (!npo.copy_prod)
++	if (!npo.copy_prod) {
++		if (ring_full)
++			vif->rx_queue_stopped = true;
++
++		need_to_notify = 1;
+ 		goto done;
++	}
++
++	vif->rx_queue_stopped = false;
+ 
+ 	BUG_ON(npo.copy_prod > MAX_GRANT_COPY_OPS);
+ 	gnttab_batch_copy(vif->grant_copy_op, npo.copy_prod);
+@@ -1712,7 +1720,8 @@ static struct xen_netif_rx_response *make_rx_response(struct xenvif *vif,
+ 
+ static inline int rx_work_todo(struct xenvif *vif)
+ {
+-	return !skb_queue_empty(&vif->rx_queue) || vif->rx_event;
++	return (!skb_queue_empty(&vif->rx_queue) && !vif->rx_queue_stopped) ||
++		vif->rx_event;
+ }
+ 
+ static inline int tx_work_todo(struct xenvif *vif)
+@@ -1795,11 +1804,11 @@ int xenvif_kthread(void *data)
+ 		if (kthread_should_stop())
+ 			break;
+ 
++		vif->rx_event = false;
++
+ 		if (!skb_queue_empty(&vif->rx_queue))
+ 			xenvif_rx_action(vif);
+ 
+-		vif->rx_event = false;
+-
+ 		if (skb_queue_empty(&vif->rx_queue) &&
+ 		    netif_queue_stopped(vif->dev))
+ 			xenvif_start_queue(vif);
