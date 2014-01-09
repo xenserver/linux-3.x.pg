@@ -1,9 +1,9 @@
 diff --git a/buildconfigs/linux-defconfig_xen_x86_32 b/buildconfigs/linux-defconfig_xen_x86_32
 new file mode 100644
-index 0000000..8346fa2
+index 0000000..5a37546
 --- /dev/null
 +++ b/buildconfigs/linux-defconfig_xen_x86_32
-@@ -0,0 +1,3840 @@
+@@ -0,0 +1,3836 @@
 +#
 +# Automatically generated file; DO NOT EDIT.
 +# Linux/i386 3.10.11-0 Kernel Configuration
@@ -625,10 +625,9 @@ index 0000000..8346fa2
 +#
 +CONFIG_PCI=y
 +# CONFIG_PCI_GOBIOS is not set
-+# CONFIG_PCI_GOMMCONFIG is not set
++CONFIG_PCI_GOMMCONFIG=y
 +# CONFIG_PCI_GODIRECT is not set
-+CONFIG_PCI_GOANY=y
-+CONFIG_PCI_BIOS=y
++# CONFIG_PCI_GOANY is not set
 +CONFIG_PCI_DIRECT=y
 +CONFIG_PCI_MMCONFIG=y
 +CONFIG_PCI_XEN=y
@@ -679,9 +678,6 @@ index 0000000..8346fa2
 +CONFIG_YENTA_ENE_TUNE=y
 +CONFIG_YENTA_TOSHIBA=y
 +CONFIG_HOTPLUG_PCI=y
-+CONFIG_HOTPLUG_PCI_COMPAQ=m
-+CONFIG_HOTPLUG_PCI_COMPAQ_NVRAM=y
-+CONFIG_HOTPLUG_PCI_IBM=m
 +CONFIG_HOTPLUG_PCI_ACPI=y
 +CONFIG_HOTPLUG_PCI_ACPI_IBM=m
 +CONFIG_HOTPLUG_PCI_CPCI=y
@@ -3846,7 +3842,7 @@ index 0000000..8346fa2
 +CONFIG_UCS2_STRING=y
 diff --git a/buildconfigs/linux-defconfig_xen_x86_64 b/buildconfigs/linux-defconfig_xen_x86_64
 new file mode 100644
-index 0000000..4135a26
+index 0000000..3eb6f27
 --- /dev/null
 +++ b/buildconfigs/linux-defconfig_xen_x86_64
 @@ -0,0 +1,3808 @@
