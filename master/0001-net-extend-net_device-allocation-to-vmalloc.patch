@@ -1,4 +1,7 @@
+From 74d332c13b2148ae934ea94dac1745ae92efe8e5 Mon Sep 17 00:00:00 2001
 From: Eric Dumazet <edumazet@google.com>
+Date: Wed, 30 Oct 2013 13:10:44 -0700
+Subject: [PATCH] net: extend net_device allocation to vmalloc()
 
 Joby Poriyath provided a xen-netback patch to reduce the size of
 xenvif structure as some netdev allocation could fail under
@@ -13,16 +16,7 @@ to kzalloc() flags to do this fallback only when really needed.
 Signed-off-by: Eric Dumazet <edumazet@google.com>
 Reported-by: Joby Poriyath <joby.poriyath@citrix.com>
 Cc: Ben Hutchings <bhutchings@solarflare.com>
----
-v2: change the Documentation to point to alloc_netdev_mqs()
-    instead of kmalloc()/vzalloc(), from Ben
-
- Documentation/networking/netdevices.txt |   10 +++++-----
- include/linux/netdevice.h               |    1 +
- net/core/dev.c                          |   22 +++++++++++++++++-----
- net/core/net-sysfs.c                    |    2 +-
- 4 files changed, 24 insertions(+), 11 deletions(-)
-
+Signed-off-by: David S. Miller <davem@davemloft.net>
 diff --git a/Documentation/networking/netdevices.txt b/Documentation/networking/netdevices.txt
 index c7ecc70..0b1cf6b 100644
 --- a/Documentation/networking/netdevices.txt
@@ -46,19 +40,19 @@ index c7ecc70..0b1cf6b 100644
  separately allocated data is attached to the network device
  (netdev_priv(dev)) then it is up to the module exit handler to free that.
 diff --git a/include/linux/netdevice.h b/include/linux/netdevice.h
-index 96e4c21..30cc0bd 100644
+index 96e4c21..902180f 100644
 --- a/include/linux/netdevice.h
 +++ b/include/linux/netdevice.h
 @@ -1689,6 +1689,7 @@ static inline void unregister_netdevice(struct net_device *dev)
  
  extern int 		netdev_refcnt_read(const struct net_device *dev);
  extern void		free_netdev(struct net_device *dev);
-+extern void 		netdev_freemem(struct net_device *dev);
++extern void		netdev_freemem(struct net_device *dev);
  extern void		synchronize_net(void);
  extern int		init_dummy_netdev(struct net_device *dev);
  
 diff --git a/net/core/dev.c b/net/core/dev.c
-index 7ddbb31..9e8ef09 100644
+index 1283c84..2099b9a 100644
 --- a/net/core/dev.c
 +++ b/net/core/dev.c
 @@ -5623,6 +5623,16 @@ void netdev_set_default_ethtool_ops(struct net_device *dev,
