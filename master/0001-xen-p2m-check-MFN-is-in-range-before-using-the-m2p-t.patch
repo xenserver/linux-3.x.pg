@@ -1,10 +1,10 @@
-From 1a0fc1a6eb363ed5ff729242c45eb8989e7ce9f5 Mon Sep 17 00:00:00 2001
+From 0160676bba69523e8b0ac83f306cce7d342ed7c8 Mon Sep 17 00:00:00 2001
 From: David Vrabel <david.vrabel@citrix.com>
-Date: Wed, 28 Aug 2013 12:45:34 +0100
+Date: Fri, 13 Sep 2013 15:13:30 +0100
 Subject: [PATCH] xen/p2m: check MFN is in range before using the m2p table
 
 On hosts with more than 168 GB of memory, a 32-bit guest may attempt
-to grant map an MFN that is not cannot lookup in its mapping of the
+to grant map an MFN that is error cannot lookup in its mapping of the
 m2p table.  There is an m2p lookup as part of m2p_add_override() and
 m2p_remove_override().  The lookup falls off the end of the mapped
 portion of the m2p and (because the mapping is at the highest virtual
@@ -31,22 +31,27 @@ without trying to lock mm->mmap_sem.
 This means that for MFNs that are outside the mapped range of the m2p
 then mfn_to_pfn() will always look in the m2p overrides.  This is
 correct because it must be a foreign MFN (and the PFN in the m2p in
-this case isn't correct anyway).
+this case is only relevant for the other domain).
 
 Signed-off-by: David Vrabel <david.vrabel@citrix.com>
+Cc: Stefano Stabellini <stefano.stabellini@citrix.com>
+Cc: Jan Beulich <JBeulich@suse.com>
 --
-v2: in mfn_to_pfn() look in m2p_overrides if the MFN is is out of
+v3: check for auto_translated_physmap in mfn_to_pfn_no_overrides()
+v2: in mfn_to_pfn() look in m2p_overrides if the MFN is out of
     range as it's probably foreign.
+Signed-off-by: Konrad Rzeszutek Wilk <konrad.wilk@oracle.com>
+Acked-by: Stefano Stabellini <stefano.stabellini@eu.citrix.com>
 ---
- arch/x86/include/asm/xen/page.h |   32 +++++++++++++++++++-------------
+ arch/x86/include/asm/xen/page.h |   31 ++++++++++++++++++++-----------
  arch/x86/xen/p2m.c              |   10 ++++------
- 2 files changed, 23 insertions(+), 19 deletions(-)
+ 2 files changed, 24 insertions(+), 17 deletions(-)
 
 diff --git a/arch/x86/include/asm/xen/page.h b/arch/x86/include/asm/xen/page.h
-index 6aef9fb..979d7a2 100644
+index 6aef9fb..b913915 100644
 --- a/arch/x86/include/asm/xen/page.h
 +++ b/arch/x86/include/asm/xen/page.h
-@@ -79,30 +79,35 @@ static inline int phys_to_machine_mapping_valid(unsigned long pfn)
+@@ -79,30 +79,38 @@ static inline int phys_to_machine_mapping_valid(unsigned long pfn)
  	return get_phys_to_machine(pfn) != INVALID_P2M_ENTRY;
  }
  
@@ -57,16 +62,17 @@ index 6aef9fb..979d7a2 100644
 -	int ret = 0;
 +	int ret;
  
--	if (xen_feature(XENFEAT_auto_translated_physmap))
--		return mfn;
-+	if (unlikely(mfn >= machine_to_phys_nr))
-+		return ~0;
+ 	if (xen_feature(XENFEAT_auto_translated_physmap))
+ 		return mfn;
  
 -	if (unlikely(mfn >= machine_to_phys_nr)) {
 -		pfn = ~0;
 -		goto try_override;
 -	}
 -	pfn = 0;
++	if (unlikely(mfn >= machine_to_phys_nr))
++		return ~0;
++
  	/*
  	 * The array access can fail (e.g., device space beyond end of RAM).
  	 * In such cases it doesn't matter what we return (we return garbage),
@@ -95,7 +101,7 @@ index 6aef9fb..979d7a2 100644
  		/*
  		 * If this appears to be a foreign mfn (because the pfn
  		 * doesn't map back to the mfn), then check the local override
-@@ -111,6 +116,7 @@ try_override:
+@@ -111,6 +119,7 @@ try_override:
  		 * m2p_find_override_pfn returns ~0 if it doesn't find anything.
  		 */
  		pfn = m2p_find_override_pfn(mfn, ~0);
@@ -104,10 +110,10 @@ index 6aef9fb..979d7a2 100644
  	/* 
  	 * pfn is ~0 if there are no entries in the m2p for mfn or if the
 diff --git a/arch/x86/xen/p2m.c b/arch/x86/xen/p2m.c
-index 95fb2aa..1563444 100644
+index 8b901e8..a61c7d5 100644
 --- a/arch/x86/xen/p2m.c
 +++ b/arch/x86/xen/p2m.c
-@@ -878,7 +878,6 @@ int m2p_add_override(unsigned long mfn, struct page *page,
+@@ -879,7 +879,6 @@ int m2p_add_override(unsigned long mfn, struct page *page,
  	unsigned long uninitialized_var(address);
  	unsigned level;
  	pte_t *ptep = NULL;
@@ -115,7 +121,7 @@ index 95fb2aa..1563444 100644
  
  	pfn = page_to_pfn(page);
  	if (!PageHighMem(page)) {
-@@ -925,8 +924,8 @@ int m2p_add_override(unsigned long mfn, struct page *page,
+@@ -926,8 +925,8 @@ int m2p_add_override(unsigned long mfn, struct page *page,
  	 * frontend pages while they are being shared with the backend,
  	 * because mfn_to_pfn (that ends up being called by GUPF) will
  	 * return the backend pfn rather than the frontend pfn. */
@@ -126,7 +132,7 @@ index 95fb2aa..1563444 100644
  		set_phys_to_machine(pfn, FOREIGN_FRAME(mfn));
  
  	return 0;
-@@ -941,7 +940,6 @@ int m2p_remove_override(struct page *page,
+@@ -942,7 +941,6 @@ int m2p_remove_override(struct page *page,
  	unsigned long uninitialized_var(address);
  	unsigned level;
  	pte_t *ptep = NULL;
@@ -134,7 +140,7 @@ index 95fb2aa..1563444 100644
  
  	pfn = page_to_pfn(page);
  	mfn = get_phys_to_machine(pfn);
-@@ -1019,8 +1017,8 @@ int m2p_remove_override(struct page *page,
+@@ -1029,8 +1027,8 @@ int m2p_remove_override(struct page *page,
  	 * the original pfn causes mfn_to_pfn(mfn) to return the frontend
  	 * pfn again. */
  	mfn &= ~FOREIGN_FRAME_BIT;

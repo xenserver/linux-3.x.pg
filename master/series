@@ -43,6 +43,10 @@ linux-stable-3.10.11-to-3.10.25.patch
 0007-xen-balloon-don-t-alloc-page-while-non-preemptible.patch
 # 74d332c13b2148ae934ea94dac1745ae92efe8e5 (net-next)
 net-next-net-device-allocation-improvements.patch
+# 0160676bba69523e8b0ac83f306cce7d342ed7c8 (v3.12-rc3)
+0001-xen-p2m-check-MFN-is-in-range-before-using-the-m2p-t.patch
+# 7cde9b27e7b3a2e09d647bb4f6d94e842698d2d5 (3.12-rc6)
+0001-xen-Fix-possible-user-space-selector-corruption.patch
 
 #
 # Build system integration
@@ -59,12 +63,10 @@ blktap2-fixups.patch
 #
 # x86
 #
-0001-xen-Fix-possible-user-space-selector-corruption.patch
 
 #
 # Xen
 # 
-0001-xen-p2m-check-MFN-is-in-range-before-using-the-m2p-t.patch
 
 # Netback
 0001-xen-netback-remove-dead-code.patch

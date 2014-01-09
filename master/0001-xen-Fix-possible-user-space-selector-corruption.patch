@@ -1,12 +1,11 @@
-From 3a40d53ca5d24c644fd80f57cab8456b90b5d84d Mon Sep 17 00:00:00 2001
+From 7cde9b27e7b3a2e09d647bb4f6d94e842698d2d5 Mon Sep 17 00:00:00 2001
 From: Frediano Ziglio <frediano.ziglio@citrix.com>
-Date: Thu, 3 Oct 2013 09:08:21 +0100
+Date: Thu, 10 Oct 2013 14:39:37 +0000
 Subject: [PATCH] xen: Fix possible user space selector corruption
 
-Due to the way kernel is initialized under Xen is possible that the ring1
-selector used by the kernel for the boot cpu end up to be copied to
-userspace leading to segmentation fault in the userspace.
-
+Due to the way kernel is initialized under Xen is possible that the
+ring1 selector used by the kernel for the boot cpu end up to be copied
+to userspace leading to segmentation fault in the userspace.
 
 Xen code in the kernel initialize no-boot cpus with correct selectors (ds
 and es set to __USER_DS) but the boot one keep the ring1 (passed by Xen).
@@ -31,25 +30,20 @@ Bisecting the code commit 7076aada1040de4ed79a5977dbabdb5e5ea5e249 appears
 to be the first one that have this issue.
 
 Signed-off-by: Frediano Ziglio <frediano.ziglio@citrix.com>
----
- arch/x86/xen/smp.c |   12 ++++++++++++
- 1 file changed, 12 insertions(+)
-
+Signed-off-by: Stefano Stabellini <stefano.stabellini@eu.citrix.com>
+Reviewed-by: Andrew Cooper <andrew.cooper3@citrix.com>
 diff --git a/arch/x86/xen/smp.c b/arch/x86/xen/smp.c
-index d99cae8..a79e190 100644
+index a1e58e1..570c9a5 100644
 --- a/arch/x86/xen/smp.c
 +++ b/arch/x86/xen/smp.c
-@@ -245,6 +245,18 @@ static void __init xen_smp_prepare_boot_cpu(void)
+@@ -245,6 +245,15 @@ static void __init xen_smp_prepare_boot_cpu(void)
  	   old memory can be recycled */
  	make_lowmem_page_readwrite(xen_initial_gdt);
  
 +#ifdef CONFIG_X86_32
 +	/*
-+	 * Assure we use segments with user level access.
-+	 * During switching of task these segments got not reloaded
-+	 * so it could happen that userspace tasks get Xen ring1
-+	 * selector causing exit with sysenter failures on next
-+	 * userspace memory operation.
++	 * Xen starts us with XEN_FLAT_RING1_DS, but linux code
++	 * expects __USER_DS
 +	 */
 +	loadsegment(ds, __USER_DS);
 +	loadsegment(es, __USER_DS);
@@ -58,6 +52,3 @@ index d99cae8..a79e190 100644
  	xen_filter_cpu_maps();
  	xen_setup_vcpu_info_placement();
  }
--- 
-1.7.10.4
-
