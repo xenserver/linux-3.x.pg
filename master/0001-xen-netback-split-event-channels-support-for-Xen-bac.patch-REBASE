@@ -17,7 +17,7 @@ If frontend doesn't support this feature, tx_irq equals to rx_irq.
 Signed-off-by: Wei Liu <wei.liu2@citrix.com>
 Signed-off-by: David S. Miller <davem@davemloft.net>
 diff --git a/drivers/net/xen-netback/common.h b/drivers/net/xen-netback/common.h
-index 6102a6c..8a4d77e 100644
+index a3f613c..b2d442f 100644
 --- a/drivers/net/xen-netback/common.h
 +++ b/drivers/net/xen-netback/common.h
 @@ -57,8 +57,12 @@ struct xenvif {
@@ -35,7 +35,7 @@ index 6102a6c..8a4d77e 100644
  
  	/* List of frontends to notify after a batch of frames sent. */
  	struct list_head notify_list;
-@@ -113,7 +117,8 @@ struct xenvif *xenvif_alloc(struct device *parent,
+@@ -114,7 +118,8 @@ struct xenvif *xenvif_alloc(struct device *parent,
  			    unsigned int handle);
  
  int xenvif_connect(struct xenvif *vif, unsigned long tx_ring_ref,
@@ -43,9 +43,9 @@ index 6102a6c..8a4d77e 100644
 +		   unsigned long rx_ring_ref, unsigned int tx_evtchn,
 +		   unsigned int rx_evtchn);
  void xenvif_disconnect(struct xenvif *vif);
+ void xenvif_free(struct xenvif *vif);
  
- void xenvif_get(struct xenvif *vif);
-@@ -158,4 +163,6 @@ void xenvif_carrier_off(struct xenvif *vif);
+@@ -160,4 +165,6 @@ void xenvif_carrier_off(struct xenvif *vif);
  /* Returns number of ring slots required to send an skb to the frontend */
  unsigned int xen_netbk_count_skb_slots(struct xenvif *vif, struct sk_buff *skb);
  
@@ -53,7 +53,7 @@ index 6102a6c..8a4d77e 100644
 +
  #endif /* __XEN_NETBACK__COMMON_H__ */
 diff --git a/drivers/net/xen-netback/interface.c b/drivers/net/xen-netback/interface.c
-index 82202c2..087d2db 100644
+index f2ca5b3..db87265 100644
 --- a/drivers/net/xen-netback/interface.c
 +++ b/drivers/net/xen-netback/interface.c
 @@ -60,21 +60,39 @@ static int xenvif_rx_schedulable(struct xenvif *vif)
@@ -118,7 +118,7 @@ index 82202c2..087d2db 100644
  	del_timer_sync(&vif->credit_timeout);
  	xen_netbk_deschedule_xenvif(vif);
  	xen_netbk_remove_xenvif(vif);
-@@ -308,12 +330,13 @@ struct xenvif *xenvif_alloc(struct device *parent, domid_t domid,
+@@ -310,25 +332,50 @@ struct xenvif *xenvif_alloc(struct device *parent, domid_t domid,
  }
  
  int xenvif_connect(struct xenvif *vif, unsigned long tx_ring_ref,
@@ -133,8 +133,7 @@ index 82202c2..087d2db 100644
 +	if (vif->tx_irq)
  		return 0;
  
- 	__module_get(THIS_MODULE);
-@@ -322,13 +345,37 @@ int xenvif_connect(struct xenvif *vif, unsigned long tx_ring_ref,
+ 	err = xen_netbk_map_frontend_rings(vif, tx_ring_ref, rx_ring_ref);
  	if (err < 0)
  		goto err;
  
@@ -189,12 +188,13 @@ index 82202c2..087d2db 100644
  err_unmap:
  	xen_netbk_unmap_frontend_rings(vif);
  err:
-@@ -375,8 +425,13 @@ void xenvif_disconnect(struct xenvif *vif)
- 	atomic_dec(&vif->refcnt);
- 	wait_event(vif->waiting_to_free, atomic_read(&vif->refcnt) == 0);
+@@ -366,9 +416,14 @@ void xenvif_disconnect(struct xenvif *vif)
+ 	if (netif_carrier_ok(vif->dev))
+ 		xenvif_carrier_off(vif);
  
 -	if (vif->irq) {
 -		unbind_from_irqhandler(vif->irq, vif);
+-		vif->irq = 0;
 +	if (vif->tx_irq) {
 +		if (vif->tx_irq == vif->rx_irq)
 +			unbind_from_irqhandler(vif->tx_irq, vif);
@@ -202,11 +202,12 @@ index 82202c2..087d2db 100644
 +			unbind_from_irqhandler(vif->tx_irq, vif);
 +			unbind_from_irqhandler(vif->rx_irq, vif);
 +		}
- 		/* vif->irq is valid, we had a module_get in
- 		 * xenvif_connect.
- 		 */
++		vif->tx_irq = 0;
+ 	}
+ 
+ 	xen_netbk_unmap_frontend_rings(vif);
 diff --git a/drivers/net/xen-netback/netback.c b/drivers/net/xen-netback/netback.c
-index 0060e46..a0b50ad 100644
+index 25312cc..89ed51a 100644
 --- a/drivers/net/xen-netback/netback.c
 +++ b/drivers/net/xen-netback/netback.c
 @@ -47,6 +47,13 @@
@@ -223,7 +224,7 @@ index 0060e46..a0b50ad 100644
  /*
   * This is the maximum slots a skb can have. If a guest sends a skb
   * which exceeds this limit it is considered malicious.
-@@ -783,7 +790,7 @@ static void xen_netbk_rx_action(struct xen_netbk *netbk)
+@@ -817,7 +824,7 @@ static void xen_netbk_rx_action(struct xen_netbk *netbk)
  	}
  
  	list_for_each_entry_safe(vif, tmp, &notify, notify_list) {
@@ -232,7 +233,7 @@ index 0060e46..a0b50ad 100644
  		list_del_init(&vif->notify_list);
  		xenvif_put(vif);
  	}
-@@ -1763,7 +1770,7 @@ static void make_tx_response(struct xenvif *vif,
+@@ -1797,7 +1804,7 @@ static void make_tx_response(struct xenvif *vif,
  	vif->tx.rsp_prod_pvt = ++i;
  	RING_PUSH_RESPONSES_AND_CHECK_NOTIFY(&vif->tx, notify);
  	if (notify)
@@ -242,10 +243,10 @@ index 0060e46..a0b50ad 100644
  
  static struct xen_netif_rx_response *make_rx_response(struct xenvif *vif,
 diff --git a/drivers/net/xen-netback/xenbus.c b/drivers/net/xen-netback/xenbus.c
-index d230c14..04bd860 100644
+index 48f6f98..1b6be76 100644
 --- a/drivers/net/xen-netback/xenbus.c
 +++ b/drivers/net/xen-netback/xenbus.c
-@@ -122,6 +122,16 @@ static int netback_probe(struct xenbus_device *dev,
+@@ -132,6 +132,16 @@ static int netback_probe(struct xenbus_device *dev,
  		goto fail;
  	}
  
@@ -262,7 +263,7 @@ index d230c14..04bd860 100644
  	err = xenbus_switch_state(dev, XenbusStateInitWait);
  	if (err)
  		goto fail;
-@@ -393,21 +403,36 @@ static int connect_rings(struct backend_info *be)
+@@ -491,21 +501,36 @@ static int connect_rings(struct backend_info *be)
  	struct xenvif *vif = be->vif;
  	struct xenbus_device *dev = be->dev;
  	unsigned long tx_ring_ref, rx_ring_ref;
@@ -303,7 +304,7 @@ index d230c14..04bd860 100644
  	err = xenbus_scanf(XBT_NIL, dev->otherend, "request-rx-copy", "%u",
  			   &rx_copy);
  	if (err == -ENOENT) {
-@@ -454,11 +479,13 @@ static int connect_rings(struct backend_info *be)
+@@ -552,11 +577,13 @@ static int connect_rings(struct backend_info *be)
  	vif->csum = !val;
  
  	/* Map the shared frame, irq etc. */

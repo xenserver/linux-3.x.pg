@@ -2,6 +2,7 @@
 # Stable series combined patch
 #
 linux-stable-3.10-to-3.10.11.patch
+linux-stable-3.10.11-to-3.10.25.patch
 
 #
 # Backports from upstream
@@ -40,8 +41,6 @@ linux-stable-3.10-to-3.10.11.patch
 0006-xen-balloon-remove-BUG_ON-in-increase_reservation.patch
 # 24f69373e212d4356268fbb1d01c5735423c300d (3.12-rc3)
 0007-xen-balloon-don-t-alloc-page-while-non-preemptible.patch
-# a9fbf4d591da6cd1d3eaab826c7c15f77fc8f6a3 (3.12-rc4)
-0001-xen-hvc-allow-xenboot-console-to-be-used-again.patch
 # 74d332c13b2148ae934ea94dac1745ae92efe8e5 (net-next)
 net-next-net-device-allocation-improvements.patch
 
@@ -68,11 +67,8 @@ blktap2-fixups.patch
 0001-xen-p2m-check-MFN-is-in-range-before-using-the-m2p-t.patch
 
 # Netback
-revert-94f950c4060cd9b1989c565284beb159b9705a50.patch
-
 0001-xen-netback-remove-dead-code.patch
 0001-xen-netback-enable-user-to-unload-netback-module.patch
-0001-xen-netback-don-t-de-reference-vif-pointer-after-hav.patch
 0001-xen-netback-split-event-channels-support-for-Xen-bac.patch-REBASE
 0001-xen-netback-double-free-on-unload.patch
 0001-xen-Use-more-current-logging-styles.patch
@@ -81,11 +77,7 @@ revert-94f950c4060cd9b1989c565284beb159b9705a50.patch
 0001-xen-netback-switch-to-NAPI-kthread-1-1-model.patch
 0001-xen-netback-rename-functions.patch
 0001-xen-netback-fix-possible-format-string-flaw.patch
-0001-xen-netback-count-number-required-slots-for-an-skb-m.patch
-0001-xen-netback-Don-t-destroy-the-netdev-until-the-vif-i.patch
-0001-xen-netback-Handle-backend-state-transitions-in-a-mo.patch
 0001-xen-netback-stop-the-VIF-thread-before-unbinding-IRQ.patch
-0001-xen-netback-transition-to-CLOSED-when-removing-a-VIF.patch
 0001-xen-netback-add-support-for-IPv6-checksum-offload-to.patch
 0001-xen-netback-add-support-for-IPv6-checksum-offload-fr.patch
 0001-xen-netback-Unconditionally-set-NETIF_F_RXCSUM.patch
