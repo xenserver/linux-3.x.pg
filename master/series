@@ -48,6 +48,28 @@ linux-stable-3.10.25-to-3.10.26.patch
 0001-xen-Fix-possible-user-space-selector-corruption.patch
 # 74d332c13b2148ae934ea94dac1745ae92efe8e5 (3.13-rc1)
 0001-net-extend-net_device-allocation-to-vmalloc.patch
+# f1db320ec5788d5fcc05c0285bd0980319185497 (3.11-rc1)
+0001-xen-netback-remove-dead-code.patch
+# b103f358d9f6f58658f1a6dc08912ab921dd86f1 (3.11-rc1)
+0002-xen-netback-enable-user-to-unload-netback-module.patch
+# e1f00a69ec26e3eb9847c61c665b8fb3f0c6b477 (3.11-rc1)
+0003-xen-netback-split-event-channels-support-for-Xen-bac.patch
+# 07cc61bfc0e5d9da80e353365717d45d29db0081 (3.11-rc1)
+0004-xen-netback-double-free-on-unload.patch
+# 383eda32b891002d5064cc97243c94b7cf78137a (3.11-rc1)
+0005-xen-Use-more-current-logging-styles.patch
+# 8ef2c3bca599710a410cbecb4867e27728fef043 (3.11-rc1)
+0006-xen-netback-xenbus.c-use-more-current-logging-styles.patch
+# 43e9d1943278e96150b449ea1fa81f4ae27729d5 (3.12-rc1)
+0007-xen-netback-remove-page-tracking-facility.patch
+# b3f980bd827e6e81a050c518d60ed7811a83061d (3.12-rc1)
+0008-xen-netback-switch-to-NAPI-kthread-1-1-model.patch
+# 7376419a4697657b2e0ab904a592aacc2e485bf1 (3.12-rc1)
+0009-xen-netback-rename-functions.patch
+# a9677bc024dcaafcf36c1cc4b0706b87be26ee5f (3.12-rc2)
+0010-xen-netback-fix-possible-format-string-flaw.patch
+# db739ef37f07a1a12e388dbaec225d9d9d5d6ded (3.13-rc1)
+0011-xen-netback-stop-the-VIF-thread-before-unbinding-IRQ.patch
 
 #
 # Build system integration
@@ -70,17 +92,6 @@ blktap2-fixups.patch
 # 
 
 # Netback
-0001-xen-netback-remove-dead-code.patch
-0001-xen-netback-enable-user-to-unload-netback-module.patch
-0001-xen-netback-split-event-channels-support-for-Xen-bac.patch-REBASE
-0001-xen-netback-double-free-on-unload.patch
-0001-xen-Use-more-current-logging-styles.patch
-0001-xen-netback-xenbus.c-use-more-current-logging-styles.patch
-0001-xen-netback-remove-page-tracking-facility.patch
-0001-xen-netback-switch-to-NAPI-kthread-1-1-model.patch
-0001-xen-netback-rename-functions.patch
-0001-xen-netback-fix-possible-format-string-flaw.patch
-0001-xen-netback-stop-the-VIF-thread-before-unbinding-IRQ.patch
 0001-xen-netback-add-support-for-IPv6-checksum-offload-to.patch
 0001-xen-netback-add-support-for-IPv6-checksum-offload-fr.patch
 0001-xen-netback-Unconditionally-set-NETIF_F_RXCSUM.patch

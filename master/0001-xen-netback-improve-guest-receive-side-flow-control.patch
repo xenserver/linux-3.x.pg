@@ -51,7 +51,7 @@ Cc: Konrad Rzeszutek Wilk <konrad.wilk@oracle.com>
 Acked-by: Wei Liu <wei.liu2@citrix.com>
 Signed-off-by: David S. Miller <davem@davemloft.net>
 diff --git a/drivers/net/xen-netback/common.h b/drivers/net/xen-netback/common.h
-index 55b8dec..9b5bebd 100644
+index 08ae01b..ba30a6d 100644
 --- a/drivers/net/xen-netback/common.h
 +++ b/drivers/net/xen-netback/common.h
 @@ -136,12 +136,10 @@ struct xenvif {
@@ -70,7 +70,7 @@ index 55b8dec..9b5bebd 100644
  
  	/* Given MAX_BUFFER_OFFSET of 4096 the worst case is that each
  	 * head/fragment page uses 2 copy operations because it
-@@ -197,8 +195,6 @@ void xenvif_xenbus_fini(void);
+@@ -198,8 +196,6 @@ void xenvif_xenbus_fini(void);
  
  int xenvif_schedulable(struct xenvif *vif);
  
@@ -79,7 +79,7 @@ index 55b8dec..9b5bebd 100644
  int xenvif_must_stop_queue(struct xenvif *vif);
  
  /* (Un)Map communication rings. */
-@@ -210,21 +206,20 @@ int xenvif_map_frontend_rings(struct xenvif *vif,
+@@ -211,21 +207,20 @@ int xenvif_map_frontend_rings(struct xenvif *vif,
  /* Check for SKBs from frontend and schedule backend processing */
  void xenvif_check_rx_xenvif(struct xenvif *vif);
  
@@ -110,7 +110,7 @@ index 55b8dec..9b5bebd 100644
  extern bool separate_tx_rx_irq;
  
 diff --git a/drivers/net/xen-netback/interface.c b/drivers/net/xen-netback/interface.c
-index 8010109..b1ec0dc 100644
+index 870f1fa..1dcb960 100644
 --- a/drivers/net/xen-netback/interface.c
 +++ b/drivers/net/xen-netback/interface.c
 @@ -46,11 +46,6 @@ int xenvif_schedulable(struct xenvif *vif)
@@ -194,7 +194,7 @@ index 8010109..b1ec0dc 100644
  static struct net_device_stats *xenvif_get_stats(struct net_device *dev)
  {
  	struct xenvif *vif = netdev_priv(dev);
-@@ -379,6 +379,8 @@ int xenvif_connect(struct xenvif *vif, unsigned long tx_ring_ref,
+@@ -378,6 +378,8 @@ int xenvif_connect(struct xenvif *vif, unsigned long tx_ring_ref,
  	if (err < 0)
  		goto err;
  
@@ -203,7 +203,7 @@ index 8010109..b1ec0dc 100644
  	if (tx_evtchn == rx_evtchn) {
  		/* feature-split-event-channels == 0 */
  		err = bind_interdomain_evtchn_to_irqhandler(
-@@ -411,7 +413,6 @@ int xenvif_connect(struct xenvif *vif, unsigned long tx_ring_ref,
+@@ -410,7 +412,6 @@ int xenvif_connect(struct xenvif *vif, unsigned long tx_ring_ref,
  		disable_irq(vif->rx_irq);
  	}
  
@@ -212,7 +212,7 @@ index 8010109..b1ec0dc 100644
  			      (void *)vif, "%s", vif->dev->name);
  	if (IS_ERR(task)) {
 diff --git a/drivers/net/xen-netback/netback.c b/drivers/net/xen-netback/netback.c
-index 318c7e4..0d84ed7 100644
+index cb5ed92..ae01cf6 100644
 --- a/drivers/net/xen-netback/netback.c
 +++ b/drivers/net/xen-netback/netback.c
 @@ -137,36 +137,26 @@ static inline pending_ring_idx_t nr_pending_reqs(struct xenvif *vif)
@@ -270,14 +270,14 @@ index 318c7e4..0d84ed7 100644
  	return false;
  }
  
--struct xen_netbk_count_slot_state {
+-struct xenvif_count_slot_state {
 -	unsigned long copy_off;
 -	bool head;
 -};
 -
--unsigned int xen_netbk_count_frag_slots(struct xenvif *vif,
--					unsigned long offset, unsigned long size,
--					struct xen_netbk_count_slot_state *state)
+-unsigned int xenvif_count_frag_slots(struct xenvif *vif,
+-				     unsigned long offset, unsigned long size,
+-				     struct xenvif_count_slot_state *state)
 -{
 -	unsigned count = 0;
 -
@@ -320,7 +320,7 @@ index 318c7e4..0d84ed7 100644
 - */
 -unsigned int xenvif_count_skb_slots(struct xenvif *vif, struct sk_buff *skb)
 -{
--	struct xen_netbk_count_slot_state state;
+-	struct xenvif_count_slot_state state;
 -	unsigned int count;
 -	unsigned char *data;
 -	unsigned i;
@@ -343,7 +343,7 @@ index 318c7e4..0d84ed7 100644
 -		if (data + size > skb_tail_pointer(skb))
 -			size = skb_tail_pointer(skb) - data;
 -
--		count += xen_netbk_count_frag_slots(vif, offset, size, &state);
+-		count += xenvif_count_frag_slots(vif, offset, size, &state);
 -
 -		data += size;
 -	}
@@ -352,7 +352,7 @@ index 318c7e4..0d84ed7 100644
 -		unsigned long size = skb_frag_size(&skb_shinfo(skb)->frags[i]);
 -		unsigned long offset = skb_shinfo(skb)->frags[i].page_offset;
 -
--		count += xen_netbk_count_frag_slots(vif, offset, size, &state);
+-		count += xenvif_count_frag_slots(vif, offset, size, &state);
 -	}
 -	return count;
 -}

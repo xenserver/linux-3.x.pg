@@ -1,7 +1,7 @@
 From f1db320ec5788d5fcc05c0285bd0980319185497 Mon Sep 17 00:00:00 2001
 From: Wei Liu <wei.liu2@citrix.com>
 Date: Thu, 16 May 2013 23:24:28 +0000
-Subject: [PATCH] xen-netback: remove dead code
+Subject: [PATCH 1/1] xen-netback: remove dead code
 
 The array mmap_pages is never touched in the initialization function. This is
 remnant of mapping mechanism, which does not exist upstream. In current
