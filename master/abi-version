@@ -1,11 +1,11 @@
 diff --git a/Makefile b/Makefile
-index cd97e9a..001e6bb 100644
+index ac07707..6b1eedb 100644
 --- a/Makefile
 +++ b/Makefile
 @@ -1,7 +1,7 @@
  VERSION = 3
  PATCHLEVEL = 10
- SUBLEVEL = 25
+ SUBLEVEL = 26
 -EXTRAVERSION =
 +EXTRAVERSION = -0
  NAME = TOSSUG Baby Fish

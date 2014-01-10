@@ -3,6 +3,7 @@
 #
 linux-stable-3.10-to-3.10.11.patch
 linux-stable-3.10.11-to-3.10.25.patch
+linux-stable-3.10.25-to-3.10.26.patch
 
 #
 # Backports from upstream
