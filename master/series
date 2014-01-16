@@ -100,6 +100,11 @@ revert-94f950c4060cd9b1989c565284beb159b9705a50.patch
 0001-xen-netback-fix-gso_prefix-check.patch
 0001-xen-netback-add-gso_segs-calculation.patch
 0001-xen-netback-stop-vif-thread-spinning-if-frontend-is-.patch
+0001-xen-netback-fix-guest-receive-side-array-sizes.patch
+
+# Local netback patch that should be removed when grant mapping
+# patches are pulled from upstream
+netback-move-event-clear.patch
 
 # Blkback
 blkback-debug-ring.diff
