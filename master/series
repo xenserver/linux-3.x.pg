@@ -137,6 +137,7 @@ pciback-do-bus-reset-if-function-reset-failed.patch
 net-core__order-3_frag_allocator_causes_swiotlb_bouncing_under_xen.patch
 force-multipackage-inside-dom0.patch
 call-kexec-before-offlining-noncrashing-cpus.patch
+CA-123766-tun-ACCESS_ONCE_numqueues.patch
 
 #
 # Debugging/hacks
