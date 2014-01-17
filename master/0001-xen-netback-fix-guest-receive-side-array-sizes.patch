@@ -1,0 +1,113 @@
+From ac3d5ac277352fe6e27809286768e9f1f8aa388d Mon Sep 17 00:00:00 2001
+From: Paul Durrant <Paul.Durrant@citrix.com>
+Date: Mon, 23 Dec 2013 09:27:17 +0000
+Subject: [PATCH] xen-netback: fix guest-receive-side array sizes
+
+The sizes chosen for the metadata and grant_copy_op arrays on the guest
+receive size are wrong;
+
+- The meta array is needlessly twice the ring size, when we only ever
+  consume a single array element per RX ring slot
+- The grant_copy_op array is way too small. It's sized based on a bogus
+  assumption: that at most two copy ops will be used per ring slot. This
+  may have been true at some point in the past but it's clear from looking
+  at start_new_rx_buffer() that a new ring slot is only consumed if a frag
+  would overflow the current slot (plus some other conditions) so the actual
+  limit is MAX_SKB_FRAGS grant_copy_ops per ring slot.
+
+This patch fixes those two sizing issues and, because grant_copy_ops grows
+so much, it pulls it out into a separate chunk of vmalloc()ed memory.
+
+Signed-off-by: Paul Durrant <paul.durrant@citrix.com>
+Acked-by: Wei Liu <wei.liu2@citrix.com>
+Cc: Ian Campbell <ian.campbell@citrix.com>
+Cc: David Vrabel <david.vrabel@citrix.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ drivers/net/xen-netback/common.h    |   19 +++++++++++++------
+ drivers/net/xen-netback/interface.c |   10 ++++++++++
+ drivers/net/xen-netback/netback.c   |    2 +-
+ 3 files changed, 24 insertions(+), 7 deletions(-)
+
+diff --git a/drivers/net/xen-netback/common.h b/drivers/net/xen-netback/common.h
+index 08ae01b..c47794b 100644
+--- a/drivers/net/xen-netback/common.h
++++ b/drivers/net/xen-netback/common.h
+@@ -101,6 +101,13 @@ struct xenvif_rx_meta {
+ 
+ #define MAX_PENDING_REQS 256
+ 
++/* It's possible for an skb to have a maximal number of frags
++ * but still be less than MAX_BUFFER_OFFSET in size. Thus the
++ * worst-case number of copy operations is MAX_SKB_FRAGS per
++ * ring slot.
++ */
++#define MAX_GRANT_COPY_OPS (MAX_SKB_FRAGS * XEN_NETIF_RX_RING_SIZE)
++
+ struct xenvif {
+ 	/* Unique identifier for this interface. */
+ 	domid_t          domid;
+@@ -143,13 +150,13 @@ struct xenvif {
+ 	 */
+ 	RING_IDX rx_req_cons_peek;
+ 
+-	/* Given MAX_BUFFER_OFFSET of 4096 the worst case is that each
+-	 * head/fragment page uses 2 copy operations because it
+-	 * straddles two buffers in the frontend.
+-	 */
+-	struct gnttab_copy grant_copy_op[2*XEN_NETIF_RX_RING_SIZE];
+-	struct xenvif_rx_meta meta[2*XEN_NETIF_RX_RING_SIZE];
++	/* This array is allocated seperately as it is large */
++	struct gnttab_copy *grant_copy_op;
+ 
++	/* We create one meta structure per ring request we consume, so
++	 * the maximum number is the same as the ring size.
++	 */
++	struct xenvif_rx_meta meta[XEN_NETIF_RX_RING_SIZE];
+ 
+ 	u8               fe_dev_addr[6];
+ 
+diff --git a/drivers/net/xen-netback/interface.c b/drivers/net/xen-netback/interface.c
+index 870f1fa..34ca4e5 100644
+--- a/drivers/net/xen-netback/interface.c
++++ b/drivers/net/xen-netback/interface.c
+@@ -307,6 +307,15 @@ struct xenvif *xenvif_alloc(struct device *parent, domid_t domid,
+ 	SET_NETDEV_DEV(dev, parent);
+ 
+ 	vif = netdev_priv(dev);
++
++	vif->grant_copy_op = vmalloc(sizeof(struct gnttab_copy) *
++				     MAX_GRANT_COPY_OPS);
++	if (vif->grant_copy_op == NULL) {
++		pr_warn("Could not allocate grant copy space for %s\n", name);
++		free_netdev(dev);
++		return ERR_PTR(-ENOMEM);
++	}
++
+ 	vif->domid  = domid;
+ 	vif->handle = handle;
+ 	vif->can_sg = 1;
+@@ -487,6 +496,7 @@ void xenvif_free(struct xenvif *vif)
+ 
+ 	unregister_netdev(vif->dev);
+ 
++	vfree(vif->grant_copy_op);
+ 	free_netdev(vif->dev);
+ 
+ 	module_put(THIS_MODULE);
+diff --git a/drivers/net/xen-netback/netback.c b/drivers/net/xen-netback/netback.c
+index 7b4fd93..7842555 100644
+--- a/drivers/net/xen-netback/netback.c
++++ b/drivers/net/xen-netback/netback.c
+@@ -608,7 +608,7 @@ void xenvif_rx_action(struct xenvif *vif)
+ 	if (!npo.copy_prod)
+ 		return;
+ 
+-	BUG_ON(npo.copy_prod > ARRAY_SIZE(vif->grant_copy_op));
++	BUG_ON(npo.copy_prod > MAX_GRANT_COPY_OPS);
+ 	gnttab_batch_copy(vif->grant_copy_op, npo.copy_prod);
+ 
+ 	while ((skb = __skb_dequeue(&rxq)) != NULL) {
+-- 
+1.7.10.4
+
