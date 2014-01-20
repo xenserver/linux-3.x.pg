@@ -1,5 +1,5 @@
 diff --git a/drivers/net/tun.c b/drivers/net/tun.c
-index 9c61f87..0676c28 100644
+index 5824971..8e064f1 100644
 --- a/drivers/net/tun.c
 +++ b/drivers/net/tun.c
 @@ -710,12 +710,14 @@ static netdev_tx_t tun_net_xmit(struct sk_buff *skb, struct net_device *dev)
@@ -18,12 +18,14 @@ index 9c61f87..0676c28 100644
  		goto drop;
  
  	tun_debug(KERN_INFO, tun, "tun_net_xmit %d\n", skb->len);
-@@ -736,7 +738,7 @@ static netdev_tx_t tun_net_xmit(struct sk_buff *skb, struct net_device *dev)
+@@ -735,8 +737,8 @@ static netdev_tx_t tun_net_xmit(struct sk_buff *skb, struct net_device *dev)
+ 	/* Limit the number of packets queued by dividing txq length with the
  	 * number of queues.
  	 */
- 	if (skb_queue_len(&tfile->socket.sk->sk_receive_queue)
+-	if (skb_queue_len(&tfile->socket.sk->sk_receive_queue)
 -			  >= dev->tx_queue_len / tun->numqueues)
-+			  >= dev->tx_queue_len / numqueues)
++	if (skb_queue_len(&tfile->socket.sk->sk_receive_queue) * numqueues
++			  >= dev->tx_queue_len)
  		goto drop;
  
  	/* Orphan the skb - required as we might hang on to it
