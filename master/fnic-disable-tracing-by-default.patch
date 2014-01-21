@@ -1,0 +1,13 @@
+diff --git a/drivers/scsi/fnic/fnic_trace.c b/drivers/scsi/fnic/fnic_trace.c
+index 23a60e3..dcf7290 100644
+--- a/drivers/scsi/fnic/fnic_trace.c
++++ b/drivers/scsi/fnic/fnic_trace.c
+@@ -30,7 +30,7 @@ static unsigned long fnic_trace_buf_p;
+ static DEFINE_SPINLOCK(fnic_trace_lock);
+ 
+ static fnic_trace_dbg_t fnic_trace_entries;
+-int fnic_tracing_enabled = 1;
++int fnic_tracing_enabled = 0;
+ 
+ /*
+  * fnic_trace_get_buf - Give buffer pointer to user to fill up trace information
