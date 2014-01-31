@@ -29,6 +29,8 @@ linux-stable-3.10.26-to-3.10.27.patch
 0001-igb-fix-vlan-filtering-in-promisc-mode-when-not-in-V.patch
 # 73cc4bb0c79eebe1f0e92b700d9fe8d1c9b061bb (3.12-rc1)
 0001-xen-evtchn-improve-scalability-by-using-per-user-loc.patch
+# 06b35d0072d2a126d8cd134b253e5ec65beb9e66 (3.12-rc1)
+0002-xen-evtchn-double-free-on-error.patch
 # ee0726407feaf504dff304fb603652fb2d778b42 (3.12-rc1)
 0001-xen-m2p-use-GNTTABOP_unmap_and_replace-to-reinstate-.patch
 # cd9151e26d31048b2b5e00fd02e110e07d2200c9 (3.12-rc1)

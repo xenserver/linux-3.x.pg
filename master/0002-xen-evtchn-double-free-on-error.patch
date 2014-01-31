@@ -1,0 +1,28 @@
+From 06b35d0072d2a126d8cd134b253e5ec65beb9e66 Mon Sep 17 00:00:00 2001
+From: Dan Carpenter <dan.carpenter@oracle.com>
+Date: Mon, 26 Aug 2013 19:18:17 +0300
+Subject: [PATCH 1/1] xen/evtchn: double free on error
+
+The call to del_evtchn() frees "evtchn".
+
+Signed-off-by: Dan Carpenter <dan.carpenter@oracle.com>
+Signed-off-by: Konrad Rzeszutek Wilk <konrad.wilk@oracle.com>
+---
+ drivers/xen/evtchn.c |    1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/drivers/xen/evtchn.c b/drivers/xen/evtchn.c
+index f328f12..8b3a69a 100644
+--- a/drivers/xen/evtchn.c
++++ b/drivers/xen/evtchn.c
+@@ -319,7 +319,6 @@ err:
+ 	if (HYPERVISOR_event_channel_op(EVTCHNOP_close, &close) != 0)
+ 		BUG();
+ 	del_evtchn(u, evtchn);
+-	kfree(evtchn);
+ 	return rc;
+ }
+ 
+-- 
+1.7.10.4
+
