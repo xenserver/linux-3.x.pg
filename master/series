@@ -93,6 +93,14 @@ blktap2-fixups.patch
 #
 # Xen
 # 
+0001-x86-xen-rename-early_p2m_alloc-and-early_p2m_alloc_m.patch
+0002-x86-xen-fix-set_phys_range_identity-if-pfn_e-MAX_P2M.patch
+0003-x86-xen-compactly-store-large-identity-ranges-in-the.patch
+0004-x86-xen-only-warn-once-if-bad-MFNs-are-found-during-.patch
+0005-x86-xen-set-regions-above-the-end-of-RAM-as-1-1.patch
+0006-x86-xen-don-t-use-_PAGE_IOMAP-in-xen_remap_domain_mf.patch
+0007-x86-xen-do-not-use-_PAGE_IOMAP-PTE-flag-for-I-O-mapp.patch
+0008-x86-remove-the-Xen-specific-_PAGE_IOMAP-PTE-flag.patch
 
 # Netback
 0001-xen-netback-add-support-for-IPv6-checksum-offload-to.patch

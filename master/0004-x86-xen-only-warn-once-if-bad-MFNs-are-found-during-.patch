@@ -1,0 +1,36 @@
+From 6fc990bd72e734eed20cb8af5067789fbc7e60bb Mon Sep 17 00:00:00 2001
+From: David Vrabel <david.vrabel@citrix.com>
+Date: Tue, 7 Jan 2014 11:36:53 +0000
+Subject: [PATCH 4/8] x86/xen: only warn once if bad MFNs are found during setup
+
+In xen_add_extra_mem(), if the WARN() checks for bad MFNs trigger it is
+likely that they will trigger at lot, spamming the log.
+
+Use WARN_ONCE() instead.
+
+Signed-off-by: David Vrabel <david.vrabel@citrix.com>
+---
+ arch/x86/xen/setup.c |    6 +++---
+ 1 files changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/arch/x86/xen/setup.c b/arch/x86/xen/setup.c
+index 68c054f..cca635c 100644
+--- a/arch/x86/xen/setup.c
++++ b/arch/x86/xen/setup.c
+@@ -85,10 +85,10 @@ static void __init xen_add_extra_mem(u64 start, u64 size)
+ 	for (pfn = PFN_DOWN(start); pfn < xen_max_p2m_pfn; pfn++) {
+ 		unsigned long mfn = pfn_to_mfn(pfn);
+ 
+-		if (WARN(mfn == pfn, "Trying to over-write 1-1 mapping (pfn: %lx)\n", pfn))
++		if (WARN_ONCE(mfn == pfn, "Trying to over-write 1-1 mapping (pfn: %lx)\n", pfn))
+ 			continue;
+-		WARN(mfn != INVALID_P2M_ENTRY, "Trying to remove %lx which has %lx mfn!\n",
+-			pfn, mfn);
++		WARN_ONCE(mfn != INVALID_P2M_ENTRY, "Trying to remove %lx which has %lx mfn!\n",
++			  pfn, mfn);
+ 
+ 		__set_phys_to_machine(pfn, INVALID_P2M_ENTRY);
+ 	}
+-- 
+1.7.1
+

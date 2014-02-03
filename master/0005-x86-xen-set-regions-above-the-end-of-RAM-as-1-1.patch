@@ -1,0 +1,54 @@
+From 03b884a8bfb502623eb8d2bf3fb2afaa51690bb7 Mon Sep 17 00:00:00 2001
+From: David Vrabel <david.vrabel@citrix.com>
+Date: Fri, 3 Jan 2014 15:46:10 +0000
+Subject: [PATCH 5/8] x86/xen: set regions above the end of RAM as 1:1
+
+PCI devices may have BARs located above the end of RAM so mark such
+frames as identity frames in the p2m (instead of the default of
+missing).
+
+PFNs outside the p2m (above MAX_P2M_PFN) are also considered to be
+identity frames for the same reason.
+
+Signed-off-by: David Vrabel <david.vrabel@citrix.com>
+---
+ arch/x86/xen/p2m.c   |    2 +-
+ arch/x86/xen/setup.c |    9 +++++++++
+ 2 files changed, 10 insertions(+), 1 deletions(-)
+
+diff --git a/arch/x86/xen/p2m.c b/arch/x86/xen/p2m.c
+index 3b72adc..f2e7d2e 100644
+--- a/arch/x86/xen/p2m.c
++++ b/arch/x86/xen/p2m.c
+@@ -497,7 +497,7 @@ unsigned long get_phys_to_machine(unsigned long pfn)
+ 	unsigned topidx, mididx, idx;
+ 
+ 	if (unlikely(pfn >= MAX_P2M_PFN))
+-		return INVALID_P2M_ENTRY;
++		return IDENTITY_FRAME(pfn);
+ 
+ 	topidx = p2m_top_index(pfn);
+ 	mididx = p2m_mid_index(pfn);
+diff --git a/arch/x86/xen/setup.c b/arch/x86/xen/setup.c
+index cca635c..40dbd9f 100644
+--- a/arch/x86/xen/setup.c
++++ b/arch/x86/xen/setup.c
+@@ -451,6 +451,15 @@ char * __init xen_memory_setup(void)
+ 	}
+ 
+ 	/*
++	 * Set the rest as identity mapped, in case PCI BARs are
++	 * located here.
++	 *
++	 * PFNs above MAX_P2M_PFN are considered identity mapped as
++	 * well.
++	 */
++	set_phys_range_identity(map[i-1].addr / PAGE_SIZE, ~0ul);
++
++	/*
+ 	 * In domU, the ISA region is normal, usable memory, but we
+ 	 * reserve ISA memory anyway because too many things poke
+ 	 * about in there.
+-- 
+1.7.1
+
