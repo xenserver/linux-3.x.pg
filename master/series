@@ -146,6 +146,7 @@ force-multipackage-inside-dom0.patch
 call-kexec-before-offlining-noncrashing-cpus.patch
 CA-123766-tun-ACCESS_ONCE_numqueues.patch
 fnic-disable-tracing-by-default.patch
+bnx2-disable-gro.patch
 
 #
 # Debugging/hacks

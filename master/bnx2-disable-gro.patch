@@ -1,0 +1,13 @@
+diff --git a/drivers/net/ethernet/broadcom/bnx2.c b/drivers/net/ethernet/broadcom/bnx2.c
+index 5d20449..32a0e7a 100644
+--- a/drivers/net/ethernet/broadcom/bnx2.c
++++ b/drivers/net/ethernet/broadcom/bnx2.c
+@@ -3238,7 +3238,7 @@ bnx2_rx_int(struct bnx2 *bp, struct bnx2_napi *bnapi, int budget)
+ 			skb->rxhash = rx_hdr->l2_fhdr_hash;
+ 
+ 		skb_record_rx_queue(skb, bnapi - &bp->bnx2_napi[0]);
+-		napi_gro_receive(&bnapi->napi, skb);
++		netif_receive_skb(skb);
+ 		rx_pkt++;
+ 
+ next_rx:
