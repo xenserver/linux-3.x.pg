@@ -1,0 +1,38 @@
+From 87aecd85d8d6699d3f7480de8e34699a6d96caec Mon Sep 17 00:00:00 2001
+From: Andrew Cooper <andrew.cooper3@citrix.com>
+Date: Tue, 11 Feb 2014 15:41:03 +0000
+Subject: [PATCH 3/3] xen/events: schedule if the interrupted task is in a preemptible hypercall
+
+In evtchn_do_upcall(), if the interrupted task was in a preemptible
+hypercall add a conditional schedule point.
+
+This allows tasks in long running preemptible hypercalls to be
+descheduled.  Allowing other tasks to run and prevents long running
+hypercalls issued via the privcmd driver from triggering soft lockups.
+
+Signed-off-by: Andrew Cooper <andrew.cooper3.citrix.com>
+Signed-off-by: David Vrabel <david.vrabel@citrix.com>
+---
+ drivers/xen/events/events_base.c |    6 ++++++
+ 1 files changed, 6 insertions(+), 0 deletions(-)
+
+diff --git a/drivers/xen/events/events_base.c b/drivers/xen/events/events_base.c
+index 4672e00..0b5df37 100644
+--- a/drivers/xen/events/events_base.c
++++ b/drivers/xen/events/events_base.c
+@@ -1254,6 +1254,12 @@ void xen_evtchn_do_upcall(struct pt_regs *regs)
+ 
+ 	irq_exit();
+ 	set_irq_regs(old_regs);
++
++#ifndef CONFIG_PREEMPT
++	if ( __this_cpu_read(xed_nesting_count) == 0
++	     && is_preemptible_hypercall(regs) )
++		_cond_resched();
++#endif
+ }
+ 
+ void xen_hvm_evtchn_do_upcall(void)
+-- 
+1.7.2.5
+

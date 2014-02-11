@@ -146,6 +146,11 @@ blkback-debug-ring.diff
 0015-xen-x86-set-VIRQ_TIMER-priority-to-maximum.patch
 0016-xen-events-use-the-FIFO-based-ABI-if-available.patch
 
+# Preemptible privcmd hypercalls
+0001-x86-xen-allow-for-privcmd-hypercalls-to-be-preempted.patch
+0002-arm-xen-add-stub-is_preemptible_hypercall.patch
+0003-xen-events-schedule-if-the-interrupted-task-is-in-a-.patch
+
 #
 # Local patches.
 #
