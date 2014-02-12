@@ -73,6 +73,8 @@ linux-stable-3.10.26-to-3.10.27.patch
 0010-xen-netback-fix-possible-format-string-flaw.patch
 # db739ef37f07a1a12e388dbaec225d9d9d5d6ded (3.13-rc1)
 0011-xen-netback-stop-the-VIF-thread-before-unbinding-IRQ.patch
+# fa35864e0bb7f7c13b9c6d6751ddac9b42d4810f (3.14-rc1)
+0001-tuntap-Fix-for-a-race-in-accessing-numqueues.patch
 
 #
 # Build system integration
@@ -159,7 +161,6 @@ pciback-do-bus-reset-if-function-reset-failed.patch
 net-core__order-3_frag_allocator_causes_swiotlb_bouncing_under_xen.patch
 force-multipackage-inside-dom0.patch
 call-kexec-before-offlining-noncrashing-cpus.patch
-CA-123766-tun-ACCESS_ONCE_numqueues.patch
 fnic-disable-tracing-by-default.patch
 bnx2-disable-gro.patch
 xen-gntdev-grant-copy.patch
