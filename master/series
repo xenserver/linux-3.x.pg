@@ -163,6 +163,7 @@ CA-123766-tun-ACCESS_ONCE_numqueues.patch
 fnic-disable-tracing-by-default.patch
 bnx2-disable-gro.patch
 xen-gntdev-grant-copy.patch
+x86-apic-disable-physflat-under-xen.patch
 
 #
 # Debugging/hacks
