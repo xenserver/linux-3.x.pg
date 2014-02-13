@@ -1,0 +1,60 @@
+From 32e475d76a3e40879cd9ee4f69b19615062280d7 Mon Sep 17 00:00:00 2001
+From: Thomas Gleixner <tglx@linutronix.de>
+Date: Thu, 21 Nov 2013 12:41:44 +0100
+Subject: [PATCH 1/1] sched: Expose preempt_schedule_irq()
+
+Tony reported that aa0d53260596 ("ia64: Use preempt_schedule_irq")
+broke PREEMPT=n builds on ia64.
+
+Ok, wrapped my brain around it. I tripped over the magic asm foo which
+has a single need_resched check and schedule point for both sys call
+return and interrupt return.
+
+So you need the schedule_preempt_irq() for kernel preemption from
+interrupt return while on a normal syscall preemption a schedule would
+be sufficient. But using schedule_preempt_irq() is not harmful here in
+any way. It just sets the preempt_active bit also in cases where it
+would not be required.
+
+Even on preempt=n kernels adding the preempt_active bit is completely
+harmless. So instead of having an extra function, moving the existing
+one out of the ifdef PREEMPT looks like the sanest thing to do.
+
+It would also allow getting rid of various other sti/schedule/cli asm
+magic in other archs.
+
+Reported-and-Tested-by: Tony Luck <tony.luck@gmail.com>
+Fixes: aa0d53260596 ("ia64: Use preempt_schedule_irq")
+Signed-off-by: Thomas Gleixner <tglx@linutronix.de>
+[slightly edited Changelog]
+Signed-off-by: Peter Zijlstra <peterz@infradead.org>
+Link: http://lkml.kernel.org/r/alpine.DEB.2.02.1311211230030.30673@ionos.tec.linutronix.de
+Signed-off-by: Ingo Molnar <mingo@kernel.org>
+---
+ kernel/sched/core.c |    3 +--
+ 1 file changed, 1 insertion(+), 2 deletions(-)
+
+diff --git a/kernel/sched/core.c b/kernel/sched/core.c
+index 718730d..e85cda2 100644
+--- a/kernel/sched/core.c
++++ b/kernel/sched/core.c
+@@ -2660,6 +2660,7 @@ asmlinkage void __sched notrace preempt_schedule(void)
+ 	} while (need_resched());
+ }
+ EXPORT_SYMBOL(preempt_schedule);
++#endif /* CONFIG_PREEMPT */
+ 
+ /*
+  * this is the entry point to schedule() from kernel preemption
+@@ -2693,8 +2694,6 @@ asmlinkage void __sched preempt_schedule_irq(void)
+ 	exception_exit(prev_state);
+ }
+ 
+-#endif /* CONFIG_PREEMPT */
+-
+ int default_wake_function(wait_queue_t *curr, unsigned mode, int wake_flags,
+ 			  void *key)
+ {
+-- 
+1.7.10.4
+

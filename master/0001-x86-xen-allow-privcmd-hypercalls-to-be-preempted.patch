@@ -1,0 +1,168 @@
+From 5fcd5794d0d8aa679ce9290cb522994447b9e524 Mon Sep 17 00:00:00 2001
+From: David Vrabel <david.vrabel@citrix.com>
+Date: Tue, 11 Feb 2014 15:41:03 +0000
+Subject: [PATCH] x86/xen: allow privcmd hypercalls to be preempted
+
+Hypercalls submitted by user space tools via the privcmd driver can
+take a long time (potentially many 10s of seconds) if the hypercall
+has many sub-operations.
+
+A fully preemptible kernel may deschedule such as task in any upcall
+called from a hypercall continuation.
+
+However, in a kernel with voluntary or no preemption, hypercall
+continuations in Xen allow event handlers to be run but the task
+issuing the hypercall will not be descheduled until the hypercall is
+complete and the ioctl returns to user space.  These long running
+tasks may also trigger the kernel's soft lockup detection.
+
+Add xen_preemptible_hcall_begin() and xen_preemptible_hcall_end() to
+bracket hypercalls that may be preempted.  Use these in the privcmd
+driver.
+
+When returning from an upcall, call preempt_schedule_irq() if the
+current task was within a preemptible hypercall.
+
+Since preempt_schedule_irq() can move the task to a different CPU,
+clear and set xen_in_preemptible_hcall around the call.
+
+Signed-off-by: David Vrabel <david.vrabel@citrix.com>
+diff --git a/arch/x86/kernel/entry_32.S b/arch/x86/kernel/entry_32.S
+index 8f3e2de..0bc2dfe 100644
+--- a/arch/x86/kernel/entry_32.S
++++ b/arch/x86/kernel/entry_32.S
+@@ -991,7 +991,30 @@ ENTRY(xen_hypervisor_callback)
+ ENTRY(xen_do_upcall)
+ 1:	mov %esp, %eax
+ 	call xen_evtchn_do_upcall
++#ifdef CONFIG_PREEMPT
+ 	jmp  ret_from_intr
++#else
++	GET_THREAD_INFO(%ebp)
++#ifdef CONFIG_VM86
++	movl PT_EFLAGS(%esp), %eax	# mix EFLAGS and CS
++	movb PT_CS(%esp), %al
++	andl $(X86_EFLAGS_VM | SEGMENT_RPL_MASK), %eax
++#else
++	movl PT_CS(%esp), %eax
++	andl $SEGMENT_RPL_MASK, %eax
++#endif
++	cmpl $USER_RPL, %eax
++	jae resume_userspace		# returning to v8086 or userspace
++	DISABLE_INTERRUPTS(CLBR_ANY)
++	cmpl $0,TI_preempt_count(%ebp)	# non-zero preempt_count ?
++	jnz resume_kernel
++	cmpb $0,PER_CPU_VAR(xen_in_preemptible_hcall)
++	jz resume_kernel
++	movb $0,PER_CPU_VAR(xen_in_preemptible_hcall)
++	call preempt_schedule_irq
++	movb $1,PER_CPU_VAR(xen_in_preemptible_hcall)
++	jmp resume_kernel
++#endif /* CONFIG_PREEMPT */
+ 	CFI_ENDPROC
+ ENDPROC(xen_hypervisor_callback)
+ 
+diff --git a/arch/x86/kernel/entry_64.S b/arch/x86/kernel/entry_64.S
+index 7272089..c5bb272 100644
+--- a/arch/x86/kernel/entry_64.S
++++ b/arch/x86/kernel/entry_64.S
+@@ -1388,7 +1388,25 @@ ENTRY(xen_do_hypervisor_callback)   # do_hypervisor_callback(struct *pt_regs)
+ 	popq %rsp
+ 	CFI_DEF_CFA_REGISTER rsp
+ 	decl PER_CPU_VAR(irq_count)
++#ifdef CONFIG_PREEMPT
+ 	jmp  error_exit
++#else
++	movl %ebx, %eax
++	RESTORE_REST
++	DISABLE_INTERRUPTS(CLBR_NONE)
++	TRACE_IRQS_OFF
++	GET_THREAD_INFO(%rcx)
++	testl %eax, %eax
++	je error_exit_user
++	cmpl $0,PER_CPU_VAR(__preempt_count)
++	jnz retint_kernel
++	cmpb $0,PER_CPU_VAR(xen_in_preemptible_hcall)
++	jz retint_kernel
++	movb $0,PER_CPU_VAR(xen_in_preemptible_hcall)
++	call preempt_schedule_irq
++	movb $1,PER_CPU_VAR(xen_in_preemptible_hcall)
++	jmp retint_kernel
++#endif
+ 	CFI_ENDPROC
+ END(xen_do_hypervisor_callback)
+ 
+@@ -1613,6 +1631,7 @@ ENTRY(error_exit)
+ 	GET_THREAD_INFO(%rcx)
+ 	testl %eax,%eax
+ 	jne retint_kernel
++error_exit_user:
+ 	LOCKDEP_SYS_EXIT_IRQ
+ 	movl TI_flags(%rcx),%edx
+ 	movl $_TIF_WORK_MASK,%edi
+diff --git a/drivers/xen/Makefile b/drivers/xen/Makefile
+index 1e782c9..c539844 100644
+--- a/drivers/xen/Makefile
++++ b/drivers/xen/Makefile
+@@ -3,7 +3,7 @@ obj-y	+= manage.o
+ obj-$(CONFIG_HOTPLUG_CPU)		+= cpu_hotplug.o
+ endif
+ obj-$(CONFIG_X86)			+= fallback.o
+-obj-y	+= grant-table.o features.o balloon.o
++obj-y	+= grant-table.o features.o balloon.o preempt.o
+ obj-y	+= events/
+ obj-y	+= xenbus/
+ 
+diff --git a/drivers/xen/privcmd.c b/drivers/xen/privcmd.c
+index 2cfc24d..9c3c40a 100644
+--- a/drivers/xen/privcmd.c
++++ b/drivers/xen/privcmd.c
+@@ -53,10 +53,12 @@ static long privcmd_ioctl_hypercall(void __user *udata)
+ 	if (copy_from_user(&hypercall, udata, sizeof(hypercall)))
+ 		return -EFAULT;
+ 
++	xen_preemptible_hcall_begin();
+ 	ret = privcmd_call(hypercall.op,
+ 			   hypercall.arg[0], hypercall.arg[1],
+ 			   hypercall.arg[2], hypercall.arg[3],
+ 			   hypercall.arg[4]);
++	xen_preemptible_hcall_end();
+ 
+ 	return ret;
+ }
+diff --git a/include/xen/xen-ops.h b/include/xen/xen-ops.h
+index d6fe062..9e0336a 100644
+--- a/include/xen/xen-ops.h
++++ b/include/xen/xen-ops.h
+@@ -34,4 +34,31 @@ int xen_unmap_domain_mfn_range(struct vm_area_struct *vma,
+ 			       int numpgs, struct page **pages);
+ 
+ bool xen_running_on_version_or_later(unsigned int major, unsigned int minor);
++
++#ifdef CONFIG_PREEMPT
++
++static inline void xen_preemptible_hcall_begin(void)
++{
++}
++
++static inline void xen_preemptible_hcall_end(void)
++{
++}
++
++#else
++
++DECLARE_PER_CPU(bool, xen_in_preemptible_hcall);
++
++static inline void xen_preemptible_hcall_begin(void)
++{
++	__this_cpu_write(xen_in_preemptible_hcall, true);
++}
++
++static inline void xen_preemptible_hcall_end(void)
++{
++	__this_cpu_write(xen_in_preemptible_hcall, false);
++}
++
++#endif /* CONFIG_PREEMPT */
++
+ #endif /* INCLUDE_XEN_OPS_H */
