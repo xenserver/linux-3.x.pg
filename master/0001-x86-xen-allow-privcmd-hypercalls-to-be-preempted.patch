@@ -113,6 +113,28 @@ index 1e782c9..c539844 100644
  obj-y	+= events/
  obj-y	+= xenbus/
  
+diff --git a/drivers/xen/preempt.c b/drivers/xen/preempt.c
+new file mode 100644
+index 0000000..3275ffe
+--- /dev/null
++++ b/drivers/xen/preempt.c
+@@ -0,0 +1,16 @@
++/*
++ * Preemptible hypercalls
++ *
++ * Copyright (C) 2014 Citrix Systems R&D ltd.
++ *
++ * This source code is free software; you can redistribute it and/or
++ * modify it under the terms of the GNU General Public License as
++ * published by the Free Software Foundation; either version 2 of the
++ * License, or (at your option) any later version.
++ */
++
++#include <xen/xen-ops.h>
++
++#ifndef CONFIG_PREEMPT
++DEFINE_PER_CPU(bool, xen_in_preemptible_hcall);
++#endif
 diff --git a/drivers/xen/privcmd.c b/drivers/xen/privcmd.c
 index 2cfc24d..9c3c40a 100644
 --- a/drivers/xen/privcmd.c
