@@ -136,10 +136,10 @@ index 0000000..7afc26b
 +	@ :
 diff --git a/mk/kernel.spec.in b/mk/kernel.spec.in
 new file mode 100644
-index 0000000..cb608a3
+index 0000000..79e3a3f
 --- /dev/null
 +++ b/mk/kernel.spec.in
-@@ -0,0 +1,284 @@
+@@ -0,0 +1,287 @@
 +# -*- rpm-spec -*-
 +
 +# The full kernel uname version
@@ -383,23 +383,26 @@ index 0000000..cb608a3
 +rm -rf $RPM_BUILD_ROOT
 +
 +%post
++args=--make-default
 +exe=/sbin/new-kernel-pkg
 +if [ -x /sbin/new-kernel-pkg.py ] ; then
 +  exe=/sbin/new-kernel-pkg.py
 +fi
 +if grep -qs control_d /proc/xen/capabilities ; then
-+  args=--multiboot=/boot/xen.gz
++  args="$args --multiboot=/boot/xen.gz"
 +fi
 +
-+$exe --install --package kernel-xen --mkinitrd --depmod --make-default $args %{uname}
++$exe --install --mkinitrd --depmod $args %{uname}
 +
 +%preun
 +exe=/sbin/new-kernel-pkg
 +if [ -x /sbin/new-kernel-pkg.py ] ; then
 +  exe=/sbin/new-kernel-pkg.py
 +fi
++$exe --remove --rminitrd --rmmoddep %{uname}
 +
-+$exe --remove --package kernel-xen --rminitrd --rmmoddep %{uname}
++%triggerin -- xen-hypervisor
++new-kernel-pkg --install %{uname}
 +
 +%files
 +%defattr(-,root,root)
