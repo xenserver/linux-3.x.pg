@@ -136,10 +136,10 @@ index 0000000..7afc26b
 +	@ :
 diff --git a/mk/kernel.spec.in b/mk/kernel.spec.in
 new file mode 100644
-index 0000000..7f31804
+index 0000000..cb608a3
 --- /dev/null
 +++ b/mk/kernel.spec.in
-@@ -0,0 +1,285 @@
+@@ -0,0 +1,284 @@
 +# -*- rpm-spec -*-
 +
 +# The full kernel uname version
@@ -169,8 +169,7 @@ index 0000000..7f31804
 +# First the general kernel required versions as per
 +# Documentation/Changes
 +#
-+#%define kernel_dot_org_conflicts  ppp < 2.4.0, pcmciautils < 004, isdn4k-utils < 3.1pre1, nfs-utils < 1.0.5, e2fsprogs < 1.41.4, util-linux < 2.10, jfsutils < 1.1.3, reiserfsprogs < 3.6.3, xfsprogs < 2.6.0, procps < 3.2.0, oprofile < 0.9
-+%define kernel_dot_org_conflicts  ppp < 2.4.0, pcmciautils < 004, isdn4k-utils < 3.1pre1, nfs-utils < 1.0.5, util-linux < 2.10, jfsutils < 1.1.3, reiserfsprogs < 3.6.3, xfsprogs < 2.6.0, procps < 3.2.0, oprofile < 0.9
++%define kernel_dot_org_conflicts  ppp < 2.4.3-3, isdn4k-utils < 3.2-32, nfs-utils < 1.0.7-12, e2fsprogs < 1.37-4, util-linux < 2.12, jfsutils < 1.1.7-2, reiserfs-utils < 3.6.19-2, xfsprogs < 2.6.13-4, procps < 3.2.5-6.3, oprofile < 0.9.1-2
 +
 +#
 +# Then a series of requirements that are distribution specific, either
@@ -178,13 +177,13 @@ index 0000000..7f31804
 +# problems with the newer kernel or lack certain things that make
 +# integration in the distro harder than needed.
 +#
-+%define package_conflicts  initscripts < 7.23, udev < 063-6, iptables < 1.3.2.1-1-1, ipw2200-firmware < 2.2
++%define package_conflicts  initscripts < 7.23, udev < 145-11, iptables < 1.3.2-1, ipw2200-firmware < 2.4, iwl4965-firmware < 228.57.2, selinux-policy-targeted < 1.25.3-14, squashfs-tools < 4.0, wireless-tools < 29-3, bfa-firmware < 3.0.3.1
 +
 +#
 +# Packages that need to be installed before the kernel is, because the %post
 +# scripts use them.
 +#
-+%define kernel_prereq  fileutils, module-init-tools, initscripts >= 8.11.1-1, /sbin/new-kernel-pkg
++%define kernel_prereq  fileutils, module-init-tools, initscripts >= 8.11.1-1, grubby >= 7.0.4-1, dracut-kernel >= 002-18.git413bcf78
 +
 +#
 +# don't use RPM's internal dependency generator, instead
