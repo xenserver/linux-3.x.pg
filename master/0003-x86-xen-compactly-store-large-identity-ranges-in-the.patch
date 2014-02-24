@@ -15,7 +15,7 @@ at the beginning and end of the range.
 
 Signed-off-by: David Vrabel <david.vrabel@citrix.com>
 diff --git a/arch/x86/xen/p2m.c b/arch/x86/xen/p2m.c
-index 3672239..218be6e 100644
+index 3672239..ff5e618 100644
 --- a/arch/x86/xen/p2m.c
 +++ b/arch/x86/xen/p2m.c
 @@ -36,7 +36,7 @@
@@ -288,7 +288,7 @@ index 3672239..218be6e 100644
  unsigned long __init set_phys_range_identity(unsigned long pfn_s,
  				      unsigned long pfn_e)
  {
-@@ -775,15 +809,8 @@ unsigned long __init set_phys_range_identity(unsigned long pfn_s,
+@@ -775,20 +809,25 @@ unsigned long __init set_phys_range_identity(unsigned long pfn_s,
  	if (pfn_e > MAX_P2M_PFN)
  		pfn_e = MAX_P2M_PFN;
  
@@ -298,15 +298,32 @@ index 3672239..218be6e 100644
 -	{
 -		WARN_ON(!early_alloc_p2m(pfn));
 -	}
--
--	early_alloc_p2m_middle(pfn_s, true);
--	early_alloc_p2m_middle(pfn_e, true);
 +	early_split_p2m(pfn_s);
 +	early_split_p2m(pfn_e);
  
- 	for (pfn = pfn_s; pfn < pfn_e; pfn++)
+-	early_alloc_p2m_middle(pfn_s, true);
+-	early_alloc_p2m_middle(pfn_e, true);
++	for (pfn = pfn_s; pfn < pfn_e; ) {
++		unsigned topidx = p2m_top_index(pfn);
++		unsigned mididx = p2m_mid_index(pfn);
+ 
+-	for (pfn = pfn_s; pfn < pfn_e; pfn++)
  		if (!__set_phys_to_machine(pfn, IDENTITY_FRAME(pfn)))
-@@ -817,8 +844,22 @@ bool __set_phys_to_machine(unsigned long pfn, unsigned long mfn)
+ 			break;
+ 
++		if (p2m_top[topidx] == p2m_mid_identity)
++			pfn = ALIGN(pfn + P2M_MID_PER_PAGE * P2M_PER_PAGE,
++				    P2M_MID_PER_PAGE * P2M_PER_PAGE);
++		else if (p2m_top[topidx][mididx] == p2m_identity)
++			pfn = ALIGN(pfn + P2M_PER_PAGE, P2M_PER_PAGE);
++		else
++			pfn++;
++	}
++
+ 	if (!WARN((pfn - pfn_s) != (pfn_e - pfn_s),
+ 		"Identity mapping failed. We are %ld short of 1-1 mappings!\n",
+ 		(pfn_e - pfn_s) - (pfn - pfn_s)))
+@@ -817,8 +856,22 @@ bool __set_phys_to_machine(unsigned long pfn, unsigned long mfn)
  
  	/* For sparse holes were the p2m leaf has real PFN along with
  	 * PCI holes, stick in the PFN as the MFN value.
