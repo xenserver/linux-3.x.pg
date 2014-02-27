@@ -77,6 +77,8 @@ linux-stable-3.10.26-to-3.10.27.patch
 0001-sched-Expose-preempt_schedule_irq.patch
 # fa35864e0bb7f7c13b9c6d6751ddac9b42d4810f (3.14-rc1)
 0001-tuntap-Fix-for-a-race-in-accessing-numqueues.patch
+# 2b2b614dd24e4e6474fcf2dcf69c95c908838959 (3.12-rc2)
+0001-tracing-events-Add-bounce-tracing-to-swiotbl.patch
 
 #
 # Build system integration
