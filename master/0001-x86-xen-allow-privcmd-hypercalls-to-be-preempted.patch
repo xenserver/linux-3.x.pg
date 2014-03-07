@@ -80,7 +80,7 @@ index 7272089..c5bb272 100644
 +	GET_THREAD_INFO(%rcx)
 +	testl %eax, %eax
 +	je error_exit_user
-+	cmpl $0,TI_preempt_count(%ebp)
++	cmpl $0,TI_preempt_count(%rcx)
 +	jnz retint_kernel
 +	cmpb $0,PER_CPU_VAR(xen_in_preemptible_hcall)
 +	jz retint_kernel
