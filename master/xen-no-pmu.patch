@@ -1,0 +1,25 @@
+diff --git a/arch/x86/kernel/cpu/perf_event.c b/arch/x86/kernel/cpu/perf_event.c
+index 1025f3c..3ef8d78 100644
+--- a/arch/x86/kernel/cpu/perf_event.c
++++ b/arch/x86/kernel/cpu/perf_event.c
+@@ -26,6 +26,8 @@
+ #include <linux/bitops.h>
+ #include <linux/device.h>
+ 
++#include <xen/xen.h>
++
+ #include <asm/apic.h>
+ #include <asm/stacktrace.h>
+ #include <asm/nmi.h>
+@@ -1461,6 +1463,11 @@ static int __init init_hw_perf_events(void)
+ 
+ 	pr_info("Performance Events: ");
+ 
++	if (xen_pv_domain()) {
++		pr_cont("running under Xen, no PMU driver, software events only.\n");
++		return 0;
++	}
++
+ 	switch (boot_cpu_data.x86_vendor) {
+ 	case X86_VENDOR_INTEL:
+ 		err = intel_pmu_init();

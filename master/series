@@ -167,6 +167,7 @@ fnic-disable-tracing-by-default.patch
 bnx2-disable-gro.patch
 xen-gntdev-grant-copy.patch
 x86-apic-disable-physflat-under-xen.patch
+xen-no-pmu.patch
 
 #
 # Debugging/hacks
