@@ -6,7 +6,7 @@ Use GIT macros instead of HG ones
 
 diff --git a/mk/Makefile b/mk/Makefile
 new file mode 100644
-index 0000000..5b763e9
+index 0000000..b533853
 --- /dev/null
 +++ b/mk/Makefile
 @@ -0,0 +1,115 @@
@@ -40,7 +40,7 @@ index 0000000..5b763e9
 +	  $(ARCHS:%=$(RPM_SOURCESDIR)/kernel-%.config) \
 +          $(RPM_SPECSDIR)/kernel.spec
 +
-+SRPM = $(RPM_SRPMSDIR)/kernel-$(LINUX_KABI_VERSION)-$(PKG_VERSION)-$(PKG_RELEASE).src.rpm
++SRPM = $(RPM_SRPMSDIR)/kernel-$(PKG_VERSION)-$(PKG_RELEASE).src.rpm
 +
 +.PHONY: build
 +build: $(RPM_BUILT_COOKIE) $(FILES_COOKIE) $(MY_OUTPUT_DIR)/kernel.inc $(BRANDING) $(MY_SOURCES)/MANIFEST
@@ -84,8 +84,8 @@ index 0000000..5b763e9
 +	done
 +	@touch $@
 +
-+OUTPUT_RPM = kernel-$(LINUX_KABI_VERSION)-$(PKG_VERSION)-$(PKG_RELEASE).$(DOMAIN0_ARCH_OPTIMIZED).rpm
-+OUTPUT_DEBUG_RPM = kernel-$(LINUX_KABI_VERSION)-debuginfo-$(PKG_VERSION)-$(PKG_RELEASE).$(DOMAIN0_ARCH_OPTIMIZED).rpm
++OUTPUT_RPM = kernel-$(PKG_VERSION)-$(PKG_RELEASE).$(DOMAIN0_ARCH_OPTIMIZED).rpm
++OUTPUT_DEBUG_RPM = kernel-debuginfo-$(PKG_VERSION)-$(PKG_RELEASE).$(DOMAIN0_ARCH_OPTIMIZED).rpm
 +
 +VMLINUX_PATH := /usr/lib/debug/lib/modules/$(LINUX_KABI_VERSION)/vmlinux
 +
@@ -127,7 +127,7 @@ index 0000000..5b763e9
 +	@ :
 diff --git a/mk/kernel.spec.in b/mk/kernel.spec.in
 new file mode 100644
-index 0000000..b5a282d
+index 0000000..2ba9689
 --- /dev/null
 +++ b/mk/kernel.spec.in
 @@ -0,0 +1,285 @@
@@ -186,7 +186,7 @@ index 0000000..b5a282d
 +%define __find_provides %{nil}
 +%define __find_requires %{nil}
 +
-+Name: kernel-%{uname}
++Name: kernel
 +Vendor: @COMPANY_NAME@
 +Group: System Environment/Kernel
 +License: GPLv2
