@@ -6,10 +6,10 @@ Use GIT macros instead of HG ones
 
 diff --git a/mk/Makefile b/mk/Makefile
 new file mode 100644
-index 0000000..7afc26b
+index 0000000..5b763e9
 --- /dev/null
 +++ b/mk/Makefile
-@@ -0,0 +1,124 @@
+@@ -0,0 +1,115 @@
 +USE_BRANDING := yes
 +IMPORT_BRANDING := yes
 +REPONAME=linux-3.x
@@ -26,30 +26,21 @@ index 0000000..7afc26b
 +	$(call version-makefile) > $@
 +	awk -F. '{ print "REPO_VERSION=" $$0; }' \
 +		< $(REPOSTAMP) >> $@
-+	awk '/(^VERSION)|(^PATCHLEVEL)|(^SUBLEVEL)|(^EXTRAVERSION)/ { print "KERNEL_"$$_ }' ../Makefile >> $@
-+	echo LINUX_VERSION := '$$(KERNEL_VERSION).$$(KERNEL_PATCHLEVEL).$$(KERNEL_SUBLEVEL)$$(KERNEL_EXTRAVERSION)' >> $@
++	awk '/(^VERSION)|(^PATCHLEVEL)|(^SUBLEVEL)|(^EXTRAVERSION)|(^STABLE_SUBLEVEL)/ { print "KERNEL_"$$_ }' ../Makefile >> $@
++	echo LINUX_KABI_VERSION := '$$(KERNEL_VERSION).$$(KERNEL_PATCHLEVEL).$$(KERNEL_SUBLEVEL)$$(KERNEL_EXTRAVERSION)' >> $@
 +	$(call git_cset_number,$(REPONAME)) >> $@
-+	echo XS_RELEASE := '.xs$$(PLATFORM_VERSION).$$(CSET_NUMBER)' >> $@
++	echo XS_RELEASE := '$$(CSET_NUMBER)' >> $@
 +
 +# RPM package Version and Release.
-+#
-+# This is a bit messy as if EXTRAVERSION is set it will start with a
-+# dash so it needs to end up in PKG_RELEASE (but without the leading
-+# dash).
-+ifeq ($(KERNEL_EXTRAVERSION),)
-+release_prefix := 1
-+else
-+release_prefix := $(KERNEL_EXTRAVERSION:-%=%)
-+endif
-+PKG_VERSION := $(KERNEL_VERSION).$(KERNEL_PATCHLEVEL).$(KERNEL_SUBLEVEL)
-+PKG_RELEASE := $(release_prefix)$(XS_RELEASE)
++PKG_VERSION := $(KERNEL_VERSION).$(KERNEL_PATCHLEVEL).$(KERNEL_STABLE_SUBLEVEL)
++PKG_RELEASE := $(XS_RELEASE)
 +ARCHS := $(DOMAIN0_ARCH_OPTIMIZED)
 +
-+SOURCES = $(RPM_SOURCESDIR)/linux-$(LINUX_VERSION)$(XS_RELEASE).tar.bz2 \
-+	  $(ARCHS:%=$(RPM_SOURCESDIR)/kernel-$(LINUX_VERSION)$(XS_RELEASE)-%.config) \
++SOURCES = $(RPM_SOURCESDIR)/linux-$(PKG_VERSION)-$(PKG_RELEASE).tar.bz2 \
++	  $(ARCHS:%=$(RPM_SOURCESDIR)/kernel-%.config) \
 +          $(RPM_SPECSDIR)/kernel.spec
 +
-+SRPM = $(RPM_SRPMSDIR)/kernel-$(PKG_VERSION)-$(PKG_RELEASE).src.rpm
++SRPM = $(RPM_SRPMSDIR)/kernel-$(LINUX_KABI_VERSION)-$(PKG_VERSION)-$(PKG_RELEASE).src.rpm
 +
 +.PHONY: build
 +build: $(RPM_BUILT_COOKIE) $(FILES_COOKIE) $(MY_OUTPUT_DIR)/kernel.inc $(BRANDING) $(MY_SOURCES)/MANIFEST
@@ -63,21 +54,21 @@ index 0000000..7afc26b
 +	-rm -f $(MY_OBJ_DIR)/version.inc
 +	$(call component_clean,$(COMPONENT))
 +
-+$(RPM_SOURCESDIR)/linux-$(LINUX_VERSION)$(XS_RELEASE).tar.bz2: $(RPM_DIRECTORIES)
-+	set -e -o pipefail; cd $(call git_loc,$(REPONAME)) && git archive --prefix=linux-$(LINUX_VERSION)$(XS_RELEASE)/ HEAD | bzip2 -c > $@.tmp
++$(RPM_SOURCESDIR)/linux-$(PKG_VERSION)-$(PKG_RELEASE).tar.bz2: $(RPM_DIRECTORIES)
++	set -e -o pipefail; cd $(call git_loc,$(REPONAME)) && git archive --prefix=linux-$(PKG_VERSION)/ HEAD | bzip2 -c > $@.tmp
 +	mv -f $@.tmp $@
 +
-+$(RPM_SOURCESDIR)/kernel-$(LINUX_VERSION)$(XS_RELEASE)-i686.config: ../buildconfigs/linux-defconfig_xen_x86_32 $(RPM_DIRECTORIES)
++$(RPM_SOURCESDIR)/kernel-i686.config: ../buildconfigs/linux-defconfig_xen_x86_32 $(RPM_DIRECTORIES)
 +	cp -f $< $@
 +
-+$(RPM_SOURCESDIR)/kernel-$(LINUX_VERSION)$(XS_RELEASE)-x86_64.config: ../buildconfigs/linux-defconfig_xen_x86_64 $(RPM_DIRECTORIES)
++$(RPM_SOURCESDIR)/kernel-x86_64.config: ../buildconfigs/linux-defconfig_xen_x86_64 $(RPM_DIRECTORIES)
 +	cp -f $< $@
 +
 +$(RPM_SPECSDIR)/kernel.spec: kernel.spec.in $(RPM_DIRECTORIES)
 +	echo "Version: $(PKG_VERSION) Release: $(PKG_RELEASE)"; \
 +	$(call brand,kernel.spec.in) | \
 +	sed -e s\,@REPO_VERSION@,$(REPO_VERSION),g   \
-+	    -e s\,@LINUX_VERSION@,$(LINUX_VERSION)$(XS_RELEASE),g \
++	    -e s\,@LINUX_KABI_VERSION@,$(LINUX_KABI_VERSION),g \
 +	    -e s\,@XS_RELEASE@,$(XS_RELEASE),g       \
 +	    -e s\,@PKG_VERSION@,$(PKG_VERSION),g    \
 +	    -e s\,@PKG_RELEASE@,$(PKG_RELEASE),g    \
@@ -93,17 +84,17 @@ index 0000000..7afc26b
 +	done
 +	@touch $@
 +
-+OUTPUT_RPM = kernel-$(PKG_VERSION)-$(PKG_RELEASE).$(DOMAIN0_ARCH_OPTIMIZED).rpm
-+OUTPUT_DEBUG_RPM = kernel-debuginfo-$(PKG_VERSION)-$(PKG_RELEASE).$(DOMAIN0_ARCH_OPTIMIZED).rpm
++OUTPUT_RPM = kernel-$(LINUX_KABI_VERSION)-$(PKG_VERSION)-$(PKG_RELEASE).$(DOMAIN0_ARCH_OPTIMIZED).rpm
++OUTPUT_DEBUG_RPM = kernel-$(LINUX_KABI_VERSION)-debuginfo-$(PKG_VERSION)-$(PKG_RELEASE).$(DOMAIN0_ARCH_OPTIMIZED).rpm
 +
-+VMLINUX_PATH := /usr/lib/debug/lib/modules/$(LINUX_VERSION)$(XS_RELEASE)/vmlinux
++VMLINUX_PATH := /usr/lib/debug/lib/modules/$(LINUX_KABI_VERSION)/vmlinux
 +
 +$(FILES_COOKIE): $(RPM_BUILT_COOKIE) $(MY_INSTALLER_FILES)/.dirstamp $(MY_MAIN_CDFILES)/.dirstamp
 +	mkdir -p $(MY_INSTALLER_FILES)
 +	rpm2cpio $(MY_OUTPUT_DIR)/RPMS/$(DOMAIN0_ARCH_OPTIMIZED)/$(OUTPUT_RPM) | ( cd $(MY_INSTALLER_FILES) ; cpio -id )
 +
 +	mkdir -p $(MY_MAIN_CDFILES)/boot/
-+	mv $(MY_INSTALLER_FILES)/boot/vmlinuz-$(LINUX_VERSION)$(XS_RELEASE) $(MY_MAIN_CDFILES)/boot/vmlinuz
++	mv $(MY_INSTALLER_FILES)/boot/vmlinuz-$(LINUX_KABI_VERSION) $(MY_MAIN_CDFILES)/boot/vmlinuz
 +
 +#
 +# The install-image component requires a gzipped, stripped vmlinux
@@ -118,15 +109,15 @@ index 0000000..7afc26b
 +	touch $@
 +
 +$(MY_OUTPUT_DIR)/kernel.inc: $(MY_OUTPUT_DIR)/.dirstamp
-+	( echo KERNEL_PKG_NAME := kernel ;\
-+	  echo KERNEL_PKG_VERSION := $(LINUX_VERSION)$(XS_RELEASE) ;\
++	( echo KERNEL_PKG_NAME := kernel-$(LINUX_KABI_VERSION) ;\
++	  echo KERNEL_PKG_VERSION := $(PKG_VERSION) ;\
 +	  echo KERNEL_PKG_ARCH := $(DOMAIN0_ARCH_OPTIMIZED) ;\
 +	  echo KERNEL_PKG_FILE := RPMS/$(DOMAIN0_ARCH_OPTIMIZED)/$(OUTPUT_RPM) ;\
-+	  echo KERNEL_VERSION := \$$\(KERNEL_PKG_VERSION\) ;\
++	  echo LINUX_KABI_VERSION := $(LINUX_KABI_VERSION) ;\
 +	) >$@
 +
 +$(BRANDING):
-+	echo KERNEL_VERSION := $(LINUX_VERSION)$(XS_RELEASE) >$(BRANDING)
++	echo KERNEL_VERSION := $(PKG_VERSION) >$(BRANDING)
 +
 +$(MY_SOURCES)/MANIFEST: $(MY_SOURCES_DIRSTAMP)
 +	echo "$(COMPONENT) gpl file $(SRPM)" >$@
@@ -136,14 +127,14 @@ index 0000000..7afc26b
 +	@ :
 diff --git a/mk/kernel.spec.in b/mk/kernel.spec.in
 new file mode 100644
-index 0000000..662b8de
+index 0000000..b5a282d
 --- /dev/null
 +++ b/mk/kernel.spec.in
-@@ -0,0 +1,287 @@
+@@ -0,0 +1,285 @@
 +# -*- rpm-spec -*-
 +
 +# The full kernel uname version
-+%define uname         @LINUX_VERSION@
++%define uname         @LINUX_KABI_VERSION@
 +
 +%ifarch %{ix86}
 +%define target       %{_target_cpu}
@@ -195,7 +186,7 @@ index 0000000..662b8de
 +%define __find_provides %{nil}
 +%define __find_requires %{nil}
 +
-+Name: kernel
++Name: kernel-%{uname}
 +Vendor: @COMPANY_NAME@
 +Group: System Environment/Kernel
 +License: GPLv2
@@ -213,8 +204,8 @@ index 0000000..662b8de
 +Conflicts: %{kernel_dot_org_conflicts}
 +Conflicts: %{package_conflicts}
 +
-+Source0: linux-%{uname}.tar.bz2
-+Source1: kernel-%{uname}-i686.config
++Source0: linux-%{version}-%{release}.tar.bz2
++Source1: kernel-i686.config
 +
 +BuildRoot: %{_tmppath}/kernel-%{version}-root
 +
@@ -268,15 +259,14 @@ index 0000000..662b8de
 +%prep 
 +
 +%setup -q -n %{name}-%{version} -c
-+cd linux-%{uname}
++cd linux-%{version}
 +%{DEFINE_MAKEOPTS}
-+echo @XS_RELEASE@ > localversion
 +make ${MAKEOPTS} mrproper
-+cp -f %{_sourcedir}/kernel-%{uname}-%{target}.config .config
++cp -f %{_sourcedir}/kernel-%{target}.config .config
 +
 +%build
 +
-+cd linux-%{uname}
++cd linux-%{version}
 +%{DEFINE_MAKEOPTS}
 +make ${MAKEOPTS} silentoldconfig
 +if grep -q ^CONFIG_MODULES=y$ .config ; then
@@ -289,7 +279,7 @@ index 0000000..662b8de
 +
 +%install
 +
-+cd linux-%{uname}
++cd linux-%{version}
 +%{DEFINE_MAKEOPTS}
 +# Install kernel
 +install -d -m 755 $RPM_BUILD_ROOT/boot
@@ -328,7 +318,6 @@ index 0000000..662b8de
 +install -d -m 755 $RPM_BUILD_ROOT${SOURCE}/arch/x86/kernel
 +
 +cp --parents `find  -type f -name "Makefile*" -o -name "Kconfig*"` $RPM_BUILD_ROOT${SOURCE}
-+install -m 644 localversion $RPM_BUILD_ROOT${SOURCE}
 +if [ -e Module.symvers ]; then
 +    install -m 644 Module.symvers $RPM_BUILD_ROOT${SOURCE}
 +fi
