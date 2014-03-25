@@ -6,10 +6,10 @@ Use GIT macros instead of HG ones
 
 diff --git a/mk/Makefile b/mk/Makefile
 new file mode 100644
-index 0000000..2ceacce
+index 0000000..1e95249
 --- /dev/null
 +++ b/mk/Makefile
-@@ -0,0 +1,171 @@
+@@ -0,0 +1,172 @@
 +USE_BRANDING := yes
 +IMPORT_BRANDING := yes
 +REPONAME=linux-3.x
@@ -121,6 +121,7 @@ index 0000000..2ceacce
 +
 +$(BRANDING):
 +	echo KERNEL_VERSION := $(PKG_VERSION) >$(BRANDING)
++	echo LINUX_KABI_VERSION := $(LINUX_KABI_VERSION) >>$(BRANDING)
 +
 +$(MY_SOURCES)/MANIFEST: $(MY_SOURCES_DIRSTAMP)
 +	echo "$(COMPONENT) gpl file $(SRPM)" >$@
