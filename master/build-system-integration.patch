@@ -127,7 +127,7 @@ index 0000000..b533853
 +	@ :
 diff --git a/mk/kernel.spec.in b/mk/kernel.spec.in
 new file mode 100644
-index 0000000..2ba9689
+index 0000000..f421f64
 --- /dev/null
 +++ b/mk/kernel.spec.in
 @@ -0,0 +1,285 @@
@@ -198,7 +198,7 @@ index 0000000..2ba9689
 +BuildRequires(pre): module-init-tools, patch >= 2.5.4, bash >= 2.03, sh-utils, tar
 +BuildRequires(pre): bzip2, findutils, gzip, m4, perl, make >= 3.78
 +BuildRequires: gcc >= 2.96-98, binutils >= 2.12, redhat-rpm-config >= 8.0.32.1
-+Provides: kernel = %{uname}
++Provides: kernel-uname-r = %{uname}
 +Autoreqprov: no
 +Requires(pre): %{kernel_prereq}
 +Conflicts: %{kernel_dot_org_conflicts}
