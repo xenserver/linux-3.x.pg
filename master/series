@@ -79,6 +79,38 @@ linux-stable-3.10.26-to-3.10.27.patch
 0001-tuntap-Fix-for-a-race-in-accessing-numqueues.patch
 # 2b2b614dd24e4e6474fcf2dcf69c95c908838959 (3.12-rc2)
 0001-tracing-events-Add-bounce-tracing-to-swiotbl.patch
+# 146c8a77d27bcbd7722120f70f51e3b287205d0a (3.13-rc1)
+0001-xen-netback-add-support-for-IPv6-checksum-offload-to.patch
+# 2eba61d55e5104d0bf08ba4a9cc609613f52b4c9 (3.13-rc1)
+0001-xen-netback-add-support-for-IPv6-checksum-offload-fr.patch
+# 7365bcfa32d2c9d212c41d52ff3509d70b6a3466 (3.13-rc1)
+0001-xen-netback-Unconditionally-set-NETIF_F_RXCSUM.patch
+# a94685876859be30446357db6d6c4a9c951305b4 (3.13-rc1)
+0001-xen-netback-handle-IPv6-TCP-GSO-packets-from-the-gue.patch
+# 82cada22a0bbec6a7afb573ef5fb6c512aaa2739 (3.13-rc1)
+0001-xen-netback-enable-IPv6-TCP-GSO-to-the-guest.patch
+# 67fa36609fe0a0a4b4c99120e5093599556e4c5b (3.13-rc4)
+0001-xen-netback-clear-vif-task-on-disconnect.patch
+# 1431fb31ecbaba1b5718006128f0f2ed0b94e1c3 (3.13-rc4)
+0001-xen-netback-fix-fragment-detection-in-checksum-setup.patch
+# ca2f09f2b2c6c25047cfc545d057c4edfcfe561c (3.14-rc1)
+0001-xen-netback-improve-guest-receive-side-flow-control.patch
+# d52eb0d46f3606b9de9965cebb2beb2202a0dc62 (3.13-rc4)
+0001-xen-netback-make-sure-skb-linear-area-covers-checksu.patch
+# 10574059ce0451c6572c85329c772aa15085f8eb (3.13-rc4)
+0001-xen-netback-napi-fix-abuse-of-budget.patch
+# d9601a36ffdb5c142697bef1228afb5ba4ee4003 (3.13-rc4)
+0002-xen-netback-napi-don-t-prematurely-request-a-tx-even.patch
+# a3314f3d40215349ab2427800c1e10676691389f (3.13-rc4)
+0001-xen-netback-fix-gso_prefix-check.patch
+# b89587a7af4b2a2e0682c304224be4041e993548 (3.14-rc1)
+0001-xen-netback-add-gso_segs-calculation.patch
+# ac3d5ac277352fe6e27809286768e9f1f8aa388d (3.13-rc7)
+0001-xen-netback-fix-guest-receive-side-array-sizes.patch
+# 11b57f90257c1d6a91cee720151b69e0c2020cf6 (3.14-rc1)
+0001-xen-netback-stop-vif-thread-spinning-if-frontend-is-.patch
+# 9ab9831b4c59d379a17f92a6157c7e921811dea2 (3.14-rc3)
+0001-xen-netback-Fix-Rx-stall-due-to-race-condition.patch
 # 81201baa15df09decc1475f3eab86089b7f24d1d (xen/tip.git devel/for-linus-3.15)
 0001-xen-grant-table-Refactor-gnttab_-un-map_refs-to-avoi.patch
 
@@ -112,27 +144,6 @@ blktap2-fixups.patch
 0008-x86-remove-the-Xen-specific-_PAGE_IOMAP-PTE-flag.patch
 
 0001-xen-install-xen-gntdev.h-and-xen-gntalloc.h.patch
-
-# Netback
-0001-xen-netback-add-support-for-IPv6-checksum-offload-to.patch
-0001-xen-netback-add-support-for-IPv6-checksum-offload-fr.patch
-0001-xen-netback-Unconditionally-set-NETIF_F_RXCSUM.patch
-0001-xen-netback-handle-IPv6-TCP-GSO-packets-from-the-gue.patch
-0001-xen-netback-enable-IPv6-TCP-GSO-to-the-guest.patch
-0001-xen-netback-fix-fragment-detection-in-checksum-setup.patch
-0001-xen-netback-clear-vif-task-on-disconnect.patch
-0001-xen-netback-improve-guest-receive-side-flow-control.patch
-0001-xen-netback-make-sure-skb-linear-area-covers-checksu.patch
-0001-xen-netback-napi-fix-abuse-of-budget.patch
-0002-xen-netback-napi-don-t-prematurely-request-a-tx-even.patch
-0001-xen-netback-fix-gso_prefix-check.patch
-0001-xen-netback-add-gso_segs-calculation.patch
-0001-xen-netback-stop-vif-thread-spinning-if-frontend-is-.patch
-0001-xen-netback-fix-guest-receive-side-array-sizes.patch
-
-# Local netback patch that should be removed when grant mapping
-# patches are pulled from upstream
-netback-move-event-clear.patch
 
 # Blkback
 blkback-debug-ring.diff
