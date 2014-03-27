@@ -111,6 +111,22 @@ linux-stable-3.10.26-to-3.10.27.patch
 0001-xen-netback-stop-vif-thread-spinning-if-frontend-is-.patch
 # 9ab9831b4c59d379a17f92a6157c7e921811dea2 (3.14-rc3)
 0001-xen-netback-Fix-Rx-stall-due-to-race-condition.patch
+# 8f13dd9612286cc0d38d32ff9543763b7c74f6a5
+0002-xen-netback-Use-skb-cb-for-pending_idx.patch
+# 121fa4b77775549c3c5eb41eb335d7dcbb801f90
+0003-xen-netback-Minor-refactoring-of-netback-code.patch
+# 3e2234b3149f66bc4be2343a3a0f637d922e4a36
+0004-xen-netback-Handle-foreign-mapped-pages-on-the-guest.patch
+# f53c3fe8dad725b014e9c7682720d8e3e2a8a5b3
+0005-xen-netback-Introduce-TX-grant-mapping.patch
+# 62bad3199a4c20505fc36c169deef20b25e17c5f
+0006-xen-netback-Remove-old-TX-grant-copy-definitons-and-.patch
+# 1bb332af4cd889e4b64dacbf4a793ceb3a70445d
+0007-xen-netback-Add-stat-counters-for-zerocopy.patch
+# e3377f36ca20a034dce56335dc9b89f41094d845
+0008-xen-netback-Handle-guests-with-too-many-frags.patch
+# 093507885ae5dc0288af07fbb922d2f85b3a88a6
+0009-xen-netback-Timeout-packets-in-RX-path.patch
 # 81201baa15df09decc1475f3eab86089b7f24d1d (xen/tip.git devel/for-linus-3.15)
 0001-xen-grant-table-Refactor-gnttab_-un-map_refs-to-avoi.patch
 
