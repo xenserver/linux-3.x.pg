@@ -127,6 +127,14 @@ linux-stable-3.10.26-to-3.10.27.patch
 0008-xen-netback-Handle-guests-with-too-many-frags.patch
 # 093507885ae5dc0288af07fbb922d2f85b3a88a6
 0009-xen-netback-Timeout-packets-in-RX-path.patch
+# 2c5f4f8422e8cf3dd15638226e964f2e13132267
+0001-xen-netback-Proper-printf-format-for-ptrdiff_t-is-t.patch
+# 869b9b19b3affd81cee853d33c0b124797f3c387
+0001-xen-netback-Stop-using-xenvif_tx_pending_slots_avail.patch
+# 0e59a4a553df312b5308c75085f7f02b12680d12
+0001-xen-netback-Non-functional-follow-up-patch-for-grant.patch
+# 7aceb47a9df3383b24824c3e4bd4f029e4598fda
+0001-xen-netback-Functional-follow-up-patch-for-grant-map.patch
 # 81201baa15df09decc1475f3eab86089b7f24d1d (xen/tip.git devel/for-linus-3.15)
 0001-xen-grant-table-Refactor-gnttab_-un-map_refs-to-avoi.patch
 
