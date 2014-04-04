@@ -137,6 +137,12 @@ linux-stable-3.10.26-to-3.10.27.patch
 0001-xen-netback-Functional-follow-up-patch-for-grant-map.patch
 # 81201baa15df09decc1475f3eab86089b7f24d1d (xen/tip.git devel/for-linus-3.15)
 0001-xen-grant-table-Refactor-gnttab_-un-map_refs-to-avoi.patch
+# 9074ce249321861e535cdf8de9af0930a174dda9
+0001-xen-netback-Rename-map-ops.patch
+# bdab82759b8e3620096d6db46dc1cac38a52d779
+0002-xen-netback-Grant-copy-the-header-instead-of-map-and.patch
+# 00aefceb2fffcf4ea2fbc97ef5d4f79ef2668ecc
+0003-xen-netback-Trivial-format-string-fix.patch
 
 #
 # Build system integration

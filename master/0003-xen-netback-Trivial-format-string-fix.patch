@@ -1,0 +1,38 @@
+From 00aefceb2fffcf4ea2fbc97ef5d4f79ef2668ecc Mon Sep 17 00:00:00 2001
+From: Zoltan Kiss <zoltan.kiss@citrix.com>
+Date: Fri, 4 Apr 2014 15:45:24 +0100
+Subject: [PATCH 3/3] xen-netback: Trivial format string fix
+
+There is a "%" after pending_idx instead of ":".
+
+Signed-off-by: Zoltan Kiss <zoltan.kiss@citrix.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ drivers/net/xen-netback/netback.c |    4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/net/xen-netback/netback.c b/drivers/net/xen-netback/netback.c
+index 99c8f09..7666540 100644
+--- a/drivers/net/xen-netback/netback.c
++++ b/drivers/net/xen-netback/netback.c
+@@ -956,7 +956,7 @@ static int xenvif_tx_check_gop(struct xenvif *vif,
+ 	if (unlikely(err)) {
+ 		if (net_ratelimit())
+ 			netdev_dbg(vif->dev,
+-				   "Grant copy of header failed! status: %d pending_idx% %u ref: %u\n",
++				   "Grant copy of header failed! status: %d pending_idx: %u ref: %u\n",
+ 				   (*gopp_copy)->status,
+ 				   pending_idx,
+ 				   (*gopp_copy)->source.u.ref);
+@@ -985,7 +985,7 @@ check_frags:
+ 		/* Error on this fragment: respond to client with an error. */
+ 		if (net_ratelimit())
+ 			netdev_dbg(vif->dev,
+-				   "Grant map of %d. frag failed! status: %d pending_idx% %u ref: %u\n",
++				   "Grant map of %d. frag failed! status: %d pending_idx: %u ref: %u\n",
+ 				   i,
+ 				   gop_map->status,
+ 				   pending_idx,
+-- 
+1.7.9.5
+
