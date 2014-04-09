@@ -359,10 +359,10 @@ index 0000000..da884e2
 +
 diff --git a/mk/kernel.spec.in b/mk/kernel.spec.in
 new file mode 100644
-index 0000000..f421f64
+index 0000000..5d5abd1
 --- /dev/null
 +++ b/mk/kernel.spec.in
-@@ -0,0 +1,285 @@
+@@ -0,0 +1,287 @@
 +# -*- rpm-spec -*-
 +
 +# The full kernel uname version
@@ -616,11 +616,13 @@ index 0000000..f421f64
 +$exe --install --mkinitrd --depmod $args %{uname}
 +
 +%preun
-+exe=/sbin/new-kernel-pkg
-+if [ -x /sbin/new-kernel-pkg.py ] ; then
-+  exe=/sbin/new-kernel-pkg.py
++if [ "$1" = "0" ]; then
++  exe=/sbin/new-kernel-pkg
++  if [ -x /sbin/new-kernel-pkg.py ] ; then
++    exe=/sbin/new-kernel-pkg.py
++  fi
++  $exe --remove --rminitrd --rmmoddep %{uname}
 +fi
-+$exe --remove --rminitrd --rmmoddep %{uname}
 +
 +%triggerin -- xen-hypervisor
 +new-kernel-pkg --install %{uname}
