@@ -212,6 +212,7 @@ bnx2-disable-gro.patch
 xen-gntdev-grant-copy.patch
 x86-apic-disable-physflat-under-xen.patch
 xen-no-pmu.patch
+default-to-32bit-blkback-abi.patch
 
 #
 # Debugging/hacks

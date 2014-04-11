@@ -437,7 +437,7 @@ index 0000000..5d5abd1
 +Conflicts: %{package_conflicts}
 +
 +Source0: linux-%{version}-%{release}.tar.bz2
-+Source1: kernel-i686.config
++Source1: kernel-%{arch}.config
 +
 +BuildRoot: %{_tmppath}/kernel-%{version}-root
 +
