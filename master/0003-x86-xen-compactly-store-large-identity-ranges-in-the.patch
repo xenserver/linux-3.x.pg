@@ -1,7 +1,7 @@
-From 7072ad1d2bc2337f4e97cf0adb2d1ff10fdf725c Mon Sep 17 00:00:00 2001
+From aa84b37f00046cb45b2cb0c242501aa8a9080a6a Mon Sep 17 00:00:00 2001
 From: David Vrabel <david.vrabel@citrix.com>
 Date: Tue, 7 Jan 2014 11:44:32 +0000
-Subject: [PATCH 3/8] x86/xen: compactly store large identity ranges in the p2m
+Subject: [PATCH 3/9] x86/xen: compactly store large identity ranges in the p2m
 
 Large (multi-GB) identity ranges currently require a unique middle page
 (filled with p2m_identity entries) per 1 GB region.
@@ -14,8 +14,12 @@ set_phys_range_identity() thus only needs to allocate new middle pages
 at the beginning and end of the range.
 
 Signed-off-by: David Vrabel <david.vrabel@citrix.com>
+---
+ arch/x86/xen/p2m.c |  155 +++++++++++++++++++++++++++++++++++-----------------
+ 1 files changed, 105 insertions(+), 50 deletions(-)
+
 diff --git a/arch/x86/xen/p2m.c b/arch/x86/xen/p2m.c
-index 3672239..7389aef 100644
+index 82c8c93..5d716f7 100644
 --- a/arch/x86/xen/p2m.c
 +++ b/arch/x86/xen/p2m.c
 @@ -36,7 +36,7 @@
@@ -166,7 +170,7 @@ index 3672239..7389aef 100644
  }
  
  static void p2m_init(unsigned long *p2m)
-@@ -283,7 +294,9 @@ void __ref xen_build_mfn_list_list(void)
+@@ -286,7 +297,9 @@ void __ref xen_build_mfn_list_list(void)
  	/* Pre-initialize p2m_top_mfn to be completely missing */
  	if (p2m_top_mfn == NULL) {
  		p2m_mid_missing_mfn = extend_brk(PAGE_SIZE, PAGE_SIZE);
@@ -177,7 +181,7 @@ index 3672239..7389aef 100644
  
  		p2m_top_mfn_p = extend_brk(PAGE_SIZE, PAGE_SIZE);
  		p2m_top_mfn_p_init(p2m_top_mfn_p);
-@@ -292,7 +305,8 @@ void __ref xen_build_mfn_list_list(void)
+@@ -295,7 +308,8 @@ void __ref xen_build_mfn_list_list(void)
  		p2m_top_mfn_init(p2m_top_mfn);
  	} else {
  		/* Reinitialise, mfn's all change after migration */
@@ -187,7 +191,7 @@ index 3672239..7389aef 100644
  	}
  
  	for (pfn = 0; pfn < xen_max_p2m_pfn; pfn += P2M_PER_PAGE) {
-@@ -324,7 +338,7 @@ void __ref xen_build_mfn_list_list(void)
+@@ -327,7 +341,7 @@ void __ref xen_build_mfn_list_list(void)
  			 * it too late.
  			 */
  			mid_mfn_p = extend_brk(PAGE_SIZE, PAGE_SIZE);
@@ -196,13 +200,13 @@ index 3672239..7389aef 100644
  
  			p2m_top_mfn_p[topidx] = mid_mfn_p;
  		}
-@@ -355,15 +369,17 @@ void __init xen_build_dynamic_phys_to_machine(void)
+@@ -365,16 +379,17 @@ void __init xen_build_dynamic_phys_to_machine(void)
+ 
  	p2m_missing = extend_brk(PAGE_SIZE, PAGE_SIZE);
  	p2m_init(p2m_missing);
- 
 +	p2m_identity = extend_brk(PAGE_SIZE, PAGE_SIZE);
 +	p2m_init(p2m_identity);
-+
+ 
  	p2m_mid_missing = extend_brk(PAGE_SIZE, PAGE_SIZE);
 -	p2m_mid_init(p2m_mid_missing);
 +	p2m_mid_init(p2m_mid_missing, p2m_missing);
@@ -218,7 +222,7 @@ index 3672239..7389aef 100644
  	/*
  	 * The domain builder gives us a pre-constructed p2m array in
  	 * mfn_list for all the pages initially given to us, so we just
-@@ -375,7 +391,7 @@ void __init xen_build_dynamic_phys_to_machine(void)
+@@ -386,7 +401,7 @@ void __init xen_build_dynamic_phys_to_machine(void)
  
  		if (p2m_top[topidx] == p2m_mid_missing) {
  			unsigned long **mid = extend_brk(PAGE_SIZE, PAGE_SIZE);
@@ -227,7 +231,7 @@ index 3672239..7389aef 100644
  
  			p2m_top[topidx] = mid;
  		}
-@@ -534,7 +550,7 @@ static bool alloc_p2m(unsigned long pfn)
+@@ -545,7 +560,7 @@ static bool alloc_p2m(unsigned long pfn)
  		if (!mid)
  			return false;
  
@@ -236,7 +240,7 @@ index 3672239..7389aef 100644
  
  		if (cmpxchg(top_p, p2m_mid_missing, mid) != p2m_mid_missing)
  			free_p2m_page(mid);
-@@ -554,7 +570,7 @@ static bool alloc_p2m(unsigned long pfn)
+@@ -565,7 +580,7 @@ static bool alloc_p2m(unsigned long pfn)
  		if (!mid_mfn)
  			return false;
  
@@ -245,7 +249,7 @@ index 3672239..7389aef 100644
  
  		missing_mfn = virt_to_mfn(p2m_mid_missing_mfn);
  		mid_mfn_mfn = virt_to_mfn(mid_mfn);
-@@ -638,7 +654,7 @@ static bool __init early_alloc_p2m_middle(unsigned long pfn)
+@@ -649,7 +664,7 @@ static bool __init early_alloc_p2m_middle(unsigned long pfn)
  	if (mid == p2m_mid_missing) {
  		mid = extend_brk(PAGE_SIZE, PAGE_SIZE);
  
@@ -254,7 +258,7 @@ index 3672239..7389aef 100644
  
  		p2m_top[topidx] = mid;
  
-@@ -647,7 +663,7 @@ static bool __init early_alloc_p2m_middle(unsigned long pfn)
+@@ -658,7 +673,7 @@ static bool __init early_alloc_p2m_middle(unsigned long pfn)
  	/* And the save/restore P2M tables.. */
  	if (mid_mfn_p == p2m_mid_missing_mfn) {
  		mid_mfn_p = extend_brk(PAGE_SIZE, PAGE_SIZE);
@@ -263,7 +267,7 @@ index 3672239..7389aef 100644
  
  		p2m_top_mfn_p[topidx] = mid_mfn_p;
  		p2m_top_mfn[topidx] = virt_to_mfn(mid_mfn_p);
-@@ -758,6 +774,24 @@ bool __init early_set_phys_to_machine(unsigned long pfn, unsigned long mfn)
+@@ -769,6 +784,24 @@ bool __init early_set_phys_to_machine(unsigned long pfn, unsigned long mfn)
  
  	return true;
  }
@@ -288,7 +292,7 @@ index 3672239..7389aef 100644
  unsigned long __init set_phys_range_identity(unsigned long pfn_s,
  				      unsigned long pfn_e)
  {
-@@ -775,19 +809,27 @@ unsigned long __init set_phys_range_identity(unsigned long pfn_s,
+@@ -786,19 +819,27 @@ unsigned long __init set_phys_range_identity(unsigned long pfn_s,
  	if (pfn_e > MAX_P2M_PFN)
  		pfn_e = MAX_P2M_PFN;
  
@@ -303,7 +307,7 @@ index 3672239..7389aef 100644
  
 -	early_alloc_p2m_middle(pfn_s, true);
 -	early_alloc_p2m_middle(pfn_e, true);
-+	for (pfn = pfn_s; pfn < pfn_e; ) {
++	for (pfn = pfn_s; pfn < pfn_e;) {
 +		unsigned topidx = p2m_top_index(pfn);
 +		unsigned mididx = p2m_mid_index(pfn);
  
@@ -313,9 +317,9 @@ index 3672239..7389aef 100644
 +		pfn++;
 +
 +		/*
-+		 * If the PFN was set to a middle or leaf identity page
-+		 * the remainder must also be identity, so skip ahead
-+		 * to the next middle or leaf entry.
++		 * If the PFN was set to a middle or leaf identity
++		 * page the remainder must also be identity, so skip
++		 * ahead to the next middle or leaf entry.
 +		 */
 +		if (p2m_top[topidx] == p2m_mid_identity)
 +			pfn = ALIGN(pfn, P2M_MID_PER_PAGE * P2M_PER_PAGE);
@@ -325,7 +329,7 @@ index 3672239..7389aef 100644
  
  	if (!WARN((pfn - pfn_s) != (pfn_e - pfn_s),
  		"Identity mapping failed. We are %ld short of 1-1 mappings!\n",
-@@ -817,8 +859,22 @@ bool __set_phys_to_machine(unsigned long pfn, unsigned long mfn)
+@@ -828,8 +869,22 @@ bool __set_phys_to_machine(unsigned long pfn, unsigned long mfn)
  
  	/* For sparse holes were the p2m leaf has real PFN along with
  	 * PCI holes, stick in the PFN as the MFN value.
@@ -348,3 +352,6 @@ index 3672239..7389aef 100644
  		if (p2m_top[topidx][mididx] == p2m_identity)
  			return true;
  
+-- 
+1.7.2.5
+

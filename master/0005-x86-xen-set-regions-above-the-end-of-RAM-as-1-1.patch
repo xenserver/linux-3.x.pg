@@ -1,7 +1,7 @@
-From 03b884a8bfb502623eb8d2bf3fb2afaa51690bb7 Mon Sep 17 00:00:00 2001
+From 5066447cfb87b76efeacb98df8f58b5d31650676 Mon Sep 17 00:00:00 2001
 From: David Vrabel <david.vrabel@citrix.com>
 Date: Fri, 3 Jan 2014 15:46:10 +0000
-Subject: [PATCH 5/8] x86/xen: set regions above the end of RAM as 1:1
+Subject: [PATCH 5/9] x86/xen: set regions above the end of RAM as 1:1
 
 PCI devices may have BARs located above the end of RAM so mark such
 frames as identity frames in the p2m (instead of the default of
@@ -17,10 +17,10 @@ Signed-off-by: David Vrabel <david.vrabel@citrix.com>
  2 files changed, 10 insertions(+), 1 deletions(-)
 
 diff --git a/arch/x86/xen/p2m.c b/arch/x86/xen/p2m.c
-index 3b72adc..f2e7d2e 100644
+index 5d716f7..416c356 100644
 --- a/arch/x86/xen/p2m.c
 +++ b/arch/x86/xen/p2m.c
-@@ -497,7 +497,7 @@ unsigned long get_phys_to_machine(unsigned long pfn)
+@@ -507,7 +507,7 @@ unsigned long get_phys_to_machine(unsigned long pfn)
  	unsigned topidx, mididx, idx;
  
  	if (unlikely(pfn >= MAX_P2M_PFN))
@@ -30,10 +30,10 @@ index 3b72adc..f2e7d2e 100644
  	topidx = p2m_top_index(pfn);
  	mididx = p2m_mid_index(pfn);
 diff --git a/arch/x86/xen/setup.c b/arch/x86/xen/setup.c
-index cca635c..40dbd9f 100644
+index 2afe55e..210426a 100644
 --- a/arch/x86/xen/setup.c
 +++ b/arch/x86/xen/setup.c
-@@ -451,6 +451,15 @@ char * __init xen_memory_setup(void)
+@@ -469,6 +469,15 @@ char * __init xen_memory_setup(void)
  	}
  
  	/*
@@ -50,5 +50,5 @@ index cca635c..40dbd9f 100644
  	 * reserve ISA memory anyway because too many things poke
  	 * about in there.
 -- 
-1.7.1
+1.7.2.5
 

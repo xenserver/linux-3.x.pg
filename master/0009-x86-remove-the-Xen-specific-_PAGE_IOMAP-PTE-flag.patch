@@ -1,7 +1,7 @@
-From 2193a8989e763aea3fe01e12b8afe556b66e706b Mon Sep 17 00:00:00 2001
+From 03a517e1f041446c1bfe0929371c016590ce73b8 Mon Sep 17 00:00:00 2001
 From: David Vrabel <david.vrabel@citrix.com>
 Date: Tue, 7 Jan 2014 17:03:06 +0000
-Subject: [PATCH 8/8] x86: remove the Xen-specific _PAGE_IOMAP PTE flag
+Subject: [PATCH 9/9] x86: remove the Xen-specific _PAGE_IOMAP PTE flag
 
 The _PAGE_IO_MAP PTE flag was only used by Xen PV guests to mark PTEs
 that were used to map I/O regions that are 1:1 in the p2m.  This
@@ -16,13 +16,13 @@ Remove _PAGE_IOMAP, replacing it with _PAGE_UNUSED2 to allow for
 future uses of the PTE flag.
 
 Signed-off-by: David Vrabel <david.vrabel@citrix.com>
+Acked-by: "H. Peter Anvin" <hpa@zytor.com>
 Cc: Thomas Gleixner <tglx@linutronix.de>
 Cc: Ingo Molnar <mingo@redhat.com>
-Cc: "H. Peter Anvin" <hpa@zytor.com>
 Cc: x86@kernel.org
---
-This depends on some Xen changes that are currently RFC and targetted
-for 3.15. Please do not apply yet.
+---
+This depends on the preceeding Xen changes, so this will be merged via
+the Xen tree.
 ---
  arch/x86/include/asm/pgtable_types.h |   12 ++++++------
  arch/x86/mm/init_32.c                |    2 +-
@@ -32,7 +32,7 @@ for 3.15. Please do not apply yet.
  5 files changed, 8 insertions(+), 12 deletions(-)
 
 diff --git a/arch/x86/include/asm/pgtable_types.h b/arch/x86/include/asm/pgtable_types.h
-index 0ecac25..0b12657 100644
+index eb3d449..ead3cb7 100644
 --- a/arch/x86/include/asm/pgtable_types.h
 +++ b/arch/x86/include/asm/pgtable_types.h
 @@ -17,7 +17,7 @@
@@ -53,7 +53,7 @@ index 0ecac25..0b12657 100644
  #define _PAGE_PAT	(_AT(pteval_t, 1) << _PAGE_BIT_PAT)
  #define _PAGE_PAT_LARGE (_AT(pteval_t, 1) << _PAGE_BIT_PAT_LARGE)
  #define _PAGE_SPECIAL	(_AT(pteval_t, 1) << _PAGE_BIT_SPECIAL)
-@@ -163,10 +163,10 @@
+@@ -164,10 +164,10 @@
  #define __PAGE_KERNEL_LARGE_NOCACHE	(__PAGE_KERNEL | _PAGE_CACHE_UC | _PAGE_PSE)
  #define __PAGE_KERNEL_LARGE_EXEC	(__PAGE_KERNEL_EXEC | _PAGE_PSE)
  
@@ -69,7 +69,7 @@ index 0ecac25..0b12657 100644
  #define PAGE_KERNEL			__pgprot(__PAGE_KERNEL)
  #define PAGE_KERNEL_RO			__pgprot(__PAGE_KERNEL_RO)
 diff --git a/arch/x86/mm/init_32.c b/arch/x86/mm/init_32.c
-index 4287f1f..9031593 100644
+index e395048..af7259c 100644
 --- a/arch/x86/mm/init_32.c
 +++ b/arch/x86/mm/init_32.c
 @@ -537,7 +537,7 @@ static void __init pagetable_init(void)
@@ -82,7 +82,7 @@ index 4287f1f..9031593 100644
  
  /* user-defined highmem size */
 diff --git a/arch/x86/mm/init_64.c b/arch/x86/mm/init_64.c
-index 104d56a..68bf948 100644
+index f35c66c..9e6fa6d 100644
 --- a/arch/x86/mm/init_64.c
 +++ b/arch/x86/mm/init_64.c
 @@ -151,7 +151,7 @@ early_param("gbpages", parse_direct_gbpages_on);
@@ -108,10 +108,10 @@ index db6b1ab..1f642d6 100644
  
  	if (io_remap_pfn_range(vma, vma->vm_start, vma->vm_pgoff,
 diff --git a/arch/x86/xen/enlighten.c b/arch/x86/xen/enlighten.c
-index fa6ade7..f9c2d71 100644
+index 201d09a..c5e21e3 100644
 --- a/arch/x86/xen/enlighten.c
 +++ b/arch/x86/xen/enlighten.c
-@@ -1458,8 +1458,6 @@ asmlinkage void __init xen_start_kernel(void)
+@@ -1555,8 +1555,6 @@ asmlinkage void __init xen_start_kernel(void)
  #endif
  		__supported_pte_mask &= ~(_PAGE_PWT | _PAGE_PCD);
  
@@ -121,5 +121,5 @@ index fa6ade7..f9c2d71 100644
  	 * Prevent page tables from being allocated in highmem, even
  	 * if CONFIG_HIGHPTE is enabled.
 -- 
-1.7.1
+1.7.2.5
 

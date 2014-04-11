@@ -1,17 +1,21 @@
-From f082973666a67e915c558b19951f32cfa92eab4d Mon Sep 17 00:00:00 2001
+From a13ba61f846d1ae35d8eda9a4d44e499d66e14b0 Mon Sep 17 00:00:00 2001
 From: David Vrabel <david.vrabel@citrix.com>
 Date: Mon, 6 Jan 2014 11:55:13 +0000
-Subject: [PATCH 2/8] x86/xen: fix set_phys_range_identity() if pfn_e > MAX_P2M_PFN
+Subject: [PATCH 2/9] x86/xen: fix set_phys_range_identity() if pfn_e > MAX_P2M_PFN
 
 Allow set_phys_range_identity() to work with a range that overlaps
 MAX_P2M_PFN by clamping pfn_e to MAX_P2M_PFN.
 
 Signed-off-by: David Vrabel <david.vrabel@citrix.com>
+---
+ arch/x86/xen/p2m.c |    5 ++++-
+ 1 files changed, 4 insertions(+), 1 deletions(-)
+
 diff --git a/arch/x86/xen/p2m.c b/arch/x86/xen/p2m.c
-index 8db298c..3672239 100644
+index 4fc71cc..82c8c93 100644
 --- a/arch/x86/xen/p2m.c
 +++ b/arch/x86/xen/p2m.c
-@@ -763,7 +763,7 @@ unsigned long __init set_phys_range_identity(unsigned long pfn_s,
+@@ -774,7 +774,7 @@ unsigned long __init set_phys_range_identity(unsigned long pfn_s,
  {
  	unsigned long pfn;
  
@@ -20,7 +24,7 @@ index 8db298c..3672239 100644
  		return 0;
  
  	if (unlikely(xen_feature(XENFEAT_auto_translated_physmap)))
-@@ -772,6 +772,9 @@ unsigned long __init set_phys_range_identity(unsigned long pfn_s,
+@@ -783,6 +783,9 @@ unsigned long __init set_phys_range_identity(unsigned long pfn_s,
  	if (pfn_s > pfn_e)
  		return 0;
  
@@ -30,3 +34,6 @@ index 8db298c..3672239 100644
  	for (pfn = (pfn_s & ~(P2M_MID_PER_PAGE * P2M_PER_PAGE - 1));
  		pfn < ALIGN(pfn_e, (P2M_MID_PER_PAGE * P2M_PER_PAGE));
  		pfn += P2M_MID_PER_PAGE * P2M_PER_PAGE)
+-- 
+1.7.2.5
+

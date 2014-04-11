@@ -1,7 +1,7 @@
-From 6fc990bd72e734eed20cb8af5067789fbc7e60bb Mon Sep 17 00:00:00 2001
+From 9d429cbc470cb8e1a250713261d8f35919eb511c Mon Sep 17 00:00:00 2001
 From: David Vrabel <david.vrabel@citrix.com>
 Date: Tue, 7 Jan 2014 11:36:53 +0000
-Subject: [PATCH 4/8] x86/xen: only warn once if bad MFNs are found during setup
+Subject: [PATCH 4/9] x86/xen: only warn once if bad MFNs are found during setup
 
 In xen_add_extra_mem(), if the WARN() checks for bad MFNs trigger it is
 likely that they will trigger at lot, spamming the log.
@@ -14,10 +14,10 @@ Signed-off-by: David Vrabel <david.vrabel@citrix.com>
  1 files changed, 3 insertions(+), 3 deletions(-)
 
 diff --git a/arch/x86/xen/setup.c b/arch/x86/xen/setup.c
-index 68c054f..cca635c 100644
+index 0982233..2afe55e 100644
 --- a/arch/x86/xen/setup.c
 +++ b/arch/x86/xen/setup.c
-@@ -85,10 +85,10 @@ static void __init xen_add_extra_mem(u64 start, u64 size)
+@@ -89,10 +89,10 @@ static void __init xen_add_extra_mem(u64 start, u64 size)
  	for (pfn = PFN_DOWN(start); pfn < xen_max_p2m_pfn; pfn++) {
  		unsigned long mfn = pfn_to_mfn(pfn);
  
@@ -32,5 +32,5 @@ index 68c054f..cca635c 100644
  		__set_phys_to_machine(pfn, INVALID_P2M_ENTRY);
  	}
 -- 
-1.7.1
+1.7.2.5
 

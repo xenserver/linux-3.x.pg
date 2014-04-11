@@ -1,7 +1,7 @@
-From 6739c440ee3f1181d1cd362acf303f165502f070 Mon Sep 17 00:00:00 2001
+From f59f1f3f2286447a7bb4c9d0b2a5a9a577c783c7 Mon Sep 17 00:00:00 2001
 From: David Vrabel <david.vrabel@citrix.com>
 Date: Wed, 8 Jan 2014 14:01:01 +0000
-Subject: [PATCH 7/8] x86/xen: do not use _PAGE_IOMAP PTE flag for I/O mappings
+Subject: [PATCH 8/9] x86/xen: do not use _PAGE_IOMAP PTE flag for I/O mappings
 
 Since mfn_to_pfn() returns the correct PFN for identity mappings (as
 used for MMIO regions), the use of _PAGE_IOMAP is not required in
@@ -14,12 +14,8 @@ This will allow _PAGE_IOMAP to be removed, making it available for
 future use.
 
 Signed-off-by: David Vrabel <david.vrabel@citrix.com>
----
- arch/x86/xen/mmu.c |   48 ++++--------------------------------------------
- 1 files changed, 4 insertions(+), 44 deletions(-)
-
 diff --git a/arch/x86/xen/mmu.c b/arch/x86/xen/mmu.c
-index 563d0a6..f21fe8b 100644
+index 2a4d26d..7a8aea0 100644
 --- a/arch/x86/xen/mmu.c
 +++ b/arch/x86/xen/mmu.c
 @@ -399,38 +399,14 @@ static pteval_t pte_pfn_to_mfn(pteval_t val)
@@ -111,6 +107,3 @@ index 563d0a6..f21fe8b 100644
  		break;
  	}
  
--- 
-1.7.1
-

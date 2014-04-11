@@ -1,7 +1,7 @@
-From 97231f09b22cc7ec3aa362f0fba0c6d00574bb99 Mon Sep 17 00:00:00 2001
+From 5f7a62b0e3ee6014748129bbd94530dfbef57e93 Mon Sep 17 00:00:00 2001
 From: David Vrabel <david.vrabel@citrix.com>
 Date: Tue, 7 Jan 2014 11:53:35 +0000
-Subject: [PATCH 1/8] x86/xen: rename early_p2m_alloc() and early_p2m_alloc_middle()
+Subject: [PATCH 1/9] x86/xen: rename early_p2m_alloc() and early_p2m_alloc_middle()
 
 early_p2m_alloc_middle() allocates a new leaf page and
 early_p2m_alloc() allocates a new middle page.  This is confusing.
@@ -14,10 +14,10 @@ Signed-off-by: David Vrabel <david.vrabel@citrix.com>
  1 files changed, 6 insertions(+), 6 deletions(-)
 
 diff --git a/arch/x86/xen/p2m.c b/arch/x86/xen/p2m.c
-index 2ae8699..de59822 100644
+index 85e5d78..4fc71cc 100644
 --- a/arch/x86/xen/p2m.c
 +++ b/arch/x86/xen/p2m.c
-@@ -585,7 +585,7 @@ static bool alloc_p2m(unsigned long pfn)
+@@ -596,7 +596,7 @@ static bool alloc_p2m(unsigned long pfn)
  	return true;
  }
  
@@ -26,7 +26,7 @@ index 2ae8699..de59822 100644
  {
  	unsigned topidx, mididx, idx;
  	unsigned long *p2m;
-@@ -627,7 +627,7 @@ static bool __init early_alloc_p2m_middle(unsigned long pfn, bool check_boundary
+@@ -638,7 +638,7 @@ static bool __init early_alloc_p2m_middle(unsigned long pfn, bool check_boundary
  	return true;
  }
  
@@ -35,7 +35,7 @@ index 2ae8699..de59822 100644
  {
  	unsigned topidx = p2m_top_index(pfn);
  	unsigned long *mid_mfn_p;
-@@ -652,7 +652,7 @@ static bool __init early_alloc_p2m(unsigned long pfn)
+@@ -663,7 +663,7 @@ static bool __init early_alloc_p2m(unsigned long pfn)
  		p2m_top_mfn_p[topidx] = mid_mfn_p;
  		p2m_top_mfn[topidx] = virt_to_mfn(mid_mfn_p);
  		/* Note: we don't set mid_mfn_p[midix] here,
@@ -44,7 +44,7 @@ index 2ae8699..de59822 100644
  	}
  	return true;
  }
-@@ -728,7 +728,7 @@ found:
+@@ -739,7 +739,7 @@ found:
  
  	/* This shouldn't happen */
  	if (WARN_ON(p2m_top[topidx] == p2m_mid_missing))
@@ -53,7 +53,7 @@ index 2ae8699..de59822 100644
  
  	if (WARN_ON(p2m_top[topidx][mididx] != p2m_missing))
  		return false;
-@@ -743,13 +743,13 @@ found:
+@@ -754,13 +754,13 @@ found:
  bool __init early_set_phys_to_machine(unsigned long pfn, unsigned long mfn)
  {
  	if (unlikely(!__set_phys_to_machine(pfn, mfn)))  {
@@ -70,5 +70,5 @@ index 2ae8699..de59822 100644
  
  		if (!__set_phys_to_machine(pfn, mfn))
 -- 
-1.7.1
+1.7.2.5
 
