@@ -1,0 +1,13 @@
+diff --git a/drivers/block/xen-blkback/xenbus.c b/drivers/block/xen-blkback/xenbus.c
+index d3ac95e..2c175fb 100644
+--- a/drivers/block/xen-blkback/xenbus.c
++++ b/drivers/block/xen-blkback/xenbus.c
+@@ -811,7 +811,7 @@ static int connect_ring(struct backend_info *be)
+ 		return err;
+ 	}
+ 
+-	be->blkif->blk_protocol = BLKIF_PROTOCOL_NATIVE;
++	be->blkif->blk_protocol = BLKIF_PROTOCOL_X86_32;
+ 	err = xenbus_gather(XBT_NIL, dev->otherend, "protocol",
+ 			    "%63s", protocol, NULL);
+ 	if (err)
