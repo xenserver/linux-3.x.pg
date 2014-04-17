@@ -3,7 +3,7 @@ new file mode 100644
 index 0000000..5a37546
 --- /dev/null
 +++ b/buildconfigs/linux-defconfig_xen_x86_32
-@@ -0,0 +1,3836 @@
+@@ -0,0 +1,3837 @@
 +#
 +# Automatically generated file; DO NOT EDIT.
 +# Linux/i386 3.10.11-0 Kernel Configuration
@@ -1243,6 +1243,7 @@ index 0000000..5a37546
 +#
 +CONFIG_PNPACPI=y
 +CONFIG_BLK_DEV=y
++CONFIG_BLK_DEV_NULL_BLK=m
 +# CONFIG_BLK_DEV_FD is not set
 +CONFIG_BLK_DEV_PCIESSD_MTIP32XX=m
 +CONFIG_BLK_CPQ_DA=m
@@ -3845,7 +3846,7 @@ new file mode 100644
 index 0000000..3eb6f27
 --- /dev/null
 +++ b/buildconfigs/linux-defconfig_xen_x86_64
-@@ -0,0 +1,3808 @@
+@@ -0,0 +1,3809 @@
 +#
 +# Automatically generated file; DO NOT EDIT.
 +# Linux/x86_64 3.10.11-0 Kernel Configuration
@@ -5049,6 +5050,7 @@ index 0000000..3eb6f27
 +#
 +CONFIG_PNPACPI=y
 +CONFIG_BLK_DEV=y
++CONFIG_BLK_DEV_NULL_BLK=m
 +# CONFIG_BLK_DEV_FD is not set
 +CONFIG_BLK_DEV_PCIESSD_MTIP32XX=m
 +CONFIG_BLK_CPQ_DA=m

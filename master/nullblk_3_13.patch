@@ -1,0 +1,726 @@
+nullblk: Backport null block device driver from 3.13
+
+This includes several commits from 3.13-rc* as below:
+518d00b7498c5894be94545848d55e5b9c55749e (v3.13-rc8)
+fc1bc35443741e132dd0118e8dbac53f69a6f76e (v3.13-rc6)
+200052440d3b56f593038a35b7c14bdc780184a9 (v3.13-rc6)
+89ed05eea093d4c18df5d504d104f29b874fea29 (v3.13-rc6)
+d15ee6b1a43afbe1a6cece3bd8d336a9d5cb7060 (v3.13-rc6)
+2d263a7856cbaf26dd89b671e2161c4a49f8461b (v3.13-rc6)
+12f8f4fc0314103d47f9b1cbc812597b8d893ce1 (v3.13-rc6)
+0c56010c83703e1f33325838eda9a2077827b6f1 (v3.13-rc6)
+044c8d4b15743f6e0a4cb6f2aeb32745a116ebff (v3.13-rc1)
+f2298c0403b0dfcaef637eba0c02c4a06d7a25ab (v3.13-rc1)
+
+This patch includes further modifications to remove everything that is related
+to the multiqueue block layer (the Documentation has not been updated).  It
+also includes a further change to a call to __smp_call_function_single().
+This function is not exported in 3.10 but is exported in 3.13.
+
+
+Signed-off-by: Felipe Franciosi <felipe@paradoxo.org>
+
+diff --git a/Documentation/block/null_blk.txt b/Documentation/block/null_blk.txt
+new file mode 100644
+index 0000000..b2830b4
+--- /dev/null
++++ b/Documentation/block/null_blk.txt
+@@ -0,0 +1,72 @@
++Null block device driver
++================================================================================
++
++I. Overview
++
++The null block device (/dev/nullb*) is used for benchmarking the various
++block-layer implementations. It emulates a block device of X gigabytes in size.
++The following instances are possible:
++
++  Single-queue block-layer
++    - Request-based.
++    - Single submission queue per device.
++    - Implements IO scheduling algorithms (CFQ, Deadline, noop).
++  Multi-queue block-layer
++    - Request-based.
++    - Configurable submission queues per device.
++  No block-layer (Known as bio-based)
++    - Bio-based. IO requests are submitted directly to the device driver.
++    - Directly accepts bio data structure and returns them.
++
++All of them have a completion queue for each core in the system.
++
++II. Module parameters applicable for all instances:
++
++queue_mode=[0-2]: Default: 2-Multi-queue
++  Selects which block-layer the module should instantiate with.
++
++  0: Bio-based.
++  1: Single-queue.
++  2: Multi-queue.
++
++home_node=[0--nr_nodes]: Default: NUMA_NO_NODE
++  Selects what CPU node the data structures are allocated from.
++
++gb=[Size in GB]: Default: 250GB
++  The size of the device reported to the system.
++
++bs=[Block size (in bytes)]: Default: 512 bytes
++  The block size reported to the system.
++
++nr_devices=[Number of devices]: Default: 2
++  Number of block devices instantiated. They are instantiated as /dev/nullb0,
++  etc.
++
++irq_mode=[0-2]: Default: 1-Soft-irq
++  The completion mode used for completing IOs to the block-layer.
++
++  0: None.
++  1: Soft-irq. Uses IPI to complete IOs across CPU nodes. Simulates the overhead
++     when IOs are issued from another CPU node than the home the device is
++     connected to.
++  2: Timer: Waits a specific period (completion_nsec) for each IO before
++     completion.
++
++completion_nsec=[ns]: Default: 10.000ns
++  Combined with irq_mode=2 (timer). The time each completion event must wait.
++
++submit_queues=[0..nr_cpus]:
++  The number of submission queues attached to the device driver. If unset, it
++  defaults to 1 on single-queue and bio-based instances. For multi-queue,
++  it is ignored when use_per_node_hctx module parameter is 1.
++
++hw_queue_depth=[0..qdepth]: Default: 64
++  The hardware queue depth of the device.
++
++III: Multi-queue specific parameters
++
++use_per_node_hctx=[0/1]: Default: 0
++  0: The number of submit queues are set to the value of the submit_queues
++     parameter.
++  1: The multi-queue block layer is instantiated with a hardware dispatch
++     queue for each CPU node in the system.
+diff --git a/drivers/block/Kconfig b/drivers/block/Kconfig
+index b81ddfe..c09fb86 100644
+--- a/drivers/block/Kconfig
++++ b/drivers/block/Kconfig
+@@ -15,6 +15,9 @@ menuconfig BLK_DEV
+ 
+ if BLK_DEV
+ 
++config BLK_DEV_NULL_BLK
++	tristate "Null test block driver"
++
+ config BLK_DEV_FD
+ 	tristate "Normal floppy disk support"
+ 	depends on ARCH_MAY_HAVE_PC_FDC
+diff --git a/drivers/block/Makefile b/drivers/block/Makefile
+index ca07399..03b3b4a 100644
+--- a/drivers/block/Makefile
++++ b/drivers/block/Makefile
+@@ -41,6 +41,7 @@ obj-$(CONFIG_BLK_DEV_RBD)     += rbd.o
+ obj-$(CONFIG_BLK_DEV_PCIESSD_MTIP32XX)	+= mtip32xx/
+ 
+ obj-$(CONFIG_BLK_DEV_RSXX) += rsxx/
++obj-$(CONFIG_BLK_DEV_NULL_BLK)	+= null_blk.o
+ 
+ nvme-y		:= nvme-core.o nvme-scsi.o
+ swim_mod-y	:= swim.o swim_asm.o
+diff --git a/drivers/block/null_blk.c b/drivers/block/null_blk.c
+new file mode 100644
+index 0000000..3c7b069
+--- /dev/null
++++ b/drivers/block/null_blk.c
+@@ -0,0 +1,572 @@
++#include <linux/module.h>
++
++#include <linux/moduleparam.h>
++#include <linux/sched.h>
++#include <linux/fs.h>
++#include <linux/blkdev.h>
++#include <linux/init.h>
++#include <linux/slab.h>
++#include <linux/hrtimer.h>
++
++struct nullb_cmd {
++	struct list_head list;
++	struct llist_node ll_list;
++	struct call_single_data csd;
++	struct request *rq;
++	struct bio *bio;
++	unsigned int tag;
++	struct nullb_queue *nq;
++};
++
++struct nullb_queue {
++	unsigned long *tag_map;
++	wait_queue_head_t wait;
++	unsigned int queue_depth;
++
++	struct nullb_cmd *cmds;
++};
++
++struct nullb {
++	struct list_head list;
++	unsigned int index;
++	struct request_queue *q;
++	struct gendisk *disk;
++	struct hrtimer timer;
++	unsigned int queue_depth;
++	spinlock_t lock;
++
++	struct nullb_queue *queues;
++	unsigned int nr_queues;
++};
++
++static LIST_HEAD(nullb_list);
++static struct mutex lock;
++static int null_major;
++static int nullb_indexes;
++
++struct completion_queue {
++	struct llist_head list;
++	struct hrtimer timer;
++};
++
++/*
++ * These are per-cpu for now, they will need to be configured by the
++ * complete_queues parameter and appropriately mapped.
++ */
++static DEFINE_PER_CPU(struct completion_queue, completion_queues);
++
++enum {
++	NULL_IRQ_NONE		= 0,
++	NULL_IRQ_SOFTIRQ	= 1,
++	NULL_IRQ_TIMER		= 2,
++
++	NULL_Q_BIO		= 0,
++	NULL_Q_RQ		= 1,
++};
++
++static int submit_queues;
++module_param(submit_queues, int, S_IRUGO);
++MODULE_PARM_DESC(submit_queues, "Number of submission queues");
++
++static int home_node = NUMA_NO_NODE;
++module_param(home_node, int, S_IRUGO);
++MODULE_PARM_DESC(home_node, "Home node for the device");
++
++static int queue_mode = NULL_Q_BIO;
++module_param(queue_mode, int, S_IRUGO);
++MODULE_PARM_DESC(use_interface, "Interface to use (0=bio,1=rq)");
++
++static int gb = 250;
++module_param(gb, int, S_IRUGO);
++MODULE_PARM_DESC(gb, "Size in GB");
++
++static int bs = 512;
++module_param(bs, int, S_IRUGO);
++MODULE_PARM_DESC(bs, "Block size (in bytes)");
++
++static int nr_devices = 2;
++module_param(nr_devices, int, S_IRUGO);
++MODULE_PARM_DESC(nr_devices, "Number of devices to register");
++
++static int irqmode = NULL_IRQ_SOFTIRQ;
++module_param(irqmode, int, S_IRUGO);
++MODULE_PARM_DESC(irqmode, "IRQ completion handler. 0-none, 1-softirq, 2-timer");
++
++static int completion_nsec = 10000;
++module_param(completion_nsec, int, S_IRUGO);
++MODULE_PARM_DESC(completion_nsec, "Time in ns to complete a request in hardware. Default: 10,000ns");
++
++static int hw_queue_depth = 64;
++module_param(hw_queue_depth, int, S_IRUGO);
++MODULE_PARM_DESC(hw_queue_depth, "Queue depth for each hardware queue. Default: 64");
++
++static bool use_per_node_hctx = false;
++module_param(use_per_node_hctx, bool, S_IRUGO);
++MODULE_PARM_DESC(use_per_node_hctx, "Use per-node allocation for hardware context queues. Default: false");
++
++static void put_tag(struct nullb_queue *nq, unsigned int tag)
++{
++	clear_bit_unlock(tag, nq->tag_map);
++
++	if (waitqueue_active(&nq->wait))
++		wake_up(&nq->wait);
++}
++
++static unsigned int get_tag(struct nullb_queue *nq)
++{
++	unsigned int tag;
++
++	do {
++		tag = find_first_zero_bit(nq->tag_map, nq->queue_depth);
++		if (tag >= nq->queue_depth)
++			return -1U;
++	} while (test_and_set_bit_lock(tag, nq->tag_map));
++
++	return tag;
++}
++
++static void free_cmd(struct nullb_cmd *cmd)
++{
++	put_tag(cmd->nq, cmd->tag);
++}
++
++static struct nullb_cmd *__alloc_cmd(struct nullb_queue *nq)
++{
++	struct nullb_cmd *cmd;
++	unsigned int tag;
++
++	tag = get_tag(nq);
++	if (tag != -1U) {
++		cmd = &nq->cmds[tag];
++		cmd->tag = tag;
++		cmd->nq = nq;
++		return cmd;
++	}
++
++	return NULL;
++}
++
++static struct nullb_cmd *alloc_cmd(struct nullb_queue *nq, int can_wait)
++{
++	struct nullb_cmd *cmd;
++	DEFINE_WAIT(wait);
++
++	cmd = __alloc_cmd(nq);
++	if (cmd || !can_wait)
++		return cmd;
++
++	do {
++		prepare_to_wait(&nq->wait, &wait, TASK_UNINTERRUPTIBLE);
++		cmd = __alloc_cmd(nq);
++		if (cmd)
++			break;
++
++		io_schedule();
++	} while (1);
++
++	finish_wait(&nq->wait, &wait);
++	return cmd;
++}
++
++static void end_cmd(struct nullb_cmd *cmd)
++{
++	if (cmd->rq) {
++		INIT_LIST_HEAD(&cmd->rq->queuelist);
++		blk_end_request_all(cmd->rq, 0);
++	} else if (cmd->bio)
++		bio_endio(cmd->bio, 0);
++
++	free_cmd(cmd);
++}
++
++static enum hrtimer_restart null_cmd_timer_expired(struct hrtimer *timer)
++{
++	struct completion_queue *cq;
++	struct llist_node *entry;
++	struct nullb_cmd *cmd;
++
++	cq = &per_cpu(completion_queues, smp_processor_id());
++
++	while ((entry = llist_del_all(&cq->list)) != NULL) {
++		do {
++			cmd = container_of(entry, struct nullb_cmd, ll_list);
++			end_cmd(cmd);
++			entry = entry->next;
++		} while (entry);
++	}
++
++	return HRTIMER_NORESTART;
++}
++
++static void null_cmd_end_timer(struct nullb_cmd *cmd)
++{
++	struct completion_queue *cq = &per_cpu(completion_queues, get_cpu());
++
++	cmd->ll_list.next = NULL;
++	if (llist_add(&cmd->ll_list, &cq->list)) {
++		ktime_t kt = ktime_set(0, completion_nsec);
++
++		hrtimer_start(&cq->timer, kt, HRTIMER_MODE_REL);
++	}
++
++	put_cpu();
++}
++
++static void null_softirq_done_fn(struct request *rq)
++{
++	blk_end_request_all(rq, 0);
++}
++
++#ifdef CONFIG_SMP
++
++static void null_ipi_cmd_end_io(void *data)
++{
++	struct completion_queue *cq;
++	struct llist_node *entry, *next;
++	struct nullb_cmd *cmd;
++
++	cq = &per_cpu(completion_queues, smp_processor_id());
++
++	entry = llist_del_all(&cq->list);
++
++	while (entry) {
++		next = entry->next;
++		cmd = llist_entry(entry, struct nullb_cmd, ll_list);
++		end_cmd(cmd);
++		entry = next;
++	}
++}
++
++static void null_cmd_end_ipi(struct nullb_cmd *cmd)
++{
++	struct call_single_data *data = &cmd->csd;
++	int cpu = get_cpu();
++	struct completion_queue *cq = &per_cpu(completion_queues, cpu);
++
++	cmd->ll_list.next = NULL;
++
++	if (llist_add(&cmd->ll_list, &cq->list)) {
++		data->func = null_ipi_cmd_end_io;
++		data->flags = 0;
++		smp_call_function_single(cpu, data->func, data->info, 0);
++	}
++
++	put_cpu();
++}
++
++#endif /* CONFIG_SMP */
++
++static inline void null_handle_cmd(struct nullb_cmd *cmd)
++{
++	/* Complete IO by inline, softirq or timer */
++	switch (irqmode) {
++	case NULL_IRQ_NONE:
++		end_cmd(cmd);
++		break;
++	case NULL_IRQ_SOFTIRQ:
++#ifdef CONFIG_SMP
++		null_cmd_end_ipi(cmd);
++#else
++		end_cmd(cmd);
++#endif
++		break;
++	case NULL_IRQ_TIMER:
++		null_cmd_end_timer(cmd);
++		break;
++	}
++}
++
++static struct nullb_queue *nullb_to_queue(struct nullb *nullb)
++{
++	int index = 0;
++
++	if (nullb->nr_queues != 1)
++		index = raw_smp_processor_id() / ((nr_cpu_ids + nullb->nr_queues - 1) / nullb->nr_queues);
++
++	return &nullb->queues[index];
++}
++
++static void null_queue_bio(struct request_queue *q, struct bio *bio)
++{
++	struct nullb *nullb = q->queuedata;
++	struct nullb_queue *nq = nullb_to_queue(nullb);
++	struct nullb_cmd *cmd;
++
++	cmd = alloc_cmd(nq, 1);
++	cmd->bio = bio;
++
++	null_handle_cmd(cmd);
++}
++
++static int null_rq_prep_fn(struct request_queue *q, struct request *req)
++{
++	struct nullb *nullb = q->queuedata;
++	struct nullb_queue *nq = nullb_to_queue(nullb);
++	struct nullb_cmd *cmd;
++
++	cmd = alloc_cmd(nq, 0);
++	if (cmd) {
++		cmd->rq = req;
++		req->special = cmd;
++		return BLKPREP_OK;
++	}
++
++	return BLKPREP_DEFER;
++}
++
++static void null_request_fn(struct request_queue *q)
++{
++	struct request *rq;
++
++	while ((rq = blk_fetch_request(q)) != NULL) {
++		struct nullb_cmd *cmd = rq->special;
++
++		spin_unlock_irq(q->queue_lock);
++		null_handle_cmd(cmd);
++		spin_lock_irq(q->queue_lock);
++	}
++}
++
++static void null_init_queue(struct nullb *nullb, struct nullb_queue *nq)
++{
++	BUG_ON(!nullb);
++	BUG_ON(!nq);
++
++	init_waitqueue_head(&nq->wait);
++	nq->queue_depth = nullb->queue_depth;
++}
++
++static void null_del_dev(struct nullb *nullb)
++{
++	list_del_init(&nullb->list);
++
++	del_gendisk(nullb->disk);
++	blk_cleanup_queue(nullb->q);
++	put_disk(nullb->disk);
++	kfree(nullb);
++}
++
++static int null_open(struct block_device *bdev, fmode_t mode)
++{
++	return 0;
++}
++
++static void null_release(struct gendisk *disk, fmode_t mode)
++{
++}
++
++static const struct block_device_operations null_fops = {
++	.owner =	THIS_MODULE,
++	.open =		null_open,
++	.release =	null_release,
++};
++
++static int setup_commands(struct nullb_queue *nq)
++{
++	struct nullb_cmd *cmd;
++	int i, tag_size;
++
++	nq->cmds = kzalloc(nq->queue_depth * sizeof(*cmd), GFP_KERNEL);
++	if (!nq->cmds)
++		return -ENOMEM;
++
++	tag_size = ALIGN(nq->queue_depth, BITS_PER_LONG) / BITS_PER_LONG;
++	nq->tag_map = kzalloc(tag_size * sizeof(unsigned long), GFP_KERNEL);
++	if (!nq->tag_map) {
++		kfree(nq->cmds);
++		return -ENOMEM;
++	}
++
++	for (i = 0; i < nq->queue_depth; i++) {
++		cmd = &nq->cmds[i];
++		INIT_LIST_HEAD(&cmd->list);
++		cmd->ll_list.next = NULL;
++		cmd->tag = -1U;
++	}
++
++	return 0;
++}
++
++static void cleanup_queue(struct nullb_queue *nq)
++{
++	kfree(nq->tag_map);
++	kfree(nq->cmds);
++}
++
++static void cleanup_queues(struct nullb *nullb)
++{
++	int i;
++
++	for (i = 0; i < nullb->nr_queues; i++)
++		cleanup_queue(&nullb->queues[i]);
++
++	kfree(nullb->queues);
++}
++
++static int setup_queues(struct nullb *nullb)
++{
++	nullb->queues = kzalloc(submit_queues * sizeof(struct nullb_queue),
++								GFP_KERNEL);
++	if (!nullb->queues)
++		return -ENOMEM;
++
++	nullb->nr_queues = 0;
++	nullb->queue_depth = hw_queue_depth;
++
++	return 0;
++}
++
++static int init_driver_queues(struct nullb *nullb)
++{
++	struct nullb_queue *nq;
++	int i, ret = 0;
++
++	for (i = 0; i < submit_queues; i++) {
++		nq = &nullb->queues[i];
++
++		null_init_queue(nullb, nq);
++
++		ret = setup_commands(nq);
++		if (ret)
++			goto err_queue;
++		nullb->nr_queues++;
++	}
++
++	return 0;
++err_queue:
++	cleanup_queues(nullb);
++	return ret;
++}
++
++static int null_add_dev(void)
++{
++	struct gendisk *disk;
++	struct nullb *nullb;
++	sector_t size;
++
++	nullb = kzalloc_node(sizeof(*nullb), GFP_KERNEL, home_node);
++	if (!nullb)
++		return -ENOMEM;
++
++	spin_lock_init(&nullb->lock);
++
++	if (setup_queues(nullb))
++		goto err;
++
++	if (queue_mode == NULL_Q_BIO) {
++		nullb->q = blk_alloc_queue_node(GFP_KERNEL, home_node);
++		blk_queue_make_request(nullb->q, null_queue_bio);
++		init_driver_queues(nullb);
++	} else {
++		nullb->q = blk_init_queue_node(null_request_fn, &nullb->lock, home_node);
++		blk_queue_prep_rq(nullb->q, null_rq_prep_fn);
++		if (nullb->q)
++			blk_queue_softirq_done(nullb->q, null_softirq_done_fn);
++		init_driver_queues(nullb);
++	}
++
++	if (!nullb->q)
++		goto queue_fail;
++
++	nullb->q->queuedata = nullb;
++	queue_flag_set_unlocked(QUEUE_FLAG_NONROT, nullb->q);
++
++	disk = nullb->disk = alloc_disk_node(1, home_node);
++	if (!disk) {
++queue_fail:
++		blk_cleanup_queue(nullb->q);
++		cleanup_queues(nullb);
++err:
++		kfree(nullb);
++		return -ENOMEM;
++	}
++
++	mutex_lock(&lock);
++	list_add_tail(&nullb->list, &nullb_list);
++	nullb->index = nullb_indexes++;
++	mutex_unlock(&lock);
++
++	blk_queue_logical_block_size(nullb->q, bs);
++	blk_queue_physical_block_size(nullb->q, bs);
++
++	size = gb * 1024 * 1024 * 1024ULL;
++	sector_div(size, bs);
++	set_capacity(disk, size);
++
++	disk->flags |= GENHD_FL_EXT_DEVT;
++	disk->major		= null_major;
++	disk->first_minor	= nullb->index;
++	disk->fops		= &null_fops;
++	disk->private_data	= nullb;
++	disk->queue		= nullb->q;
++	sprintf(disk->disk_name, "nullb%d", nullb->index);
++	add_disk(disk);
++	return 0;
++}
++
++static int __init null_init(void)
++{
++	unsigned int i;
++
++#if !defined(CONFIG_SMP)
++	if (irqmode == NULL_IRQ_SOFTIRQ) {
++		pr_warn("null_blk: softirq completions not available.\n");
++		pr_warn("null_blk: using direct completions.\n");
++		irqmode = NULL_IRQ_NONE;
++	}
++#endif
++
++	if (submit_queues > nr_cpu_ids)
++		submit_queues = nr_cpu_ids;
++	else if (!submit_queues)
++		submit_queues = 1;
++
++	mutex_init(&lock);
++
++	/* Initialize a separate list for each CPU for issuing softirqs */
++	for_each_possible_cpu(i) {
++		struct completion_queue *cq = &per_cpu(completion_queues, i);
++
++		init_llist_head(&cq->list);
++
++		if (irqmode != NULL_IRQ_TIMER)
++			continue;
++
++		hrtimer_init(&cq->timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
++		cq->timer.function = null_cmd_timer_expired;
++	}
++
++	null_major = register_blkdev(0, "nullb");
++	if (null_major < 0)
++		return null_major;
++
++	for (i = 0; i < nr_devices; i++) {
++		if (null_add_dev()) {
++			unregister_blkdev(null_major, "nullb");
++			return -EINVAL;
++		}
++	}
++
++	pr_info("null: module loaded\n");
++	return 0;
++}
++
++static void __exit null_exit(void)
++{
++	struct nullb *nullb;
++
++	unregister_blkdev(null_major, "nullb");
++
++	mutex_lock(&lock);
++	while (!list_empty(&nullb_list)) {
++		nullb = list_entry(nullb_list.next, struct nullb, list);
++		null_del_dev(nullb);
++	}
++	mutex_unlock(&lock);
++}
++
++module_init(null_init);
++module_exit(null_exit);
++
++MODULE_AUTHOR("Jens Axboe <jaxboe@fusionio.com>");
++MODULE_LICENSE("GPL");
+diff --git a/net/Kconfig b/net/Kconfig
+index 2ddc904..5b9101d 100644
+--- a/net/Kconfig
++++ b/net/Kconfig
+@@ -221,7 +221,7 @@ source "net/netlink/Kconfig"
+ 
+ config RPS
+ 	boolean
+-	depends on SMP && SYSFS && USE_GENERIC_SMP_HELPERS
++	depends on SMP && SYSFS
+ 	default y
+ 
+ config RFS_ACCEL
+@@ -232,7 +232,7 @@ config RFS_ACCEL
+ 
+ config XPS
+ 	boolean
+-	depends on SMP && USE_GENERIC_SMP_HELPERS
++	depends on SMP
+ 	default y
+ 
+ config NETPRIO_CGROUP
