@@ -1,12 +1,12 @@
 diff --git a/buildconfigs/linux-defconfig_xen_x86_32 b/buildconfigs/linux-defconfig_xen_x86_32
 new file mode 100644
-index 0000000..5a37546
+index 0000000..ff47e20
 --- /dev/null
 +++ b/buildconfigs/linux-defconfig_xen_x86_32
-@@ -0,0 +1,3837 @@
+@@ -0,0 +1,3838 @@
 +#
 +# Automatically generated file; DO NOT EDIT.
-+# Linux/i386 3.10.11-0 Kernel Configuration
++# Linux/i386 3.10.27 Kernel Configuration
 +#
 +# CONFIG_64BIT is not set
 +CONFIG_X86_32=y
@@ -220,6 +220,7 @@ index 0000000..5a37546
 +CONFIG_JUMP_LABEL=y
 +CONFIG_OPTPROBES=y
 +CONFIG_KPROBES_ON_FTRACE=y
++CONFIG_UPROBES=y
 +# CONFIG_HAVE_64BIT_ALIGNED_ACCESS is not set
 +CONFIG_HAVE_EFFICIENT_UNALIGNED_ACCESS=y
 +CONFIG_ARCH_USE_BUILTIN_BSWAP=y
@@ -3555,7 +3556,7 @@ index 0000000..5a37546
 +CONFIG_STACK_TRACER=y
 +CONFIG_BLK_DEV_IO_TRACE=y
 +CONFIG_KPROBE_EVENT=y
-+# CONFIG_UPROBE_EVENT is not set
++CONFIG_UPROBE_EVENT=y
 +CONFIG_PROBE_EVENTS=y
 +CONFIG_DYNAMIC_FTRACE=y
 +CONFIG_DYNAMIC_FTRACE_WITH_REGS=y
@@ -3787,6 +3788,7 @@ index 0000000..5a37546
 +CONFIG_GENERIC_PCI_IOMAP=y
 +CONFIG_GENERIC_IOMAP=y
 +CONFIG_GENERIC_IO=y
++CONFIG_PERCPU_RWSEM=y
 +CONFIG_CRC_CCITT=m
 +CONFIG_CRC16=y
 +CONFIG_CRC_T10DIF=y
@@ -3843,13 +3845,13 @@ index 0000000..5a37546
 +CONFIG_UCS2_STRING=y
 diff --git a/buildconfigs/linux-defconfig_xen_x86_64 b/buildconfigs/linux-defconfig_xen_x86_64
 new file mode 100644
-index 0000000..3eb6f27
+index 0000000..4332ace
 --- /dev/null
 +++ b/buildconfigs/linux-defconfig_xen_x86_64
-@@ -0,0 +1,3809 @@
+@@ -0,0 +1,3810 @@
 +#
 +# Automatically generated file; DO NOT EDIT.
-+# Linux/x86_64 3.10.11-0 Kernel Configuration
++# Linux/x86_64 3.10.0+0 Kernel Configuration
 +#
 +CONFIG_64BIT=y
 +CONFIG_X86_64=y
@@ -4068,6 +4070,7 @@ index 0000000..3eb6f27
 +CONFIG_JUMP_LABEL=y
 +CONFIG_OPTPROBES=y
 +CONFIG_KPROBES_ON_FTRACE=y
++CONFIG_UPROBES=y
 +# CONFIG_HAVE_64BIT_ALIGNED_ACCESS is not set
 +CONFIG_HAVE_EFFICIENT_UNALIGNED_ACCESS=y
 +CONFIG_ARCH_USE_BUILTIN_BSWAP=y
@@ -7357,7 +7360,7 @@ index 0000000..3eb6f27
 +CONFIG_STACK_TRACER=y
 +CONFIG_BLK_DEV_IO_TRACE=y
 +CONFIG_KPROBE_EVENT=y
-+# CONFIG_UPROBE_EVENT is not set
++CONFIG_UPROBE_EVENT=y
 +CONFIG_PROBE_EVENTS=y
 +CONFIG_DYNAMIC_FTRACE=y
 +CONFIG_DYNAMIC_FTRACE_WITH_REGS=y
@@ -7603,6 +7606,7 @@ index 0000000..3eb6f27
 +CONFIG_GENERIC_PCI_IOMAP=y
 +CONFIG_GENERIC_IOMAP=y
 +CONFIG_GENERIC_IO=y
++CONFIG_PERCPU_RWSEM=y
 +CONFIG_CRC_CCITT=m
 +CONFIG_CRC16=y
 +CONFIG_CRC_T10DIF=y
