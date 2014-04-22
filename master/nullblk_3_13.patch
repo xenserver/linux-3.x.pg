@@ -702,25 +702,3 @@ index 0000000..3c7b069
 +
 +MODULE_AUTHOR("Jens Axboe <jaxboe@fusionio.com>");
 +MODULE_LICENSE("GPL");
-diff --git a/net/Kconfig b/net/Kconfig
-index 2ddc904..5b9101d 100644
---- a/net/Kconfig
-+++ b/net/Kconfig
-@@ -221,7 +221,7 @@ source "net/netlink/Kconfig"
- 
- config RPS
- 	boolean
--	depends on SMP && SYSFS && USE_GENERIC_SMP_HELPERS
-+	depends on SMP && SYSFS
- 	default y
- 
- config RFS_ACCEL
-@@ -232,7 +232,7 @@ config RFS_ACCEL
- 
- config XPS
- 	boolean
--	depends on SMP && USE_GENERIC_SMP_HELPERS
-+	depends on SMP
- 	default y
- 
- config NETPRIO_CGROUP
