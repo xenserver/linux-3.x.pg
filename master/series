@@ -1,13 +1,4 @@
 #
-# Stable series combined patch
-#
-linux-stable-3.10-to-3.10.11.patch
-linux-stable-3.10.11-to-3.10.25.patch
-linux-stable-3.10.25-to-3.10.26.patch
-linux-stable-3.10.26-to-3.10.27.patch
-linux-stable-3.10.27-to-3.10.38.patch
-
-#
 # Backports from upstream
 #
 # 3565184ed0c1ea46bea5b792da5f72a83c43e49b (3.11-rc1)
