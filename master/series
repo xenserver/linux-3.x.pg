@@ -73,6 +73,12 @@ linux-stable-3.10.26-to-3.10.27.patch
 0010-xen-netback-fix-possible-format-string-flaw.patch
 # db739ef37f07a1a12e388dbaec225d9d9d5d6ded (3.13-rc1)
 0011-xen-netback-stop-the-VIF-thread-before-unbinding-IRQ.patch
+# 66b52b0dc82c5c88d769dc1c7d44cf45d0deb07c (3.12-rc1)
+0001-net-add-ndo-to-get-id-of-physical-port-of-the-device.patch
+# 66cae9ed6bc46b8cc57a9693f99f69926f3cc7ef (3.12-rc1)
+0002-rtnl-export-physical-port-id-via-RT-netlink.patch
+# ff80e519ab1b3a6abb2c6bbf684b98be07111879 (3.12-rc1)
+0003-net-export-physical-port-id-via-sysfs.patch
 # 32e475d76a3e40879cd9ee4f69b19615062280d7 (3.13-rc3)
 0001-sched-Expose-preempt_schedule_irq.patch
 # fa35864e0bb7f7c13b9c6d6751ddac9b42d4810f (3.14-rc1)
