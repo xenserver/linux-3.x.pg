@@ -63,6 +63,8 @@ linux-stable-3.10.26-to-3.10.27.patch
 0005-xen-Use-more-current-logging-styles.patch
 # 8ef2c3bca599710a410cbecb4867e27728fef043 (3.11-rc1)
 0006-xen-netback-xenbus.c-use-more-current-logging-styles.patch
+# 49c1241384b599421a5e8c9f73f72e2052dd416d (3.11-rc1)
+0001-SCSI-csiostor-Retain-default-adapter-configuration-i.patch
 # 43e9d1943278e96150b449ea1fa81f4ae27729d5 (3.12-rc1)
 0007-xen-netback-remove-page-tracking-facility.patch
 # b3f980bd827e6e81a050c518d60ed7811a83061d (3.12-rc1)

@@ -1,0 +1,281 @@
+From 49c1241384b599421a5e8c9f73f72e2052dd416d Mon Sep 17 00:00:00 2001
+From: Naresh Kumar Inna <naresh@chelsio.com>
+Date: Fri, 17 May 2013 15:50:03 +0530
+Subject: [PATCH 1/1] [SCSI] csiostor: Retain default adapter configuration in
+ absence of config file.
+
+- Retain firmware defined configuration settings in the absence of
+user-provided configuration by eliminating the global RSS and the
+PF/VF capabilities mailbox commands.
+- Remove S_IRUGO from sysfs parameters that don't have 'show'
+functionality.
+
+Signed-off-by: Naresh Kumar Inna <naresh@chelsio.com>
+Signed-off-by: James Bottomley <JBottomley@Parallels.com>
+---
+ drivers/scsi/csiostor/csio_hw.c   |   91 -------------------------------------
+ drivers/scsi/csiostor/csio_hw.h   |   11 -----
+ drivers/scsi/csiostor/csio_mb.c   |   77 -------------------------------
+ drivers/scsi/csiostor/csio_mb.h   |   11 -----
+ drivers/scsi/csiostor/csio_scsi.c |    4 +-
+ 5 files changed, 2 insertions(+), 192 deletions(-)
+
+diff --git a/drivers/scsi/csiostor/csio_hw.c b/drivers/scsi/csiostor/csio_hw.c
+index 1936055..0eb35b9 100644
+--- a/drivers/scsi/csiostor/csio_hw.c
++++ b/drivers/scsi/csiostor/csio_hw.c
+@@ -1597,87 +1597,6 @@ out:
+ 	return rv;
+ }
+ 
+-static int
+-csio_config_global_rss(struct csio_hw *hw)
+-{
+-	struct csio_mb	*mbp;
+-	enum fw_retval retval;
+-
+-	mbp = mempool_alloc(hw->mb_mempool, GFP_ATOMIC);
+-	if (!mbp) {
+-		CSIO_INC_STATS(hw, n_err_nomem);
+-		return -ENOMEM;
+-	}
+-
+-	csio_rss_glb_config(hw, mbp, CSIO_MB_DEFAULT_TMO,
+-			    FW_RSS_GLB_CONFIG_CMD_MODE_BASICVIRTUAL,
+-			    FW_RSS_GLB_CONFIG_CMD_TNLMAPEN |
+-			    FW_RSS_GLB_CONFIG_CMD_HASHTOEPLITZ |
+-			    FW_RSS_GLB_CONFIG_CMD_TNLALLLKP,
+-			    NULL);
+-
+-	if (csio_mb_issue(hw, mbp)) {
+-		csio_err(hw, "Issue of FW_RSS_GLB_CONFIG_CMD failed!\n");
+-		mempool_free(mbp, hw->mb_mempool);
+-		return -EINVAL;
+-	}
+-
+-	retval = csio_mb_fw_retval(mbp);
+-	if (retval != FW_SUCCESS) {
+-		csio_err(hw, "FW_RSS_GLB_CONFIG_CMD returned 0x%x!\n", retval);
+-		mempool_free(mbp, hw->mb_mempool);
+-		return -EINVAL;
+-	}
+-
+-	mempool_free(mbp, hw->mb_mempool);
+-
+-	return 0;
+-}
+-
+-/*
+- * csio_config_pfvf - Configure Physical/Virtual functions settings.
+- * @hw: HW module
+- *
+- */
+-static int
+-csio_config_pfvf(struct csio_hw *hw)
+-{
+-	struct csio_mb	*mbp;
+-	enum fw_retval retval;
+-
+-	mbp = mempool_alloc(hw->mb_mempool, GFP_ATOMIC);
+-	if (!mbp) {
+-		CSIO_INC_STATS(hw, n_err_nomem);
+-		return -ENOMEM;
+-	}
+-
+-	/*
+-	 * For now, allow all PFs to access to all ports using a pmask
+-	 * value of 0xF (M_FW_PFVF_CMD_PMASK). Once we have VFs, we will
+-	 * need to provide access based on some rule.
+-	 */
+-	csio_mb_pfvf(hw, mbp, CSIO_MB_DEFAULT_TMO, hw->pfn, 0, CSIO_NEQ,
+-		     CSIO_NETH_CTRL, CSIO_NIQ_FLINT, 0, 0, CSIO_NVI, CSIO_CMASK,
+-		     CSIO_PMASK, CSIO_NEXACTF, CSIO_R_CAPS, CSIO_WX_CAPS, NULL);
+-
+-	if (csio_mb_issue(hw, mbp)) {
+-		csio_err(hw, "Issue of FW_PFVF_CMD failed!\n");
+-		mempool_free(mbp, hw->mb_mempool);
+-		return -EINVAL;
+-	}
+-
+-	retval = csio_mb_fw_retval(mbp);
+-	if (retval != FW_SUCCESS) {
+-		csio_err(hw, "FW_PFVF_CMD returned 0x%x!\n", retval);
+-		mempool_free(mbp, hw->mb_mempool);
+-		return -EINVAL;
+-	}
+-
+-	mempool_free(mbp, hw->mb_mempool);
+-
+-	return 0;
+-}
+-
+ /*
+  * csio_enable_ports - Bring up all available ports.
+  * @hw: HW module.
+@@ -2056,16 +1975,6 @@ csio_hw_no_fwconfig(struct csio_hw *hw, int reset)
+ 	if (rv != 0)
+ 		goto out;
+ 
+-	/* Config Global RSS command */
+-	rv = csio_config_global_rss(hw);
+-	if (rv != 0)
+-		goto out;
+-
+-	/* Configure PF/VF capabilities of device */
+-	rv = csio_config_pfvf(hw);
+-	if (rv != 0)
+-		goto out;
+-
+ 	/* device parameters */
+ 	rv = csio_get_device_params(hw);
+ 	if (rv != 0)
+diff --git a/drivers/scsi/csiostor/csio_hw.h b/drivers/scsi/csiostor/csio_hw.h
+index 489fc09..49b1daa 100644
+--- a/drivers/scsi/csiostor/csio_hw.h
++++ b/drivers/scsi/csiostor/csio_hw.h
+@@ -153,17 +153,6 @@ enum {
+ 	CSIO_SGE_INT_CNT_VAL_1		= 4,
+ 	CSIO_SGE_INT_CNT_VAL_2		= 8,
+ 	CSIO_SGE_INT_CNT_VAL_3		= 16,
+-
+-	/* Storage specific - used by FW_PFVF_CMD */
+-	CSIO_WX_CAPS			= FW_CMD_CAP_PF, /* w/x all */
+-	CSIO_R_CAPS			= FW_CMD_CAP_PF, /* r all */
+-	CSIO_NVI			= 4,
+-	CSIO_NIQ_FLINT			= 34,
+-	CSIO_NETH_CTRL			= 32,
+-	CSIO_NEQ			= 66,
+-	CSIO_NEXACTF			= 32,
+-	CSIO_CMASK			= FW_PFVF_CMD_CMASK_MASK,
+-	CSIO_PMASK			= FW_PFVF_CMD_PMASK_MASK,
+ };
+ 
+ /* Slowpath events */
+diff --git a/drivers/scsi/csiostor/csio_mb.c b/drivers/scsi/csiostor/csio_mb.c
+index f5d9ee1..15b6351 100644
+--- a/drivers/scsi/csiostor/csio_mb.c
++++ b/drivers/scsi/csiostor/csio_mb.c
+@@ -326,83 +326,6 @@ csio_mb_caps_config(struct csio_hw *hw, struct csio_mb *mbp, uint32_t tmo,
+ 		cmdp->fcoecaps |= htons(FW_CAPS_CONFIG_FCOE_TARGET);
+ }
+ 
+-void
+-csio_rss_glb_config(struct csio_hw *hw, struct csio_mb *mbp,
+-		    uint32_t tmo, uint8_t mode, unsigned int flags,
+-		    void (*cbfn)(struct csio_hw *, struct csio_mb *))
+-{
+-	struct fw_rss_glb_config_cmd *cmdp =
+-				(struct fw_rss_glb_config_cmd *)(mbp->mb);
+-
+-	CSIO_INIT_MBP(mbp, cmdp, tmo, hw, cbfn, 1);
+-
+-	cmdp->op_to_write = htonl(FW_CMD_OP(FW_RSS_GLB_CONFIG_CMD) |
+-				  FW_CMD_REQUEST | FW_CMD_WRITE);
+-	cmdp->retval_len16 = htonl(FW_CMD_LEN16(sizeof(*cmdp) / 16));
+-
+-	if (mode == FW_RSS_GLB_CONFIG_CMD_MODE_MANUAL) {
+-		cmdp->u.manual.mode_pkd =
+-			htonl(FW_RSS_GLB_CONFIG_CMD_MODE(mode));
+-	} else if (mode == FW_RSS_GLB_CONFIG_CMD_MODE_BASICVIRTUAL) {
+-		cmdp->u.basicvirtual.mode_pkd =
+-			htonl(FW_RSS_GLB_CONFIG_CMD_MODE(mode));
+-		cmdp->u.basicvirtual.synmapen_to_hashtoeplitz = htonl(flags);
+-	}
+-}
+-
+-
+-/*
+- * csio_mb_pfvf - FW Write PF/VF capabilities command helper.
+- * @hw: The HW structure
+- * @mbp: Mailbox structure
+- * @pf:
+- * @vf:
+- * @txq:
+- * @txq_eht_ctrl:
+- * @rxqi:
+- * @rxq:
+- * @tc:
+- * @vi:
+- * @pmask:
+- * @rcaps:
+- * @wxcaps:
+- * @cbfn: Callback, if any.
+- *
+- */
+-void
+-csio_mb_pfvf(struct csio_hw *hw, struct csio_mb *mbp, uint32_t tmo,
+-	     unsigned int pf, unsigned int vf, unsigned int txq,
+-	     unsigned int txq_eth_ctrl, unsigned int rxqi,
+-	     unsigned int rxq, unsigned int tc, unsigned int vi,
+-	     unsigned int cmask, unsigned int pmask, unsigned int nexactf,
+-	     unsigned int rcaps, unsigned int wxcaps,
+-	     void (*cbfn) (struct csio_hw *, struct csio_mb *))
+-{
+-	struct fw_pfvf_cmd *cmdp = (struct fw_pfvf_cmd *)(mbp->mb);
+-
+-	CSIO_INIT_MBP(mbp, cmdp, tmo, hw, cbfn, 1);
+-
+-	cmdp->op_to_vfn = htonl(FW_CMD_OP(FW_PFVF_CMD)			|
+-				FW_CMD_REQUEST				|
+-				FW_CMD_WRITE				|
+-				FW_PFVF_CMD_PFN(pf)			|
+-				FW_PFVF_CMD_VFN(vf));
+-	cmdp->retval_len16 = htonl(FW_CMD_LEN16(sizeof(*cmdp) / 16));
+-	cmdp->niqflint_niq = htonl(FW_PFVF_CMD_NIQFLINT(rxqi)		|
+-					     FW_PFVF_CMD_NIQ(rxq));
+-
+-	cmdp->type_to_neq = htonl(FW_PFVF_CMD_TYPE			|
+-				  FW_PFVF_CMD_CMASK(cmask)		|
+-				  FW_PFVF_CMD_PMASK(pmask)		|
+-				  FW_PFVF_CMD_NEQ(txq));
+-	cmdp->tc_to_nexactf = htonl(FW_PFVF_CMD_TC(tc)			|
+-				    FW_PFVF_CMD_NVI(vi)			|
+-				    FW_PFVF_CMD_NEXACTF(nexactf));
+-	cmdp->r_caps_to_nethctrl = htonl(FW_PFVF_CMD_R_CAPS(rcaps)	|
+-					 FW_PFVF_CMD_WX_CAPS(wxcaps)	|
+-					 FW_PFVF_CMD_NETHCTRL(txq_eth_ctrl));
+-}
+-
+ #define CSIO_ADVERT_MASK     (FW_PORT_CAP_SPEED_100M | FW_PORT_CAP_SPEED_1G |\
+ 			      FW_PORT_CAP_SPEED_10G | FW_PORT_CAP_ANEG)
+ 
+diff --git a/drivers/scsi/csiostor/csio_mb.h b/drivers/scsi/csiostor/csio_mb.h
+index 1788ea5..a84179e 100644
+--- a/drivers/scsi/csiostor/csio_mb.h
++++ b/drivers/scsi/csiostor/csio_mb.h
+@@ -183,17 +183,6 @@ void csio_mb_caps_config(struct csio_hw *, struct csio_mb *, uint32_t,
+ 			    bool, bool, bool, bool,
+ 			    void (*)(struct csio_hw *, struct csio_mb *));
+ 
+-void csio_rss_glb_config(struct csio_hw *, struct csio_mb *,
+-			 uint32_t, uint8_t, unsigned int,
+-			 void (*)(struct csio_hw *, struct csio_mb *));
+-
+-void csio_mb_pfvf(struct csio_hw *, struct csio_mb *, uint32_t,
+-		  unsigned int, unsigned int, unsigned int,
+-		  unsigned int, unsigned int, unsigned int,
+-		  unsigned int, unsigned int, unsigned int,
+-		  unsigned int, unsigned int, unsigned int,
+-		  unsigned int, void (*) (struct csio_hw *, struct csio_mb *));
+-
+ void csio_mb_port(struct csio_hw *, struct csio_mb *, uint32_t,
+ 		  uint8_t, bool, uint32_t, uint16_t,
+ 		  void (*) (struct csio_hw *, struct csio_mb *));
+diff --git a/drivers/scsi/csiostor/csio_scsi.c b/drivers/scsi/csiostor/csio_scsi.c
+index ddd38e5..7494e4b 100644
+--- a/drivers/scsi/csiostor/csio_scsi.c
++++ b/drivers/scsi/csiostor/csio_scsi.c
+@@ -1479,8 +1479,8 @@ csio_store_dbg_level(struct device *dev,
+ }
+ 
+ static DEVICE_ATTR(hw_state, S_IRUGO, csio_show_hw_state, NULL);
+-static DEVICE_ATTR(device_reset, S_IRUGO | S_IWUSR, NULL, csio_device_reset);
+-static DEVICE_ATTR(disable_port, S_IRUGO | S_IWUSR, NULL, csio_disable_port);
++static DEVICE_ATTR(device_reset, S_IWUSR, NULL, csio_device_reset);
++static DEVICE_ATTR(disable_port, S_IWUSR, NULL, csio_disable_port);
+ static DEVICE_ATTR(dbg_level, S_IRUGO | S_IWUSR, csio_show_dbg_level,
+ 		  csio_store_dbg_level);
+ 
+-- 
+1.7.10.4
+
