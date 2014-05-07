@@ -1,6 +1,6 @@
 diff --git a/buildconfigs/linux-defconfig_xen_x86_32 b/buildconfigs/linux-defconfig_xen_x86_32
 new file mode 100644
-index 0000000..ff47e20
+index 0000000..6bc2356
 --- /dev/null
 +++ b/buildconfigs/linux-defconfig_xen_x86_32
 @@ -0,0 +1,3838 @@
@@ -3842,13 +3842,12 @@ index 0000000..ff47e20
 +# CONFIG_DDR is not set
 +CONFIG_MPILIB=m
 +CONFIG_OID_REGISTRY=m
-+CONFIG_UCS2_STRING=y
 diff --git a/buildconfigs/linux-defconfig_xen_x86_64 b/buildconfigs/linux-defconfig_xen_x86_64
 new file mode 100644
-index 0000000..4332ace
+index 0000000..7d42a9d
 --- /dev/null
 +++ b/buildconfigs/linux-defconfig_xen_x86_64
-@@ -0,0 +1,3810 @@
+@@ -0,0 +1,3811 @@
 +#
 +# Automatically generated file; DO NOT EDIT.
 +# Linux/x86_64 3.10.0+0 Kernel Configuration
@@ -6745,7 +6744,7 @@ index 0000000..4332ace
 +CONFIG_MLX4_INFINIBAND=m
 +CONFIG_INFINIBAND_NES=m
 +# CONFIG_INFINIBAND_NES_DEBUG is not set
-+CONFIG_INFINIBAND_OCRDMA=m
++# CONFIG_INFINIBAND_OCRDMA is not set
 +CONFIG_INFINIBAND_IPOIB=m
 +CONFIG_INFINIBAND_IPOIB_CM=y
 +CONFIG_INFINIBAND_IPOIB_DEBUG=y
