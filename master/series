@@ -168,6 +168,7 @@ blktap2-fixups.patch
 #
 # x86
 #
+0001-x86-fpu-remove-the-logic-of-non-eager-fpu-mem-alloca.patch
 
 #
 # Xen
