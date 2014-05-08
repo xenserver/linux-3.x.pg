@@ -1,0 +1,20 @@
+diff --git a/arch/x86/xen/setup.c b/arch/x86/xen/setup.c
+index 0a9fb7a..34eb1d2 100644
+--- a/arch/x86/xen/setup.c
++++ b/arch/x86/xen/setup.c
+@@ -372,8 +372,14 @@ char * __init xen_memory_setup(void)
+ 	 * UNUSABLE regions in domUs are not handled and will need
+ 	 * a patch in the future.
+ 	 */
+-	if (xen_initial_domain())
++	if (xen_initial_domain()) {
+ 		xen_ignore_unusable(map, memmap.nr_entries);
++		/* Reserve 0.5 MiB to 1 MiB region so iBFT can be found */
++		map[memmap.nr_entries].addr = 0x80000;
++		map[memmap.nr_entries].size = 0x80000;
++		map[memmap.nr_entries].type = E820_RESERVED;
++		memmap.nr_entries++;
++	}
+ 
+ 	/* Make sure the Xen-supplied memory map is well-ordered. */
+ 	sanitize_e820_map(map, memmap.nr_entries, &memmap.nr_entries);
