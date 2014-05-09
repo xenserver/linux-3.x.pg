@@ -1,0 +1,90 @@
+From be2602ba7152b3e2557d192c2f2a5a91d4d29e3d Mon Sep 17 00:00:00 2001
+From: David Vrabel <david.vrabel@citrix.com>
+Date: Fri, 9 May 2014 11:40:46 +0100
+Subject: [PATCH 2/2] x86,xen: correct dma_get_required_mask() for Xen PV guests
+
+On systems where DMA addresses and physical addresses are not 1:1
+(such as Xen PV guests), the generic dma_get_required_mask() will not
+return the correct mask (since it uses max_pfn).
+
+Some device drivers (such as mptsas, mpt2sas) use
+dma_get_required_mask() to set device DMA masks to allow them to use
+only 32-bit DMA addresses in hardware structures.  This results in
+unnecessary use of the SWIOTLB if DMA addresses are more than 32-bits,
+impacting performance significantly.
+
+Provide an arch-specific dma_get_required_mask() that defaults to the
+generic dma_get_required_mask_from_pfn().
+
+Under Xen, the required DMA mask can then be set to always 64-bits.
+
+Signed-off-by: David Vrabel <david.vrabel@citrix.com>
+diff --git a/arch/x86/include/asm/device.h b/arch/x86/include/asm/device.h
+index 03dd729..10bc628 100644
+--- a/arch/x86/include/asm/device.h
++++ b/arch/x86/include/asm/device.h
+@@ -13,4 +13,6 @@ struct dev_archdata {
+ struct pdev_archdata {
+ };
+ 
++#define ARCH_HAS_DMA_GET_REQUIRED_MASK
++
+ #endif /* _ASM_X86_DEVICE_H */
+diff --git a/arch/x86/kernel/pci-dma.c b/arch/x86/kernel/pci-dma.c
+index f7d0672..3423da9 100644
+--- a/arch/x86/kernel/pci-dma.c
++++ b/arch/x86/kernel/pci-dma.c
+@@ -135,6 +135,14 @@ void dma_generic_free_coherent(struct device *dev, size_t size, void *vaddr,
+ 		free_pages((unsigned long)vaddr, get_order(size));
+ }
+ 
++u64 dma_get_required_mask(struct device *dev)
++{
++	if (dma_ops->get_required_mask)
++		return dma_ops->get_required_mask(dev);
++	return dma_get_required_mask_from_max_pfn(dev);
++}
++EXPORT_SYMBOL_GPL(dma_get_required_mask);
++
+ /*
+  * See <Documentation/x86/x86_64/boot-options.txt> for the iommu kernel
+  * parameter documentation.
+diff --git a/arch/x86/xen/pci-swiotlb-xen.c b/arch/x86/xen/pci-swiotlb-xen.c
+index 9695704..98eef08 100644
+--- a/arch/x86/xen/pci-swiotlb-xen.c
++++ b/arch/x86/xen/pci-swiotlb-xen.c
+@@ -31,6 +31,7 @@ static struct dma_map_ops xen_swiotlb_dma_ops = {
+ 	.map_page = xen_swiotlb_map_page,
+ 	.unmap_page = xen_swiotlb_unmap_page,
+ 	.dma_supported = xen_swiotlb_dma_supported,
++	.get_required_mask = xen_swiotlb_get_required_mask,
+ };
+ 
+ /*
+diff --git a/drivers/xen/swiotlb-xen.c b/drivers/xen/swiotlb-xen.c
+index 07a9b9e..92cc199 100644
+--- a/drivers/xen/swiotlb-xen.c
++++ b/drivers/xen/swiotlb-xen.c
+@@ -596,3 +596,10 @@ xen_swiotlb_dma_supported(struct device *hwdev, u64 mask)
+ 	return xen_virt_to_bus(xen_io_tlb_end - 1) <= mask;
+ }
+ EXPORT_SYMBOL_GPL(xen_swiotlb_dma_supported);
++
++u64
++xen_swiotlb_get_required_mask(struct device *dev)
++{
++	return DMA_BIT_MASK(64);
++}
++EXPORT_SYMBOL_GPL(xen_swiotlb_get_required_mask);
+diff --git a/include/xen/swiotlb-xen.h b/include/xen/swiotlb-xen.h
+index de8bcc6..e08d8bd 100644
+--- a/include/xen/swiotlb-xen.h
++++ b/include/xen/swiotlb-xen.h
+@@ -55,4 +55,7 @@ xen_swiotlb_dma_mapping_error(struct device *hwdev, dma_addr_t dma_addr);
+ extern int
+ xen_swiotlb_dma_supported(struct device *hwdev, u64 mask);
+ 
++extern u64
++xen_swiotlb_get_required_mask(struct device *dev);
++
+ #endif /* __LINUX_SWIOTLB_XEN_H */

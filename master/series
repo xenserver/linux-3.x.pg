@@ -169,6 +169,8 @@ blktap2-fixups.patch
 # x86
 #
 0001-x86-fpu-remove-the-logic-of-non-eager-fpu-mem-alloca.patch
+0001-dma-add-dma_get_required_mask_from_max_pfn.patch
+0002-x86-xen-correct-dma_get_required_mask-for-Xen-PV-gue.patch
 
 #
 # Xen
