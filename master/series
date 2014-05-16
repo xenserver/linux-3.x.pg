@@ -152,6 +152,8 @@
 # 044c8d4b15743f6e0a4cb6f2aeb32745a116ebff (v3.13-rc1) in nullblk_3_13.patch
 # f2298c0403b0dfcaef637eba0c02c4a06d7a25ab (v3.13-rc1) in nullblk_3_13.patch
 nullblk_3_13.patch
+# e9d8b2c2968499c1f96563e6522c56958d5a1d0d (3.15-rc1)
+0001-xen-netback-disable-rogue-vif-in-kthread-context.patch
 
 #
 # Build system integration
