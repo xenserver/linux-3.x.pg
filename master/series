@@ -107,6 +107,18 @@
 0001-xen-netback-fix-guest-receive-side-array-sizes.patch
 # 11b57f90257c1d6a91cee720151b69e0c2020cf6 (3.14-rc1)
 0001-xen-netback-stop-vif-thread-spinning-if-frontend-is-.patch
+# ae5e8127b712313ec1b99356019ce9226fea8b88 (3.13-rc3)
+0001-xen-netback-include-definition-of-csum_ipv6_magic.patch
+# 7022ef8b2a673db3d12a348331181f579afe9b22 (3.13-rc5)
+0001-xen-netback-fix-fragments-error-handling-in-checksum.patch
+# 0c8d087c04cdcef501064552149289866e53aa6c (3.13-rc7)
+0001-xen-netback-fix-some-error-return-code.patch
+# f35f76ee76df008131bbe01a2297de0c55ee2297 (3.13-rc8)
+0001-xen-netback-Include-header-for-vmalloc.patch
+# ed1f50c3a7c1ad1b1b4d584308eab77d57a330f8 (3.14-rc1)
+0001-net-add-skb_checksum_setup.patch
+# 2721637c1c0f644d7d67d0698c4a32b440d7f0f8 (3.14-rc1)
+0001-xen-netback-use-new-skb_checksum_setup-function.patch
 # 9ab9831b4c59d379a17f92a6157c7e921811dea2 (3.14-rc3)
 0001-xen-netback-Fix-Rx-stall-due-to-race-condition.patch
 # 8f13dd9612286cc0d38d32ff9543763b7c74f6a5
@@ -158,6 +170,14 @@ nullblk_3_13.patch
 0001-Xen-netback-Fix-issue-caused-by-using-gso_type-wrong.patch
 # 583757446ba6850eff96cef6565d729266da9c5b
 0001-xen-netback-Fix-grant-ref-resolution-in-RX-path.patch
+# 836fbaf459f9c041826864021688e9bd131e722c (3.14-rc7)
+0001-xen-netback-use-skb_is_gso-in-xenvif_start_xmit.patch
+# a02eb4732cf975d7fc71b6d1a71c058c9988b949 (3.15-rc1)
+0001-xen-netback-worse-case-estimate-in-xenvif_rx_action-.patch
+# 1425c7a4e8d3d2eebf308bcbdc3fa3c1247686b4 (3.15-rc1)
+0001-xen-netback-BUG_ON-in-xenvif_rx_action-not-catching-.patch
+# 0d08fceb2e21c30ca3e1e462e678723f806acf18
+0001-xen-netback-fix-race-between-napi_complete-and-inter.patch
 
 #
 # Build system integration

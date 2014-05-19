@@ -1,0 +1,34 @@
+From 7022ef8b2a673db3d12a348331181f579afe9b22 Mon Sep 17 00:00:00 2001
+From: Wei Yongjun <yongjun_wei@trendmicro.com.cn>
+Date: Mon, 16 Dec 2013 10:45:05 +0800
+Subject: [PATCH 1/1] xen-netback: fix fragments error handling in
+ checksum_setup_ip()
+
+Fix to return -EPROTO error if fragments detected in checksum_setup_ip().
+
+Fixes: 1431fb31ecba ('xen-netback: fix fragment detection in checksum setup')
+Signed-off-by: Wei Yongjun <yongjun_wei@trendmicro.com.cn>
+Reviewed-by: Paul Durrant <paul.durrant@citrix.com>
+Acked-by: Ian Campbell <ian.campbell@citrix.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ drivers/net/xen-netback/netback.c |    3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/drivers/net/xen-netback/netback.c b/drivers/net/xen-netback/netback.c
+index e884ee1..27bbe58 100644
+--- a/drivers/net/xen-netback/netback.c
++++ b/drivers/net/xen-netback/netback.c
+@@ -1197,6 +1197,9 @@ static int checksum_setup_ip(struct xenvif *vif, struct sk_buff *skb,
+ 
+ 	err = -EPROTO;
+ 
++	if (fragment)
++		goto out;
++
+ 	switch (ip_hdr(skb)->protocol) {
+ 	case IPPROTO_TCP:
+ 		err = maybe_pull_tail(skb,
+-- 
+1.7.9.5
+
