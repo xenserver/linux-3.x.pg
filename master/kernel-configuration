@@ -3844,10 +3844,10 @@ index 0000000..6bc2356
 +CONFIG_OID_REGISTRY=m
 diff --git a/buildconfigs/linux-defconfig_xen_x86_64 b/buildconfigs/linux-defconfig_xen_x86_64
 new file mode 100644
-index 0000000..7d42a9d
+index 0000000..4efb02f
 --- /dev/null
 +++ b/buildconfigs/linux-defconfig_xen_x86_64
-@@ -0,0 +1,3811 @@
+@@ -0,0 +1,3813 @@
 +#
 +# Automatically generated file; DO NOT EDIT.
 +# Linux/x86_64 3.10.0+0 Kernel Configuration
@@ -5012,7 +5012,9 @@ index 0000000..7d42a9d
 +# CONFIG_RFKILL is not set
 +# CONFIG_NET_9P is not set
 +# CONFIG_CAIF is not set
-+# CONFIG_CEPH_LIB is not set
++CONFIG_CEPH_LIB=m
++# CONFIG_CEPH_LIB_PRETTYDEBUG is not set
++# CONFIG_CEPH_LIB_USE_DNS_RESOLVER is not set
 +# CONFIG_NFC is not set
 +CONFIG_HAVE_BPF_JIT=y
 +
@@ -5079,7 +5081,7 @@ index 0000000..7d42a9d
 +CONFIG_XEN_BLKDEV_FRONTEND=y
 +CONFIG_XEN_BLKDEV_BACKEND=y
 +# CONFIG_BLK_DEV_HD is not set
-+# CONFIG_BLK_DEV_RBD is not set
++CONFIG_BLK_DEV_RBD=m
 +CONFIG_BLK_DEV_RSXX=m
 +CONFIG_BLK_DEV_TAP=y
 +
