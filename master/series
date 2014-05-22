@@ -252,6 +252,7 @@ x86-apic-disable-physflat-under-xen.patch
 xen-no-pmu.patch
 default-to-32bit-blkback-abi.patch
 map-1MiB-1-1.patch
+default-xen-swiotlb-size-128MiB.patch
 
 #
 # Debugging/hacks
