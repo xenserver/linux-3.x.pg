@@ -20,7 +20,7 @@ Signed-off-by: David S. Miller <davem@davemloft.net>
  1 file changed, 7 insertions(+), 1 deletion(-)
 
 diff --git a/drivers/net/xen-netback/netback.c b/drivers/net/xen-netback/netback.c
-index 33e5cf2..e33f169 100644
+index 601a632..de449a8 100644
 --- a/drivers/net/xen-netback/netback.c
 +++ b/drivers/net/xen-netback/netback.c
 @@ -573,6 +573,8 @@ static void xenvif_rx_action(struct xenvif *vif)
@@ -32,13 +32,13 @@ index 33e5cf2..e33f169 100644
  		int i;
  
  		/* We need a cheap worse case estimate for the number of
-@@ -620,8 +622,12 @@ static void xenvif_rx_action(struct xenvif *vif)
+@@ -620,8 +622,11 @@ static void xenvif_rx_action(struct xenvif *vif)
  		} else
  			vif->rx_last_skb_slots = 0;
  
 +		old_req_cons = vif->rx.req_cons;
  		XENVIF_RX_CB(skb)->meta_slots_used = xenvif_gop_skb(skb, &npo);
- 		BUG_ON(XENVIF_RX_CB(skb)->meta_slots_used > max_slots_needed);
+-		BUG_ON(XENVIF_RX_CB(skb)->meta_slots_used > max_slots_needed);
 +		ring_slots_used = vif->rx.req_cons - old_req_cons;
 +
 +		BUG_ON(ring_slots_used > max_slots_needed);
