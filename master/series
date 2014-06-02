@@ -178,6 +178,10 @@ nullblk_3_13.patch
 0001-xen-netback-BUG_ON-in-xenvif_rx_action-not-catching-.patch
 # 0d08fceb2e21c30ca3e1e462e678723f806acf18
 0001-xen-netback-fix-race-between-napi_complete-and-inter.patch
+#
+fix-rx-action-slot-estimation.patch
+#
+0001-xen-netback-Fix-slot-estimation.patch
 
 #
 # Build system integration
