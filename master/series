@@ -19,6 +19,10 @@
 0001-xen-p2m-avoid-unneccesary-TLB-flush-in-m2p_remove_ov.patch
 # 7e44892c1b6bb499cb2f6d5c0f4afcc077a26074 (3.11-rc4)
 0001-igb-fix-vlan-filtering-in-promisc-mode-when-not-in-V.patch
+# 2ac3ac8f86f2fe065d746d9a9abaca867adec577 (3.11-rc4)
+0001-ipv6-prevent-fib6_run_gc-contention.patch
+# 49a18d86f66d33a20144ecb5a34bba0d1856b260 (3.11-rc4)
+0002-ipv6-update-ip6_rt_last_gc-every-time-GC-is-run.patch
 # 73cc4bb0c79eebe1f0e92b700d9fe8d1c9b061bb (3.12-rc1)
 0001-xen-evtchn-improve-scalability-by-using-per-user-loc.patch
 # 06b35d0072d2a126d8cd134b253e5ec65beb9e66 (3.12-rc1)
