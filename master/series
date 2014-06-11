@@ -184,8 +184,8 @@ nullblk_3_13.patch
 0001-xen-netback-fix-race-between-napi_complete-and-inter.patch
 #
 fix-rx-action-slot-estimation.patch
-#
-0001-xen-netback-Fix-slot-estimation.patch
+# 59ae9fc67007da8b5aea7b0a31c3607745cfbfee (3.15.1)
+0001-xen-netback-Fix-handling-of-skbs-requiring-too-many-slots.patch
 
 #
 # skb_segment fixes
