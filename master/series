@@ -361,6 +361,9 @@ CA-135938-nfs-disconnect-on-rpc-retry.patch
 export-symbols-as-non-gpl.patch
 netback-remove-unconditional-pull-skb-tail-on-tx.patch
 
+# Local bonding and bridging patches
+bonding-balance-slb.patch
+
 #
 # Debugging/hacks
 #
