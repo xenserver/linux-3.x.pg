@@ -1,0 +1,46 @@
+diff --git a/drivers/net/bonding/bond_main.c b/drivers/net/bonding/bond_main.c
+index 72556bc..e7e4d71 100644
+--- a/drivers/net/bonding/bond_main.c
++++ b/drivers/net/bonding/bond_main.c
+@@ -552,6 +552,21 @@ down:
+ }
+ 
+ /*
++ * Count the number of slaves with link == BOND_LINK_*
++ */
++static int bond_count_slaves(struct bonding *bond, int link)
++{
++	struct slave *slave;
++	int i, count=0;
++
++	bond_for_each_slave(bond, slave, i) {
++		if (slave->link == link)
++			count++;
++	}
++	return count;
++}
++
++/*
+  * Get link speed and duplex from the slave's base driver
+  * using ethtool. If for some reason the call fails or the
+  * values are invalid, set speed and duplex to -1,
+@@ -2367,9 +2382,17 @@ static int bond_miimon_inspect(struct bonding *bond)
+ 				continue;
+ 
+ 			slave->link = BOND_LINK_BACK;
+-			slave->delay = bond->params.updelay;
++			slave->delay = 0;
+ 
+-			if (slave->delay) {
++			if (bond_count_slaves(bond, BOND_LINK_UP) == 0) {
++				pr_info("%s: link status up for "
++					"interface %s, enabling it "
++					"immediately as it is the only slave.\n",
++					bond->dev->name,
++					slave->dev->name);
++			}
++			else if (bond->params.updelay) {
++				slave->delay = bond->params.updelay;
+ 				pr_info("%s: link status up for interface %s, enabling it in %d ms.\n",
+ 					bond->dev->name, slave->dev->name,
+ 					ignore_updelay ? 0 :

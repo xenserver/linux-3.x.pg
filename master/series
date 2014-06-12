@@ -363,6 +363,7 @@ netback-remove-unconditional-pull-skb-tail-on-tx.patch
 
 # Local bonding and bridging patches
 bonding-balance-slb.patch
+bonding-no-updelay-on-first-active-slave.patch
 
 #
 # Debugging/hacks
