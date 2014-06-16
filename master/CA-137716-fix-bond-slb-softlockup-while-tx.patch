@@ -1,0 +1,22 @@
+diff --git a/drivers/net/bonding/bond_alb.c b/drivers/net/bonding/bond_alb.c
+index 6d794da..1d1d717 100644
+--- a/drivers/net/bonding/bond_alb.c
++++ b/drivers/net/bonding/bond_alb.c
+@@ -326,7 +326,7 @@ void bond_info_show_slb(struct seq_file *seq)
+ 	struct tlb_client_info *hash_table, *slot;
+ 	int i;
+ 
+-	_lock_tx_hashtbl(bond);
++	_lock_tx_hashtbl_bh(bond);
+ 
+ 	hash_table = bond_info->tx_hashtbl;
+ 	if (hash_table == NULL)
+@@ -340,7 +340,7 @@ void bond_info_show_slb(struct seq_file *seq)
+ 		seq_printf(seq, " [%03d] = %s\n", i, slot->tx_slave->dev->name);
+ 	}
+ out:
+-	_unlock_tx_hashtbl(bond);
++	_unlock_tx_hashtbl_bh(bond);
+ }
+ 
+ 
