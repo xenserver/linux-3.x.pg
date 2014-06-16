@@ -522,15 +522,17 @@ index a17edda..a52520e 100644
  /* each slave's link has 4 states */
  #define BOND_LINK_UP    0           /* link is up and running */
 diff --git a/include/uapi/linux/if_bridge.h b/include/uapi/linux/if_bridge.h
-index 2d70d79..ab3a5f0 100644
+index 2d70d79..f160722 100644
 --- a/include/uapi/linux/if_bridge.h
 +++ b/include/uapi/linux/if_bridge.h
-@@ -193,4 +193,7 @@ enum {
+@@ -193,4 +193,9 @@ enum {
  };
  #define MDBA_SET_ENTRY_MAX (__MDBA_SET_ENTRY_MAX - 1)
  
++#ifdef __KERNEL_
 +extern struct net_device *br_locate_physical_device(struct net_device *dev);
 +extern void br_send_gratuitous_switch_learning_packet(struct net_device *dev);
++#endif
 +
  #endif /* _UAPI_LINUX_IF_BRIDGE_H */
 diff --git a/net/bridge/br_device.c b/net/bridge/br_device.c
