@@ -17,6 +17,20 @@
 0006-x86-xen-Sync-the-CMOS-RTC-as-well-as-the-Xen-wallclo.patch
 # 65a45fa2f640f72757ef00f2bc83f9654d65a62b (3.11-rc1)
 0001-xen-p2m-avoid-unneccesary-TLB-flush-in-m2p_remove_ov.patch
+# 64e8674fbe6bc848333a9b7e19f8cc019dde9eab (3.11-rc2)
+0001-PCI-Add-pci_reset_bridge_secondary_bus.patch
+# 5c32b35b004f5ef70dcf62bbc42b8bed1e50b471 (3.11-rc2)
+0001-PCI-Add-hotplug_slot_ops.reset_slot.patch
+# 2e35afaefe64946caaecfacaf7fb568e46185e88 (3.11-rc2)
+0002-PCI-pciehp-Add-reset_slot-method.patch
+# 608c388122c72e1bf11ba8113434eb3d0c40c32d (3.11-rc2)
+0003-PCI-Add-slot-reset-option-to-pci_dev_reset.patch
+# 77cb985ad4acbe66a92ead1bb826deffa47dd33f (3.11-rc2)
+0004-PCI-Split-out-pci_dev-lock-unlock-and-save-restore.patch
+# 090a3c5322e900f468b3205b76d0837003ad57b2 (3.11-rc2)
+0005-PCI-Add-pci_reset_slot-and-pci_reset_bus.patch
+# 3775a209d38aa3a0c7ed89a7d0f529e0230f280e (3.11-rc2)
+0001-PCI-Add-pci_wait_for_pending_transaction.patch
 # 7e44892c1b6bb499cb2f6d5c0f4afcc077a26074 (3.11-rc4)
 0001-igb-fix-vlan-filtering-in-promisc-mode-when-not-in-V.patch
 # 2ac3ac8f86f2fe065d746d9a9abaca867adec577 (3.11-rc4)
@@ -45,6 +59,16 @@
 0001-xen-Fix-possible-user-space-selector-corruption.patch
 # 74d332c13b2148ae934ea94dac1745ae92efe8e5 (3.13-rc1)
 0001-net-extend-net_device-allocation-to-vmalloc.patch
+# 157e876ffe0b28821a0d82d8ac944fe7363bbe87 (3.13-rc1)
+0001-PCI-Add-pci_wait_for_pending-refactor-pci_wait_for_p.patch
+# fd0f7f73ca96bb0f8723b5e59759ad43bab88954 (3.13-rc1)
+0002-PCI-Add-support-for-save-restore-of-extended-capabil.patch
+# 425c1b223dac456d00a61fd6b451b6d1cf00d065 (3.13-rc1)
+0003-PCI-Add-Virtual-Channel-to-save-restore-support.patch
+
+#
+# Netback backports
+#
 # f1db320ec5788d5fcc05c0285bd0980319185497 (3.11-rc1)
 0001-xen-netback-remove-dead-code.patch
 # b103f358d9f6f58658f1a6dc08912ab921dd86f1 (3.11-rc1)

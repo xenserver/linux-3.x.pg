@@ -1,0 +1,83 @@
+From 64e8674fbe6bc848333a9b7e19f8cc019dde9eab Mon Sep 17 00:00:00 2001
+From: Alex Williamson <alex.williamson@redhat.com>
+Date: Thu, 8 Aug 2013 14:09:24 -0600
+Subject: [PATCH] PCI: Add pci_reset_bridge_secondary_bus()
+
+Move the secondary bus reset code from pci_parent_bus_reset() into its own
+function.  Export it as we'll later be calling it from hotplug controllers
+and elsewhere.
+
+Signed-off-by: Alex Williamson <alex.williamson@redhat.com>
+Signed-off-by: Bjorn Helgaas <bhelgaas@google.com>
+---
+ drivers/pci/pci.c   |   32 +++++++++++++++++++++++---------
+ include/linux/pci.h |    1 +
+ 2 files changed, 24 insertions(+), 9 deletions(-)
+
+diff --git a/drivers/pci/pci.c b/drivers/pci/pci.c
+index e37fea6..d468608 100644
+--- a/drivers/pci/pci.c
++++ b/drivers/pci/pci.c
+@@ -3215,9 +3215,30 @@ static int pci_pm_reset(struct pci_dev *dev, int probe)
+ 	return 0;
+ }
+ 
+-static int pci_parent_bus_reset(struct pci_dev *dev, int probe)
++/**
++ * pci_reset_bridge_secondary_bus - Reset the secondary bus on a PCI bridge.
++ * @dev: Bridge device
++ *
++ * Use the bridge control register to assert reset on the secondary bus.
++ * Devices on the secondary bus are left in power-on state.
++ */
++void pci_reset_bridge_secondary_bus(struct pci_dev *dev)
+ {
+ 	u16 ctrl;
++
++	pci_read_config_word(dev, PCI_BRIDGE_CONTROL, &ctrl);
++	ctrl |= PCI_BRIDGE_CTL_BUS_RESET;
++	pci_write_config_word(dev, PCI_BRIDGE_CONTROL, ctrl);
++	msleep(100);
++
++	ctrl &= ~PCI_BRIDGE_CTL_BUS_RESET;
++	pci_write_config_word(dev, PCI_BRIDGE_CONTROL, ctrl);
++	msleep(100);
++}
++EXPORT_SYMBOL_GPL(pci_reset_bridge_secondary_bus);
++
++static int pci_parent_bus_reset(struct pci_dev *dev, int probe)
++{
+ 	struct pci_dev *pdev;
+ 
+ 	if (pci_is_root_bus(dev->bus) || dev->subordinate || !dev->bus->self)
+@@ -3230,14 +3251,7 @@ static int pci_parent_bus_reset(struct pci_dev *dev, int probe)
+ 	if (probe)
+ 		return 0;
+ 
+-	pci_read_config_word(dev->bus->self, PCI_BRIDGE_CONTROL, &ctrl);
+-	ctrl |= PCI_BRIDGE_CTL_BUS_RESET;
+-	pci_write_config_word(dev->bus->self, PCI_BRIDGE_CONTROL, ctrl);
+-	msleep(100);
+-
+-	ctrl &= ~PCI_BRIDGE_CTL_BUS_RESET;
+-	pci_write_config_word(dev->bus->self, PCI_BRIDGE_CONTROL, ctrl);
+-	msleep(100);
++	pci_reset_bridge_secondary_bus(dev->bus->self);
+ 
+ 	return 0;
+ }
+diff --git a/include/linux/pci.h b/include/linux/pci.h
+index 0fd1f15..35c1bc4 100644
+--- a/include/linux/pci.h
++++ b/include/linux/pci.h
+@@ -924,6 +924,7 @@ int pcie_set_mps(struct pci_dev *dev, int mps);
+ int __pci_reset_function(struct pci_dev *dev);
+ int __pci_reset_function_locked(struct pci_dev *dev);
+ int pci_reset_function(struct pci_dev *dev);
++void pci_reset_bridge_secondary_bus(struct pci_dev *dev);
+ void pci_update_resource(struct pci_dev *dev, int resno);
+ int __must_check pci_assign_resource(struct pci_dev *dev, int i);
+ int __must_check pci_reassign_resource(struct pci_dev *dev, int i, resource_size_t add_size, resource_size_t align);
+-- 
+1.7.1
+
