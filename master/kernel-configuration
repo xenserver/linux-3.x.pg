@@ -1,6 +1,6 @@
 diff --git a/buildconfigs/linux-defconfig_xen_x86_32 b/buildconfigs/linux-defconfig_xen_x86_32
 new file mode 100644
-index 0000000..9dea79d
+index 0000000..e1e077f
 --- /dev/null
 +++ b/buildconfigs/linux-defconfig_xen_x86_32
 @@ -0,0 +1,3840 @@
@@ -2706,8 +2706,8 @@ index 0000000..9dea79d
 +#
 +# USB HID Boot Protocol drivers
 +#
-+CONFIG_USB_KBD=m
-+CONFIG_USB_MOUSE=m
++# CONFIG_USB_KBD is not set
++# CONFIG_USB_MOUSE is not set
 +
 +#
 +# I2C HID support
@@ -3846,13 +3846,13 @@ index 0000000..9dea79d
 +CONFIG_UCS2_STRING=y
 diff --git a/buildconfigs/linux-defconfig_xen_x86_64 b/buildconfigs/linux-defconfig_xen_x86_64
 new file mode 100644
-index 0000000..0f7748b
+index 0000000..e0bf70c
 --- /dev/null
 +++ b/buildconfigs/linux-defconfig_xen_x86_64
 @@ -0,0 +1,3814 @@
 +#
 +# Automatically generated file; DO NOT EDIT.
-+# Linux/x86_64 3.10.0+0 Kernel Configuration
++# Linux/x86_64 3.10.41 Kernel Configuration
 +#
 +CONFIG_64BIT=y
 +CONFIG_X86_64=y
@@ -6508,8 +6508,8 @@ index 0000000..0f7748b
 +#
 +# USB HID Boot Protocol drivers
 +#
-+CONFIG_USB_KBD=m
-+CONFIG_USB_MOUSE=m
++# CONFIG_USB_KBD is not set
++# CONFIG_USB_MOUSE is not set
 +
 +#
 +# I2C HID support
