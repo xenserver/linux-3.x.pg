@@ -296,7 +296,7 @@ blkback-debug-ring.diff
 drivers-misc-uklog.patch
 pciback-do-bus-reset-if-function-reset-failed.patch
 net-core__order-3_frag_allocator_causes_swiotlb_bouncing_under_xen.patch
-force-multipackage-inside-dom0.patch
+idle_cpu-return-0-during-softirq.patch
 call-kexec-before-offlining-noncrashing-cpus.patch
 fnic-disable-tracing-by-default.patch
 bnx2-disable-gro.patch
