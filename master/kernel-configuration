@@ -1,12 +1,12 @@
 diff --git a/buildconfigs/linux-defconfig_xen_x86_32 b/buildconfigs/linux-defconfig_xen_x86_32
 new file mode 100644
-index 0000000..6bc2356
+index 0000000..9dea79d
 --- /dev/null
 +++ b/buildconfigs/linux-defconfig_xen_x86_32
-@@ -0,0 +1,3838 @@
+@@ -0,0 +1,3840 @@
 +#
 +# Automatically generated file; DO NOT EDIT.
-+# Linux/i386 3.10.27 Kernel Configuration
++# Linux/i386 3.10.41 Kernel Configuration
 +#
 +# CONFIG_64BIT is not set
 +CONFIG_X86_32=y
@@ -1583,6 +1583,7 @@ index 0000000..6bc2356
 +# CONFIG_BCACHE_DEBUG is not set
 +# CONFIG_BCACHE_EDEBUG is not set
 +# CONFIG_BCACHE_CLOSURES_DEBUG is not set
++CONFIG_BLK_DEV_DM_BUILTIN=y
 +CONFIG_BLK_DEV_DM=m
 +CONFIG_DM_DEBUG=y
 +CONFIG_DM_BUFIO=m
@@ -3364,7 +3365,7 @@ index 0000000..6bc2356
 +CONFIG_SUNRPC_GSS=m
 +CONFIG_SUNRPC_BACKCHANNEL=y
 +CONFIG_SUNRPC_XPRT_RDMA=m
-+CONFIG_RPCSEC_GSS_KRB5=m
++# CONFIG_RPCSEC_GSS_KRB5 is not set
 +CONFIG_SUNRPC_DEBUG=y
 +# CONFIG_CEPH_FS is not set
 +CONFIG_CIFS=m
@@ -3842,12 +3843,13 @@ index 0000000..6bc2356
 +# CONFIG_DDR is not set
 +CONFIG_MPILIB=m
 +CONFIG_OID_REGISTRY=m
++CONFIG_UCS2_STRING=y
 diff --git a/buildconfigs/linux-defconfig_xen_x86_64 b/buildconfigs/linux-defconfig_xen_x86_64
 new file mode 100644
-index 0000000..4efb02f
+index 0000000..0f7748b
 --- /dev/null
 +++ b/buildconfigs/linux-defconfig_xen_x86_64
-@@ -0,0 +1,3813 @@
+@@ -0,0 +1,3814 @@
 +#
 +# Automatically generated file; DO NOT EDIT.
 +# Linux/x86_64 3.10.0+0 Kernel Configuration
@@ -5390,6 +5392,7 @@ index 0000000..4efb02f
 +# CONFIG_BCACHE_DEBUG is not set
 +# CONFIG_BCACHE_EDEBUG is not set
 +# CONFIG_BCACHE_CLOSURES_DEBUG is not set
++CONFIG_BLK_DEV_DM_BUILTIN=y
 +CONFIG_BLK_DEV_DM=m
 +CONFIG_DM_DEBUG=y
 +CONFIG_DM_BUFIO=m
@@ -7169,7 +7172,7 @@ index 0000000..4efb02f
 +CONFIG_SUNRPC_GSS=m
 +CONFIG_SUNRPC_BACKCHANNEL=y
 +CONFIG_SUNRPC_XPRT_RDMA=m
-+CONFIG_RPCSEC_GSS_KRB5=m
++# CONFIG_RPCSEC_GSS_KRB5 is not set
 +CONFIG_SUNRPC_DEBUG=y
 +# CONFIG_CEPH_FS is not set
 +CONFIG_CIFS=m
