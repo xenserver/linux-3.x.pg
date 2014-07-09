@@ -1,0 +1,300 @@
+From: Zoltan Kiss <zoltan.kiss@citrix.com>
+To: Wei Liu <wei.liu2@citrix.com>
+To: Ian Campbell <Ian.Campbell@citrix.com>
+Subject: [PATCH net-next] xen-netback: Adding debugfs "io_ring_qX" files
+
+This patch adds debugfs capabilities to netback. There used to be a similar
+patch floating around for classic kernel, but it used procfs. It is based on a
+very similar blkback patch.
+It creates xen-netback/[vifname]/io_ring_q[queueno] files, reading them output
+various ring variables etc. Writing "kick" into it imitates an interrupt
+happened, it can be useful to check whether the ring is just stalled due to a
+missed interrupt.
+
+Signed-off-by: Zoltan Kiss <zoltan.kiss@citrix.com>
+Cc: netdev@vger.kernel.org
+Cc: linux-kernel@vger.kernel.org
+Cc: xen-devel@lists.xenproject.org
+---
+diff --git a/drivers/net/xen-netback/common.h b/drivers/net/xen-netback/common.h
+index 0d4a285..0548794 100644
+--- a/drivers/net/xen-netback/common.h
++++ b/drivers/net/xen-netback/common.h
+@@ -44,6 +44,7 @@
+ #include <xen/interface/grant_table.h>
+ #include <xen/grant_table.h>
+ #include <xen/xenbus.h>
++#include <linux/debugfs.h>
+ 
+ typedef unsigned int pending_ring_idx_t;
+ #define INVALID_PENDING_RING_IDX (~0U)
+@@ -193,6 +194,10 @@ struct xenvif {
+ 	unsigned long tx_zerocopy_fail;
+ 	unsigned long tx_frag_overflow;
+ 
++#ifdef CONFIG_DEBUG_FS
++	struct dentry *xenvif_dbg_root;
++#endif
++
+ 	/* Miscellaneous private stuff. */
+ 	struct net_device *dev;
+ };
+@@ -260,9 +265,15 @@ static inline pending_ring_idx_t nr_pending_reqs(struct xenvif *vif)
+ /* Callback from stack when TX packet can be released */
+ void xenvif_zerocopy_callback(struct ubuf_info *ubuf, bool zerocopy_success);
+ 
++irqreturn_t xenvif_interrupt(int irq, void *dev_id);
++
+ extern bool separate_tx_rx_irq;
+ 
+ extern unsigned int rx_drain_timeout_msecs;
+ extern unsigned int rx_drain_timeout_jiffies;
+ 
++#ifdef CONFIG_DEBUG_FS
++extern struct dentry *xen_netback_dbg_root;
++#endif
++
+ #endif /* __XEN_NETBACK__COMMON_H__ */
+diff --git a/drivers/net/xen-netback/interface.c b/drivers/net/xen-netback/interface.c
+index 20e9def..b38d031 100644
+--- a/drivers/net/xen-netback/interface.c
++++ b/drivers/net/xen-netback/interface.c
+@@ -91,7 +91,7 @@ static irqreturn_t xenvif_rx_interrupt(int irq, void *dev_id)
+ 	return IRQ_HANDLED;
+ }
+ 
+-static irqreturn_t xenvif_interrupt(int irq, void *dev_id)
++irqreturn_t xenvif_interrupt(int irq, void *dev_id)
+ {
+ 	xenvif_tx_interrupt(irq, dev_id);
+ 	xenvif_rx_interrupt(irq, dev_id);
+diff --git a/drivers/net/xen-netback/netback.c b/drivers/net/xen-netback/netback.c
+index fe2c0c4..f60d761 100644
+--- a/drivers/net/xen-netback/netback.c
++++ b/drivers/net/xen-netback/netback.c
+@@ -1984,6 +1984,13 @@ static int __init netback_init(void)
+ 
+ 	rx_drain_timeout_jiffies = msecs_to_jiffies(rx_drain_timeout_msecs);
+ 
++#ifdef CONFIG_DEBUG_FS
++	xen_netback_dbg_root = debugfs_create_dir("xen-netback", NULL);
++	if (IS_ERR_OR_NULL(xen_netback_dbg_root))
++		pr_warn("Init of debugfs returned %ld!\n",
++			PTR_ERR(xen_netback_dbg_root));
++#endif
++
+ 	return 0;
+ 
+ failed_init:
+@@ -1994,6 +2001,10 @@ module_init(netback_init);
+ 
+ static void __exit netback_fini(void)
+ {
++#ifdef CONFIG_DEBUG_FS
++	if (!IS_ERR_OR_NULL(xen_netback_dbg_root))
++		debugfs_remove_recursive(xen_netback_dbg_root);
++#endif
+ 	xenvif_xenbus_fini();
+ }
+ module_exit(netback_fini);
+diff --git a/drivers/net/xen-netback/xenbus.c b/drivers/net/xen-netback/xenbus.c
+index f035899..852a19f 100644
+--- a/drivers/net/xen-netback/xenbus.c
++++ b/drivers/net/xen-netback/xenbus.c
+@@ -42,6 +42,171 @@ static void unregister_hotplug_status_watch(struct backend_info *be);
+ static void set_backend_state(struct backend_info *be,
+ 			      enum xenbus_state state);
+ 
++#ifdef CONFIG_DEBUG_FS
++struct dentry *xen_netback_dbg_root = NULL;
++
++static int xenvif_read_io_ring(struct seq_file *m, void *v)
++{
++	struct xenvif *vif  = m->private;
++	struct xen_netif_tx_back_ring *tx_ring = &vif->tx;
++	struct xen_netif_rx_back_ring *rx_ring = &vif->rx;
++
++	if (tx_ring->sring) {
++		struct xen_netif_tx_sring *sring = tx_ring->sring;
++
++		seq_printf(m, "TX: nr_ents %u\n",
++			   tx_ring->nr_ents);
++		seq_printf(m, "req prod %u (%d) cons %u (%d) event %u (%d)\n",
++			   sring->req_prod,
++			   sring->req_prod - sring->rsp_prod,
++			   tx_ring->req_cons,
++			   tx_ring->req_cons - sring->rsp_prod,
++			   sring->req_event,
++			   sring->req_event - sring->rsp_prod);
++		seq_printf(m, "rsp prod %u (base) pvt %u (%d) event %u (%d)\n",
++			   sring->rsp_prod,
++			   tx_ring->rsp_prod_pvt,
++			   tx_ring->rsp_prod_pvt - sring->rsp_prod,
++			   sring->rsp_event,
++			   sring->rsp_event - sring->rsp_prod);
++		seq_printf(m, "pending prod %u pending cons %u nr_pending_reqs %u\n",
++			   vif->pending_prod,
++			   vif->pending_cons,
++			   nr_pending_reqs(vif));
++		seq_printf(m, "dealloc prod %u dealloc cons %u dealloc_queue %u\n\n",
++			   vif->dealloc_prod,
++			   vif->dealloc_cons,
++			   vif->dealloc_prod - vif->dealloc_cons);
++	}
++
++	if (rx_ring->sring) {
++		struct xen_netif_rx_sring *sring = rx_ring->sring;
++
++		seq_printf(m, "RX: nr_ents %u\n", rx_ring->nr_ents);
++		seq_printf(m, "req prod %u (%d) cons %u (%d) event %u (%d)\n",
++			   sring->req_prod,
++			   sring->req_prod - sring->rsp_prod,
++			   rx_ring->req_cons,
++			   rx_ring->req_cons - sring->rsp_prod,
++			   sring->req_event,
++			   sring->req_event - sring->rsp_prod);
++		seq_printf(m, "rsp prod %u (base) pvt %u (%d) event %u (%d)\n\n",
++			   sring->rsp_prod,
++			   rx_ring->rsp_prod_pvt,
++			   rx_ring->rsp_prod_pvt - sring->rsp_prod,
++			   sring->rsp_event,
++			   sring->rsp_event - sring->rsp_prod);
++	}
++
++	seq_printf(m, "NAPI state: %lx NAPI weight: %d TX queue len %u\n"
++		   "Credit timer_pending: %d, credit: %lu, usec: %lu\n"
++		   "remaining: %lu, expires: %lu, now: %lu\n",
++		   vif->napi.state, vif->napi.weight,
++		   skb_queue_len(&vif->tx_queue),
++		   timer_pending(&vif->credit_timeout),
++		   vif->credit_bytes,
++		   vif->credit_usec,
++		   vif->remaining_credit,
++		   vif->credit_timeout.expires,
++		   jiffies);
++
++	return 0;
++}
++
++#define XENVIF_KICK_STR "kick"
++
++static ssize_t
++xenvif_write_io_ring(struct file *filp, const char __user *buf, size_t count,
++		     loff_t *ppos)
++{
++	struct xenvif *vif =
++		((struct seq_file *)filp->private_data)->private;
++	int len;
++	char write[sizeof(XENVIF_KICK_STR)];
++
++	/* don't allow partial writes and check the length */
++	if (*ppos != 0)
++		return 0;
++	if (count < sizeof(XENVIF_KICK_STR) - 1)
++		return -ENOSPC;
++
++	len = simple_write_to_buffer(write,
++				     sizeof(write),
++				     ppos,
++				     buf,
++				     count);
++	if (len < 0)
++		return len;
++
++	if (!strncmp(write, XENVIF_KICK_STR, sizeof(XENVIF_KICK_STR) - 1))
++		xenvif_interrupt(0, (void *)vif);
++	else {
++		pr_warn("Unknown command to io_ring. Available: kick\n");
++		count = -EINVAL;
++	}
++	return count;
++}
++
++static int xenvif_dump_open(struct inode *inode, struct file *filp)
++{
++	int ret;
++	void *vif = NULL;
++
++	if (inode->i_private)
++		vif = inode->i_private;
++	ret = single_open(filp, xenvif_read_io_ring, vif);
++	filp->f_mode |= FMODE_PWRITE;
++	return ret;
++}
++
++static const struct file_operations xenvif_dbg_io_ring_ops_fops = {
++	.owner = THIS_MODULE,
++	.open = xenvif_dump_open,
++	.read = seq_read,
++	.llseek = seq_lseek,
++	.release = single_release,
++	.write = xenvif_write_io_ring,
++};
++
++static void xenvif_debugfs_addif(struct xenvif *vif)
++{
++	struct dentry *pfile;
++	int i;
++
++	if (IS_ERR_OR_NULL(xen_netback_dbg_root))
++		return;
++
++	vif->xenvif_dbg_root = debugfs_create_dir(vif->dev->name,
++						  xen_netback_dbg_root);
++	if (!IS_ERR_OR_NULL(vif->xenvif_dbg_root)) {
++		char filename[sizeof("io_ring_q") + 4];
++
++		snprintf(filename, sizeof(filename), "io_ring_q%d", i);
++		pfile = debugfs_create_file(filename,
++					    S_IRUSR | S_IWUSR,
++					    vif->xenvif_dbg_root,
++					    vif,
++					    &xenvif_dbg_io_ring_ops_fops);
++		if (IS_ERR_OR_NULL(pfile))
++			pr_warn("Creation of io_ring file returned %ld!\n",
++				PTR_ERR(pfile));
++	} else
++		netdev_warn(vif->dev,
++			    "Creation of vif debugfs dir returned %ld!\n",
++			    PTR_ERR(vif->xenvif_dbg_root));
++}
++
++static void xenvif_debugfs_delif(struct xenvif *vif)
++{
++	if (IS_ERR_OR_NULL(xen_netback_dbg_root))
++		return;
++
++	if (!IS_ERR_OR_NULL(vif->xenvif_dbg_root))
++		debugfs_remove_recursive(vif->xenvif_dbg_root);
++	vif->xenvif_dbg_root = NULL;
++}
++#endif /* CONFIG_DEBUG_FS */
++
+ static int netback_remove(struct xenbus_device *dev)
+ {
+ 	struct backend_info *be = dev_get_drvdata(&dev->dev);
+@@ -238,8 +403,12 @@ static void backend_create_xenvif(struct backend_info *be)
+ 
+ static void backend_disconnect(struct backend_info *be)
+ {
+-	if (be->vif)
++	if (be->vif) {
++#ifdef CONFIG_DEBUG_FS
++		xenvif_debugfs_delif(be->vif);
++#endif
+ 		xenvif_disconnect(be->vif);
++	}
+ }
+ 
+ static void backend_connect(struct backend_info *be)
+@@ -491,6 +660,10 @@ static void connect(struct backend_info *be)
+ 	if (err)
+ 		return;
+ 
++#ifdef CONFIG_DEBUG_FS
++		xenvif_debugfs_addif(be->vif);
++#endif
++
+ 	err = xen_net_read_mac(dev, be->vif->fe_dev_addr);
+ 	if (err) {
+ 		xenbus_dev_fatal(dev, err, "parsing %s/mac", dev->nodename);

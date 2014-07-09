@@ -211,6 +211,8 @@ nullblk_3_13.patch
 fix-rx-action-slot-estimation.patch
 # 59ae9fc67007da8b5aea7b0a31c3607745cfbfee (3.15.1)
 0001-xen-netback-Fix-handling-of-skbs-requiring-too-many-slots.patch
+#
+0001-xen-netback-Adding-debugfs-io_ring_qX-files.patch
 
 #
 # skb_segment fixes
