@@ -15,7 +15,6 @@ Signed-off-by: Zoltan Kiss <zoltan.kiss@citrix.com>
 Cc: netdev@vger.kernel.org
 Cc: linux-kernel@vger.kernel.org
 Cc: xen-devel@lists.xenproject.org
----
 diff --git a/drivers/net/xen-netback/common.h b/drivers/net/xen-netback/common.h
 index 0d4a285..0548794 100644
 --- a/drivers/net/xen-netback/common.h
@@ -69,7 +68,7 @@ index 20e9def..b38d031 100644
  	xenvif_tx_interrupt(irq, dev_id);
  	xenvif_rx_interrupt(irq, dev_id);
 diff --git a/drivers/net/xen-netback/netback.c b/drivers/net/xen-netback/netback.c
-index fe2c0c4..f60d761 100644
+index fe2c0c4..bcced44 100644
 --- a/drivers/net/xen-netback/netback.c
 +++ b/drivers/net/xen-netback/netback.c
 @@ -1984,6 +1984,13 @@ static int __init netback_init(void)
@@ -98,10 +97,10 @@ index fe2c0c4..f60d761 100644
  }
  module_exit(netback_fini);
 diff --git a/drivers/net/xen-netback/xenbus.c b/drivers/net/xen-netback/xenbus.c
-index f035899..852a19f 100644
+index f035899..0a6ce5c 100644
 --- a/drivers/net/xen-netback/xenbus.c
 +++ b/drivers/net/xen-netback/xenbus.c
-@@ -42,6 +42,171 @@ static void unregister_hotplug_status_watch(struct backend_info *be);
+@@ -42,6 +42,167 @@ static void unregister_hotplug_status_watch(struct backend_info *be);
  static void set_backend_state(struct backend_info *be,
  			      enum xenbus_state state);
  
@@ -234,7 +233,6 @@ index f035899..852a19f 100644
 +static void xenvif_debugfs_addif(struct xenvif *vif)
 +{
 +	struct dentry *pfile;
-+	int i;
 +
 +	if (IS_ERR_OR_NULL(xen_netback_dbg_root))
 +		return;
@@ -242,10 +240,7 @@ index f035899..852a19f 100644
 +	vif->xenvif_dbg_root = debugfs_create_dir(vif->dev->name,
 +						  xen_netback_dbg_root);
 +	if (!IS_ERR_OR_NULL(vif->xenvif_dbg_root)) {
-+		char filename[sizeof("io_ring_q") + 4];
-+
-+		snprintf(filename, sizeof(filename), "io_ring_q%d", i);
-+		pfile = debugfs_create_file(filename,
++		pfile = debugfs_create_file("io_ring",
 +					    S_IRUSR | S_IWUSR,
 +					    vif->xenvif_dbg_root,
 +					    vif,
@@ -273,7 +268,7 @@ index f035899..852a19f 100644
  static int netback_remove(struct xenbus_device *dev)
  {
  	struct backend_info *be = dev_get_drvdata(&dev->dev);
-@@ -238,8 +403,12 @@ static void backend_create_xenvif(struct backend_info *be)
+@@ -238,8 +399,12 @@ static void backend_create_xenvif(struct backend_info *be)
  
  static void backend_disconnect(struct backend_info *be)
  {
@@ -287,7 +282,7 @@ index f035899..852a19f 100644
  }
  
  static void backend_connect(struct backend_info *be)
-@@ -491,6 +660,10 @@ static void connect(struct backend_info *be)
+@@ -491,6 +656,10 @@ static void connect(struct backend_info *be)
  	if (err)
  		return;
  
