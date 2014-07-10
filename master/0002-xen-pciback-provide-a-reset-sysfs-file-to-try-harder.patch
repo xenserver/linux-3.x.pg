@@ -1,5 +1,29 @@
+From e65a814106bc9994ec47b5317f7cdc975270d27f Mon Sep 17 00:00:00 2001
+From: David Vrabel <david.vrabel@citrix.com>
+Date: Thu, 10 Jul 2014 13:09:25 +0100
+Subject: [PATCH 2/2] xen-pciback: provide a "reset" sysfs file to try harder
+ at an SBR
+
+The standard implementation of pci_reset_function() does not try an
+SBR if there are other sibling devices.  This is a common
+configuration for multi-function devices (e.g., GPUs with a HDMI audio
+device function).
+
+If all the functions are co-assigned to the same domain at the same
+time, then it is safe to perform an SBR to reset all functions at the
+same time.
+
+Add a "reset" sysfs file with the same interface as the standard one
+(i.e., write 1 to reset) that will try an SBR if all sibling devices
+are unbound or bound to pciback.
+
+Note that this is weaker than the requirement for functions to be
+simultaneously co-assigned, but the toolstack is expected to ensure
+this.
+
+Signed-off-by: David Vrabel <david.vrabel@citrix.com>
 diff --git a/drivers/xen/xen-pciback/pci_stub.c b/drivers/xen/xen-pciback/pci_stub.c
-index 4e8ba38..5a03e63 100644
+index 4e8ba38..d6c29aa 100644
 --- a/drivers/xen/xen-pciback/pci_stub.c
 +++ b/drivers/xen/xen-pciback/pci_stub.c
 @@ -14,6 +14,7 @@
@@ -10,15 +34,7 @@ index 4e8ba38..5a03e63 100644
  #include <xen/events.h>
  #include <asm/xen/pci.h>
  #include <asm/xen/hypervisor.h>
-@@ -43,6 +44,7 @@ struct pcistub_device {
- 	struct kref kref;
- 	struct list_head dev_list;
- 	spinlock_t lock;
-+	bool created_reset_file;
- 
- 	struct pci_dev *dev;
- 	struct xen_pcibk_device *pdev;/* non-NULL if struct pci_dev is in use */
-@@ -60,6 +62,114 @@ static LIST_HEAD(pcistub_devices);
+@@ -60,6 +61,114 @@ static LIST_HEAD(pcistub_devices);
  static int initialize_devices;
  static LIST_HEAD(seized_devices);
  
@@ -105,42 +121,35 @@ index 4e8ba38..5a03e63 100644
 +}
 +static DEVICE_ATTR(reset, 0200, NULL, pcistub_reset_store);
 +
-+static int pcistub_try_create_reset_file(struct pcistub_device *psdev)
++static int pcistub_try_create_reset_file(struct pci_dev *pci)
 +{
-+	struct device *dev = &psdev->dev->dev;
-+	struct sysfs_dirent *reset_dirent;
++	struct xen_pcibk_dev_data *dev_data = pci_get_drvdata(pci);
++	struct device *dev = &pci->dev;
 +	int ret;
 +
-+	reset_dirent = sysfs_get_dirent(dev->kobj.sd, NULL, "reset");
-+	if (reset_dirent) {
-+		sysfs_put(reset_dirent);
++	/* Already have a per-function reset? */
++	if (pci_probe_reset_function(pci) == 0)
 +		return 0;
-+	}
 +
 +	ret = device_create_file(dev, &dev_attr_reset);
 +	if (ret < 0)
 +		return ret;
-+	psdev->created_reset_file = true;
++	dev_data->created_reset_file = true;
 +	return 0;
 +}
 +
-+static void pcistub_remove_reset_file(struct pcistub_device *psdev)
++static void pcistub_remove_reset_file(struct pci_dev *pci)
 +{
-+	if (psdev && psdev->created_reset_file)
-+		device_remove_file(&psdev->dev->dev, &dev_attr_reset);
++	struct xen_pcibk_dev_data *dev_data = pci_get_drvdata(pci);
++
++	if (dev_data && dev_data->created_reset_file)
++		device_remove_file(&pci->dev, &dev_attr_reset);
 +}
 +
  static struct pcistub_device *pcistub_device_alloc(struct pci_dev *dev)
  {
  	struct pcistub_device *psdev;
-@@ -95,12 +205,15 @@ static void pcistub_device_release(struct kref *kref)
- 
- 	dev_dbg(&dev->dev, "pcistub_device_release\n");
- 
-+	pcistub_remove_reset_file(psdev);
-+
- 	xen_unregister_device_domain_owner(dev);
- 
+@@ -100,7 +209,8 @@ static void pcistub_device_release(struct kref *kref)
  	/* Call the reset function which does not take lock as this
  	 * is called from "unbind" which takes a device_lock mutex.
  	 */
@@ -150,16 +159,16 @@ index 4e8ba38..5a03e63 100644
  	if (pci_load_and_free_saved_state(dev, &dev_data->pci_saved_state))
  		dev_dbg(&dev->dev, "Could not reload PCI state\n");
  	else
-@@ -268,7 +381,7 @@ void pcistub_put_pci_dev(struct pci_dev *dev)
+@@ -268,7 +378,7 @@ void pcistub_put_pci_dev(struct pci_dev *dev)
  	/* This is OK - we are running from workqueue context
  	 * and want to inhibit the user from fiddling with 'reset'
  	 */
 -	pci_reset_function(dev);
-+	pcistub_reset_function(psdev->dev);
++	pcistub_reset_function(dev);
  	pci_restore_state(psdev->dev);
  
  	/* This disables the device. */
-@@ -392,7 +505,7 @@ static int pcistub_init_device(struct pci_dev *dev)
+@@ -392,7 +502,7 @@ static int pcistub_init_device(struct pci_dev *dev)
  		dev_err(&dev->dev, "Could not store PCI conf saved state!\n");
  	else {
  		dev_dbg(&dev->dev, "resetting (FLR, D3, etc) the device\n");
@@ -168,26 +177,35 @@ index 4e8ba38..5a03e63 100644
  		pci_restore_state(dev);
  	}
  	/* Now disable the device (this also ensures some private device
-@@ -467,6 +580,10 @@ static int pcistub_seize(struct pci_dev *dev)
- 	if (!psdev)
- 		return -ENOMEM;
+@@ -401,6 +511,10 @@ static int pcistub_init_device(struct pci_dev *dev)
+ 	dev_dbg(&dev->dev, "reset device\n");
+ 	xen_pcibk_reset_device(dev);
  
-+	err = pcistub_try_create_reset_file(psdev);
++	err = pcistub_try_create_reset_file(dev);
 +	if (err < 0)
-+		goto out;
++		goto config_release;
++
+ 	dev->dev_flags |= PCI_DEV_FLAGS_ASSIGNED;
+ 	return 0;
+ 
+@@ -526,6 +640,8 @@ static void pcistub_remove(struct pci_dev *dev)
+ 
+ 	dev_dbg(&dev->dev, "removing\n");
+ 
++	pcistub_remove_reset_file(dev);
 +
  	spin_lock_irqsave(&pcistub_devices_lock, flags);
  
- 	if (initialize_devices) {
-@@ -485,10 +602,9 @@ static int pcistub_seize(struct pci_dev *dev)
- 	}
- 
- 	spin_unlock_irqrestore(&pcistub_devices_lock, flags);
--
-+out:
- 	if (err)
- 		pcistub_device_put(psdev);
--
- 	return err;
- }
- 
+ 	xen_pcibk_config_quirk_release(dev);
+diff --git a/drivers/xen/xen-pciback/pciback.h b/drivers/xen/xen-pciback/pciback.h
+index f72af87..708ade9 100644
+--- a/drivers/xen/xen-pciback/pciback.h
++++ b/drivers/xen/xen-pciback/pciback.h
+@@ -42,6 +42,7 @@ struct xen_pcibk_device {
+ struct xen_pcibk_dev_data {
+ 	struct list_head config_fields;
+ 	struct pci_saved_state *pci_saved_state;
++	bool created_reset_file;
+ 	unsigned int permissive:1;
+ 	unsigned int warned_on_write:1;
+ 	unsigned int enable_intx:1;

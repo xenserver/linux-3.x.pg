@@ -289,6 +289,10 @@ blkback-debug-ring.diff
 0015-xen-x86-set-VIRQ_TIMER-priority-to-maximum.patch
 0016-xen-events-use-the-FIFO-based-ABI-if-available.patch
 
+# pciback
+0001-pci-export-pci_probe_reset_function.patch
+0002-xen-pciback-provide-a-reset-sysfs-file-to-try-harder.patch
+
 # Preemptible privcmd hypercalls
 0001-x86-xen-allow-privcmd-hypercalls-to-be-preempted.patch
 
@@ -296,7 +300,6 @@ blkback-debug-ring.diff
 # Local patches.
 #
 drivers-misc-uklog.patch
-pciback-do-bus-reset-if-function-reset-failed.patch
 net-core__order-3_frag_allocator_causes_swiotlb_bouncing_under_xen.patch
 idle_cpu-return-0-during-softirq.patch
 call-kexec-before-offlining-noncrashing-cpus.patch
