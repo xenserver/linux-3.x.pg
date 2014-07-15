@@ -288,6 +288,7 @@ blkback-debug-ring.diff
 0014-xen-events-allow-event-channel-priority-to-be-set.patch
 0015-xen-x86-set-VIRQ_TIMER-priority-to-maximum.patch
 0016-xen-events-use-the-FIFO-based-ABI-if-available.patch
+fifo_page_fix.patch
 
 # pciback
 0001-pci-export-pci_probe_reset_function.patch

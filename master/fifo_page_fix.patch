@@ -1,0 +1,82 @@
+CA-140556: Fix possible memory access problem in events_fifo.c
+
+sync_test_bit function require a long* read access to pointer.
+This is a problem if the you are using last entry in the page causing
+an access to next page. If this page is not readable you get a memory
+access failure (page fault).
+
+diff --git a/drivers/xen/events/events_fifo.c b/drivers/xen/events/events_fifo.c
+index e2bf957..062bcc0 100644
+--- a/drivers/xen/events/events_fifo.c
++++ b/drivers/xen/events/events_fifo.c
+@@ -151,6 +151,11 @@ static int evtchn_fifo_setup(struct irq_info *info)
+ 	return ret;
+ }
+ 
++static __always_inline int test_fifo_bit(int nr, event_word_t *word)
++{
++	return (ACCESS_ONCE(*word) >> nr) & 1;
++}
++
+ static void evtchn_fifo_bind_to_cpu(struct irq_info *info, unsigned cpu)
+ {
+ 	/* no-op */
+@@ -171,7 +176,7 @@ static void evtchn_fifo_set_pending(unsigned port)
+ static bool evtchn_fifo_is_pending(unsigned port)
+ {
+ 	event_word_t *word = event_word_from_port(port);
+-	return sync_test_bit(EVTCHN_FIFO_PENDING, BM(word));
++	return test_fifo_bit(EVTCHN_FIFO_PENDING, word);
+ }
+ 
+ static bool evtchn_fifo_test_and_set_mask(unsigned port)
+@@ -209,7 +214,7 @@ static void evtchn_fifo_unmask(unsigned port)
+ 	BUG_ON(!irqs_disabled());
+ 
+ 	clear_masked(word);
+-	if (sync_test_bit(EVTCHN_FIFO_PENDING, BM(word))) {
++	if (test_fifo_bit(EVTCHN_FIFO_PENDING, word)) {
+ 		struct evtchn_unmask unmask = { .port = port };
+ 		(void)HYPERVISOR_event_channel_op(EVTCHNOP_unmask, &unmask);
+ 	}
+@@ -245,7 +250,7 @@ static void handle_irq_for_port(unsigned port)
+ 
+ static void consume_one_event(unsigned cpu,
+ 			      struct evtchn_fifo_control_block *control_block,
+-			      unsigned priority, uint32_t *ready)
++			      unsigned priority, unsigned long *ready)
+ {
+ 	struct evtchn_fifo_queue *q = &per_cpu(cpu_queue, cpu);
+ 	uint32_t head;
+@@ -275,10 +280,10 @@ static void consume_one_event(unsigned cpu,
+ 	 * copy of the ready word.
+ 	 */
+ 	if (head == 0)
+-		clear_bit(priority, BM(ready));
++		clear_bit(priority, ready);
+ 
+-	if (sync_test_bit(EVTCHN_FIFO_PENDING, BM(word))
+-	    && !sync_test_bit(EVTCHN_FIFO_MASKED, BM(word)))
++	if (test_fifo_bit(EVTCHN_FIFO_PENDING, word)
++	    && !test_fifo_bit(EVTCHN_FIFO_MASKED, word))
+ 		handle_irq_for_port(port);
+ 
+ 	q->head[priority] = head;
+@@ -287,7 +292,7 @@ static void consume_one_event(unsigned cpu,
+ static void evtchn_fifo_handle_events(unsigned cpu)
+ {
+ 	struct evtchn_fifo_control_block *control_block;
+-	uint32_t ready;
++	unsigned long ready;
+ 	unsigned q;
+ 
+ 	control_block = per_cpu(cpu_control_block, cpu);
+@@ -295,7 +300,7 @@ static void evtchn_fifo_handle_events(unsigned cpu)
+ 	ready = xchg(&control_block->ready, 0);
+ 
+ 	while (ready) {
+-		q = find_first_bit(BM(&ready), EVTCHN_FIFO_MAX_QUEUES);
++		q = find_first_bit(&ready, EVTCHN_FIFO_MAX_QUEUES);
+ 		consume_one_event(cpu, control_block, q, &ready);
+ 		ready |= xchg(&control_block->ready, 0);
+ 	}
