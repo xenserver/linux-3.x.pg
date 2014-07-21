@@ -213,6 +213,14 @@ fix-rx-action-slot-estimation.patch
 0001-xen-netback-Fix-handling-of-skbs-requiring-too-many-slots.patch
 #
 0001-xen-netback-Adding-debugfs-io_ring_qX-files.patch
+#
+0001-xen-netback-Fix-handling-frag_list-on-grant-op-error-path.patch
+#
+0002-xen-netback-Fix-releasing-frag_list-skbs-in-error-path.patch
+#
+0003-xen-netback-Fix-releasing-header-slot-on-error-path.patch
+#
+0004-xen-netback-Fix-pointer-incrementation-to-avoid-incorrect-logging.patch
 
 #
 # skb_segment fixes
