@@ -147,10 +147,10 @@ index d114ee8..bddecf1 100644
  	for (i = 0; i < MAX_PENDING_REQS; ++i) {
  		if (vif->grant_tx_handle[i] != NETBACK_INVALID_HANDLE) {
 diff --git a/drivers/net/xen-netback/netback.c b/drivers/net/xen-netback/netback.c
-index f91ba78..ed96117 100644
+index 7b26704..ee19034 100644
 --- a/drivers/net/xen-netback/netback.c
 +++ b/drivers/net/xen-netback/netback.c
-@@ -1854,9 +1854,8 @@ void xenvif_idx_unmap(struct xenvif *vif, u16 pending_idx)
+@@ -1858,9 +1858,8 @@ void xenvif_idx_unmap(struct xenvif *vif, u16 pending_idx)
  
  static inline int rx_work_todo(struct xenvif *vif)
  {
@@ -162,7 +162,7 @@ index f91ba78..ed96117 100644
  }
  
  static inline int tx_work_todo(struct xenvif *vif)
-@@ -1930,6 +1929,54 @@ static void xenvif_start_queue(struct xenvif *vif)
+@@ -1934,6 +1933,52 @@ static void xenvif_start_queue(struct xenvif *vif)
  		netif_wake_queue(vif->dev);
  }
  
@@ -206,18 +206,16 @@ index f91ba78..ed96117 100644
 +		napi_schedule(&vif->napi);
 +		if (net_ratelimit())
 +			netdev_err(vif->dev, "Carrier on again\n");
-+		continue;
 +	} else {
 +		/* Queuing were stopped, but the guest posted new requests */
 +		del_timer_sync(&vif->rx_stalled);
 +		xenvif_start_queue(vif);
-+		continue;
 +	}
 +}
  int xenvif_kthread_guest_rx(void *data)
  {
  	struct xenvif *vif = data;
-@@ -1939,6 +1986,7 @@ int xenvif_kthread_guest_rx(void *data)
+@@ -1943,6 +1988,7 @@ int xenvif_kthread_guest_rx(void *data)
  		wait_event_interruptible(vif->wq,
  					 rx_work_todo(vif) ||
  					 vif->disabled ||
@@ -225,7 +223,7 @@ index f91ba78..ed96117 100644
  					 kthread_should_stop());
  
  		/* This frontend is found to be rogue, disable it in
-@@ -1949,24 +1997,16 @@ int xenvif_kthread_guest_rx(void *data)
+@@ -1953,24 +1999,16 @@ int xenvif_kthread_guest_rx(void *data)
  		 */
  		if (unlikely(vif->disabled))
  			xenvif_carrier_off(vif);
