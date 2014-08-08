@@ -225,6 +225,8 @@ fix-rx-action-slot-estimation.patch
 0001-xen-netback-Using-a-new-state-bit-instead-of-carrier.patch
 #
 0002-xen-netback-Turn-off-the-carrier-if-the-guest-is-not-able-to-receive.patch
+#
+0004-xen-netback-Dont-deschedule-NAPI-when-carrier-off.patch
 
 
 #
