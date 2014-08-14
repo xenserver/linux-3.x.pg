@@ -1,0 +1,57 @@
+From: Wei Liu <wei.liu2@citrix.com>
+To: <xen-devel@lists.xen.org>, <netdev@vger.kernel.org>
+CC: <ian.campbell@citrix.com>, <zoltan.kiss@citrix.com>,
+	<david.vrabel@citrix.com>, Wei Liu <wei.liu2@citrix.com>
+Subject: [PATCH net v4 3/3] xen-netback: remove loop waiting function
+
+The original implementation relies on a loop to check if all inflight
+packets are freed. Now we have proper reference counting, there's no
+need to use loop anymore.
+
+Signed-off-by: Wei Liu <wei.liu2@citrix.com>
+Cc: Ian Campbell <ian.campbell@citrix.com>
+Cc: Zoltan Kiss <zoltan.kiss@citrix.com>
+---
+
+diff --git a/drivers/net/xen-netback/interface.c b/drivers/net/xen-netback/interface.c
+index 7da6108..523ca6c 100644
+--- a/drivers/net/xen-netback/interface.c
++++ b/drivers/net/xen-netback/interface.c
+@@ -583,37 +583,6 @@ void xenvif_disconnect(struct xenvif *vif)
+ 
+ void xenvif_free(struct xenvif *vif)
+ {
+-	int i, unmap_timeout = 0;
+-	/* Here we want to avoid timeout messages if an skb can be legitimately
+-	 * stuck somewhere else. Realistically this could be an another vif's
+-	 * internal or QDisc queue. That another vif also has this
+-	 * rx_drain_timeout_msecs timeout, so give it time to drain out.
+-	 * Although if that other guest wakes up just before its timeout happens
+-	 * and takes only one skb from QDisc, it can hold onto other skbs for a
+-	 * longer period.
+-	 */
+-	unsigned int worst_case_skb_lifetime = (rx_drain_timeout_msecs/1000);
+-
+-	for (i = 0; i < MAX_PENDING_REQS; ++i) {
+-		if (vif->grant_tx_handle[i] != NETBACK_INVALID_HANDLE) {
+-			unmap_timeout++;
+-			schedule_timeout(msecs_to_jiffies(1000));
+-			if (unmap_timeout > worst_case_skb_lifetime &&
+-			    net_ratelimit())
+-				netdev_err(vif->dev,
+-					   "Page still granted! Index: %x\n",
+-					   i);
+-			/* If there are still unmapped pages, reset the loop to
+-			 * start checking again. We shouldn't exit here until
+-			 * dealloc thread and NAPI instance release all the
+-			 * pages. If a kernel bug causes the skbs to stall
+-			 * somewhere, the interface cannot be brought down
+-			 * properly.
+-			 */
+-			i = -1;
+-		}
+-	}
+-
+ 	free_xenballooned_pages(MAX_PENDING_REQS, vif->mmap_pages);
+ 
+ 	unregister_netdev(vif->dev);
