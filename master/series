@@ -340,6 +340,10 @@ fifo_page_fix.patch
 # Preemptible privcmd hypercalls
 0001-x86-xen-allow-privcmd-hypercalls-to-be-preempted.patch
 
+# nvme driver backport
+backport-nvme-driver-from-3.17.patch
+nvme-driver-fixes-to-build-3.10.patch
+
 #
 # Local patches.
 #
