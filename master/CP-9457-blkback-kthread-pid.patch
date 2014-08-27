@@ -1,0 +1,32 @@
+diff --git a/drivers/block/xen-blkback/xenbus.c b/drivers/block/xen-blkback/xenbus.c
+index 2c175fb..8df8b7b 100644
+--- a/drivers/block/xen-blkback/xenbus.c
++++ b/drivers/block/xen-blkback/xenbus.c
+@@ -100,7 +100,13 @@ static void xen_update_blkif_status(struct xen_blkif *blkif)
+ 		err = PTR_ERR(blkif->xenblkd);
+ 		blkif->xenblkd = NULL;
+ 		xenbus_dev_error(blkif->be->dev, err, "start xenblkd");
++		return;
+ 	}
++
++	err = xenbus_printf(XBT_NIL, blkif->be->dev->nodename, "kthread-pid",
++			    "%d", blkif->xenblkd->pid);
++	if (err)
++		xenbus_dev_error(blkif->be->dev, err, "writing kthread-pid");
+ }
+ 
+ static struct xen_blkif *xen_blkif_alloc(domid_t domid)
+@@ -178,6 +184,13 @@ static int xen_blkif_map(struct xen_blkif *blkif, unsigned long shared_page,
+ 
+ static void xen_blkif_disconnect(struct xen_blkif *blkif)
+ {
++	if (blkif->be->dev) {
++		int err = xenbus_rm(XBT_NIL,  blkif->be->dev->nodename, "kthread-pid");
++		if (err &&
++		    err != -ENOENT)
++			xenbus_dev_fatal(blkif->be->dev, err, "removing kthread-pid");
++	}
++
+ 	if (blkif->xenblkd) {
+ 		kthread_stop(blkif->xenblkd);
+ 		blkif->xenblkd = NULL;

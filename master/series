@@ -365,6 +365,7 @@ restricted-privcmd.patch
 CA-135938-nfs-disconnect-on-rpc-retry.patch
 export-symbols-as-non-gpl.patch
 netback-remove-unconditional-pull-skb-tail-on-tx.patch
+CP-9457-blkback-kthread-pid.patch
 
 # Local bonding and bridging patches
 bonding-balance-slb.patch
