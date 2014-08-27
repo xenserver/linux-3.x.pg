@@ -283,6 +283,7 @@ avoid_svn_execution.patch
 #
 blktap2-import-from-trunk.patch
 blktap2-fixups.patch
+blktap2-increase-devices.patch
 
 #
 # x86
