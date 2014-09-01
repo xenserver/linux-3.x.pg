@@ -1,0 +1,89 @@
+From 5d6cf014991a04a01d730f252d50db65a4389ff5 Mon Sep 17 00:00:00 2001
+From: David Vrabel <david.vrabel@citrix.com>
+Date: Fri, 29 Aug 2014 19:11:19 +0100
+Subject: [PATCH 1/2] xen-netback: make feature-rx-notify mandatory
+
+---
+ drivers/net/xen-netback/common.h  |    7 -------
+ drivers/net/xen-netback/netback.c |    8 --------
+ drivers/net/xen-netback/xenbus.c  |   13 ++++---------
+ 3 files changed, 4 insertions(+), 24 deletions(-)
+
+diff --git a/drivers/net/xen-netback/common.h b/drivers/net/xen-netback/common.h
+index b7e5a06..2bb2dd1 100644
+--- a/drivers/net/xen-netback/common.h
++++ b/drivers/net/xen-netback/common.h
+@@ -186,9 +186,6 @@ struct xenvif {
+ 	u8 ip_csum:1;
+ 	u8 ipv6_csum:1;
+ 
+-	/* Internal feature information. */
+-	u8 can_queue:1;	    /* can queue packets for receiver? */
+-
+ 	/* Transmit shaping: allow 'credit_bytes' every 'credit_usec'. */
+ 	unsigned long   credit_bytes;
+ 	unsigned long   credit_usec;
+@@ -231,8 +228,6 @@ void xenvif_xenbus_fini(void);
+ 
+ int xenvif_schedulable(struct xenvif *vif);
+ 
+-int xenvif_must_stop_queue(struct xenvif *vif);
+-
+ /* (Un)Map communication rings. */
+ void xenvif_unmap_frontend_rings(struct xenvif *vif);
+ int xenvif_map_frontend_rings(struct xenvif *vif,
+@@ -257,8 +252,6 @@ int xenvif_dealloc_kthread(void *data);
+  */
+ bool xenvif_rx_ring_slots_available(struct xenvif *vif, int needed);
+ 
+-void xenvif_stop_queue(struct xenvif *vif);
+-
+ /* Callback from stack when TX packet can be released */
+ void xenvif_zerocopy_callback(struct ubuf_info *ubuf, bool zerocopy_success);
+ 
+diff --git a/drivers/net/xen-netback/netback.c b/drivers/net/xen-netback/netback.c
+index ee19034..d0f58be 100644
+--- a/drivers/net/xen-netback/netback.c
++++ b/drivers/net/xen-netback/netback.c
+@@ -1919,14 +1919,6 @@ err:
+ 	return err;
+ }
+ 
+-void xenvif_stop_queue(struct xenvif *vif)
+-{
+-	if (!vif->can_queue)
+-		return;
+-
+-	netif_stop_queue(vif->dev);
+-}
+-
+ static void xenvif_start_queue(struct xenvif *vif)
+ {
+ 	if (xenvif_schedulable(vif))
+diff --git a/drivers/net/xen-netback/xenbus.c b/drivers/net/xen-netback/xenbus.c
+index 0a6ce5c..375c2b9 100644
+--- a/drivers/net/xen-netback/xenbus.c
++++ b/drivers/net/xen-netback/xenbus.c
+@@ -730,15 +730,10 @@ static int connect_rings(struct backend_info *be)
+ 	if (!rx_copy)
+ 		return -EOPNOTSUPP;
+ 
+-	if (vif->dev->tx_queue_len != 0) {
+-		if (xenbus_scanf(XBT_NIL, dev->otherend,
+-				 "feature-rx-notify", "%d", &val) < 0)
+-			val = 0;
+-		if (val)
+-			vif->can_queue = 1;
+-		else
+-			/* Must be non-zero for pfifo_fast to work. */
+-			vif->dev->tx_queue_len = 1;
++	if (xenbus_scanf(XBT_NIL, dev->otherend,
++			 "feature-rx-notify", "%d", &val) < 0 || val == 0) {
++		xenbus_dev_fatal(dev, -EINVAL, "feature-rx-notify is mandatory");
++		return -EINVAL;
+ 	}
+ 
+ 	if (xenbus_scanf(XBT_NIL, dev->otherend, "feature-sg",
+-- 
+1.7.10.4
+

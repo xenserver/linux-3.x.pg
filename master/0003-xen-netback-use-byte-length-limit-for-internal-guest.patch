@@ -1,0 +1,184 @@
+From e962734307b0959a6d59769fe866cba11c35c1b5 Mon Sep 17 00:00:00 2001
+From: David Vrabel <david.vrabel@citrix.com>
+Date: Mon, 1 Sep 2014 13:42:37 +0100
+Subject: [PATCH] xen-netback: use byte length limit for internal guest Rx
+ queue.
+
+---
+ drivers/net/xen-netback/common.h    |    6 ++++-
+ drivers/net/xen-netback/interface.c |   15 +++++++++----
+ drivers/net/xen-netback/netback.c   |   41 +++++++++++++++++++++++++++++------
+ 3 files changed, 50 insertions(+), 12 deletions(-)
+
+diff --git a/drivers/net/xen-netback/common.h b/drivers/net/xen-netback/common.h
+index 919d28b..d88313a 100644
+--- a/drivers/net/xen-netback/common.h
++++ b/drivers/net/xen-netback/common.h
+@@ -166,7 +166,8 @@ struct xenvif {
+ 	struct xen_netif_rx_back_ring rx;
+ 	struct sk_buff_head rx_queue;
+ 	RING_IDX rx_last_skb_slots;
+-	unsigned int rx_queue_len;
++	unsigned int rx_queue_max;
++	atomic_t rx_queue_len;
+ 
+ 	/* This array is allocated seperately as it is large */
+ 	struct gnttab_copy *grant_copy_op;
+@@ -260,6 +261,9 @@ int xenvif_dealloc_kthread(void *data);
+  */
+ bool xenvif_rx_ring_slots_available(struct xenvif *vif, int needed);
+ 
++void xenvif_rx_queue_tail(struct xenvif *vif, struct sk_buff *skb);
++void xenvif_rx_queue_purge(struct xenvif *vif);
++
+ /* Callback from stack when TX packet can be released */
+ void xenvif_zerocopy_callback(struct ubuf_info *ubuf, bool zerocopy_success);
+ 
+diff --git a/drivers/net/xen-netback/interface.c b/drivers/net/xen-netback/interface.c
+index ba9faad..802a2ae 100644
+--- a/drivers/net/xen-netback/interface.c
++++ b/drivers/net/xen-netback/interface.c
+@@ -43,6 +43,11 @@
+ #define XENVIF_QUEUE_LENGTH 32
+ #define XENVIF_NAPI_WEIGHT  64
+ 
++/* Number of bytes allowed on the internal guest Rx queue.  This is
++ * approximately half a fully populated ring.
++ */
++#define XENVIF_RX_QUEUE_BYTES (128 * 4096)
++
+ int xenvif_schedulable(struct xenvif *vif)
+ {
+ 	return netif_running(vif->dev) &&
+@@ -117,10 +122,10 @@ static int xenvif_start_xmit(struct sk_buff *skb, struct net_device *dev)
+ 	cb = XENVIF_RX_CB(skb);
+ 	cb->expires = jiffies + rx_drain_timeout_jiffies;
+ 
+-	skb_queue_tail(&vif->rx_queue, skb);
++	xenvif_rx_queue_tail(vif, skb);
+ 	xenvif_kick_thread(vif);
+ 
+-	if (skb_queue_len(&vif->rx_queue) > vif->rx_queue_len)
++	if (atomic_read(&vif->rx_queue_len) > vif->rx_queue_max)
+ 		netif_stop_queue(vif->dev);
+ 
+ 	return NETDEV_TX_OK;
+@@ -335,9 +340,11 @@ struct xenvif *xenvif_alloc(struct device *parent, domid_t domid,
+ 	dev->features = dev->hw_features | NETIF_F_RXCSUM;
+ 	SET_ETHTOOL_OPS(dev, &xenvif_ethtool_ops);
+ 
+-	vif->rx_queue_len = XENVIF_QUEUE_LENGTH;
+ 	dev->tx_queue_len = XENVIF_QUEUE_LENGTH;
+ 
++	vif->rx_queue_max = XENVIF_RX_QUEUE_BYTES;
++	atomic_set(&vif->rx_queue_len, 0);
++
+ 	skb_queue_head_init(&vif->rx_queue);
+ 	skb_queue_head_init(&vif->tx_queue);
+ 
+@@ -498,7 +505,7 @@ void xenvif_carrier_off(struct xenvif *vif)
+ 	rtnl_lock();
+ 	if (test_and_clear_bit(VIF_STATUS_CONNECTED, &vif->status)) {
+ 		netif_carrier_off(dev); /* discard queued packets */
+-		skb_queue_purge(&vif->rx_queue);
++		xenvif_rx_queue_purge(vif);
+ 		if (netif_running(dev))
+ 			xenvif_down(vif);
+ 	}
+diff --git a/drivers/net/xen-netback/netback.c b/drivers/net/xen-netback/netback.c
+index 986039c..14dec1b 100644
+--- a/drivers/net/xen-netback/netback.c
++++ b/drivers/net/xen-netback/netback.c
+@@ -157,6 +157,35 @@ bool xenvif_rx_ring_slots_available(struct xenvif *vif, int needed)
+ 	return false;
+ }
+ 
++void xenvif_rx_queue_tail(struct xenvif *vif, struct sk_buff *skb)
++{
++	skb_queue_tail(&vif->rx_queue, skb);
++	atomic_add(skb->len, &vif->rx_queue_len);
++}
++
++static void xenvif_rx_queue_head(struct xenvif *vif, struct sk_buff *skb)
++{
++	skb_queue_head(&vif->rx_queue, skb);
++	atomic_add(skb->len, &vif->rx_queue_len);
++}
++
++static struct sk_buff *xenvif_rx_dequeue(struct xenvif *vif)
++{
++	struct sk_buff *skb;
++
++	skb = skb_dequeue(&vif->rx_queue);
++	if (skb)
++		atomic_sub(skb->len, &vif->rx_queue_len);
++	return skb;
++}
++
++void xenvif_rx_queue_purge(struct xenvif *vif)
++{
++	struct sk_buff *skb;
++	while ((skb = xenvif_rx_dequeue(vif)) != NULL)
++		kfree_skb(skb);
++}
++
+ /*
+  * Returns true if we should start a new receive buffer instead of
+  * adding 'size' bytes to a buffer which currently contains 'offset'
+@@ -572,7 +601,7 @@ static void xenvif_rx_action(struct xenvif *vif)
+ 
+ 	skb_queue_head_init(&rxq);
+ 
+-	while ((skb = skb_dequeue(&vif->rx_queue)) != NULL) {
++	while ((skb = xenvif_rx_dequeue(vif)) != NULL) {
+ 		RING_IDX max_slots_needed;
+ 		RING_IDX old_req_cons;
+ 		RING_IDX ring_slots_used;
+@@ -621,7 +650,7 @@ static void xenvif_rx_action(struct xenvif *vif)
+ 
+ 		/* If the skb may not fit then bail out now */
+ 		if (!xenvif_rx_ring_slots_available(vif, max_slots_needed)) {
+-			skb_queue_head(&vif->rx_queue, skb);
++			xenvif_rx_queue_head(vif, skb);
+ 			need_to_notify = true;
+ 			vif->rx_last_skb_slots = max_slots_needed;
+ 			break;
+@@ -1947,7 +1976,6 @@ static long xenvif_rx_queue_timeout(struct xenvif *vif)
+ int xenvif_kthread_guest_rx(void *data)
+ {
+ 	struct xenvif *vif = data;
+-	struct sk_buff *skb;
+ 
+ 	while (!kthread_should_stop()) {
+ 		wait_event_interruptible_timeout(vif->wq,
+@@ -1979,7 +2007,7 @@ int xenvif_kthread_guest_rx(void *data)
+ 			if (net_ratelimit())
+ 				netdev_info(vif->dev, "Guest Rx stalled");
+ 			netif_carrier_off(vif->dev);
+-			skb_queue_purge(&vif->rx_queue);
++			xenvif_rx_queue_purge(vif);
+ 		} else if (xenvif_rx_queue_ready(vif)) {
+ 			/* Rx slots are available. Rx is no longer
+ 			 * stalled.
+@@ -1987,7 +2015,7 @@ int xenvif_kthread_guest_rx(void *data)
+ 			if (net_ratelimit())
+ 				netdev_info(vif->dev, "Guest Rx ready");
+ 			netif_carrier_on(vif->dev);
+-		} else if (skb_queue_len(&vif->rx_queue) < vif->rx_queue_len) {
++		} else if (atomic_read(&vif->rx_queue_len) < vif->rx_queue_max) {
+ 			netif_wake_queue(vif->dev);
+ 		}
+ 
+@@ -1995,8 +2023,7 @@ int xenvif_kthread_guest_rx(void *data)
+ 	}
+ 
+ 	/* Bin any remaining skbs */
+-	while ((skb = skb_dequeue(&vif->rx_queue)) != NULL)
+-		dev_kfree_skb(skb);
++	xenvif_rx_queue_purge(vif);
+ 
+ 	return 0;
+ }
+-- 
+1.7.10.4
+

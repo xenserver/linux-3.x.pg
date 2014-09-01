@@ -305,6 +305,11 @@ blkback-debug-ring.diff
 0016-xen-events-use-the-FIFO-based-ABI-if-available.patch
 fifo_page_fix.patch
 
+# netback
+0001-xen-netback-make-feature-rx-notify-mandatory.patch
+0002-xen-netback-fix-rx-stall-detection-and-queue-drainin.patch
+0003-xen-netback-use-byte-length-limit-for-internal-guest.patch
+
 # pciback
 0001-pci-export-pci_probe_reset_function.patch
 0002-xen-pciback-provide-a-reset-sysfs-file-to-try-harder.patch
