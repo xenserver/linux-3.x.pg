@@ -251,6 +251,11 @@ fix-rx-action-slot-estimation.patch
 #
 0004-xen-netback-Dont-deschedule-NAPI-when-carrier-off.patch
 #
+0001-xen-netback-move-NAPI-add-remove-calls.patch
+#
+0002-xen-netback-dont-stop-dealloc-kthread-too-early.patch
+#
+0003-xen-netback-remove-loop-waiting-function.patch
 
 #
 # skb_segment fixes
