@@ -4,12 +4,6 @@ Date: Mon, 1 Sep 2014 13:42:37 +0100
 Subject: [PATCH] xen-netback: use byte length limit for internal guest Rx
  queue.
 
----
- drivers/net/xen-netback/common.h    |    6 ++++-
- drivers/net/xen-netback/interface.c |   15 +++++++++----
- drivers/net/xen-netback/netback.c   |   41 +++++++++++++++++++++++++++++------
- 3 files changed, 50 insertions(+), 12 deletions(-)
-
 diff --git a/drivers/net/xen-netback/common.h b/drivers/net/xen-netback/common.h
 index 919d28b..d88313a 100644
 --- a/drivers/net/xen-netback/common.h
@@ -35,22 +29,20 @@ index 919d28b..d88313a 100644
  void xenvif_zerocopy_callback(struct ubuf_info *ubuf, bool zerocopy_success);
  
 diff --git a/drivers/net/xen-netback/interface.c b/drivers/net/xen-netback/interface.c
-index ba9faad..802a2ae 100644
+index ba9faad..659562f 100644
 --- a/drivers/net/xen-netback/interface.c
 +++ b/drivers/net/xen-netback/interface.c
-@@ -43,6 +43,11 @@
+@@ -43,6 +43,9 @@
  #define XENVIF_QUEUE_LENGTH 32
  #define XENVIF_NAPI_WEIGHT  64
  
-+/* Number of bytes allowed on the internal guest Rx queue.  This is
-+ * approximately half a fully populated ring.
-+ */
-+#define XENVIF_RX_QUEUE_BYTES (128 * 4096)
++/* Number of bytes allowed on the internal guest Rx queue. */
++#define XENVIF_RX_QUEUE_BYTES (XEN_NETIF_RX_RING_SIZE * PAGE_SIZE)
 +
  int xenvif_schedulable(struct xenvif *vif)
  {
  	return netif_running(vif->dev) &&
-@@ -117,10 +122,10 @@ static int xenvif_start_xmit(struct sk_buff *skb, struct net_device *dev)
+@@ -117,10 +120,10 @@ static int xenvif_start_xmit(struct sk_buff *skb, struct net_device *dev)
  	cb = XENVIF_RX_CB(skb);
  	cb->expires = jiffies + rx_drain_timeout_jiffies;
  
@@ -63,7 +55,7 @@ index ba9faad..802a2ae 100644
  		netif_stop_queue(vif->dev);
  
  	return NETDEV_TX_OK;
-@@ -335,9 +340,11 @@ struct xenvif *xenvif_alloc(struct device *parent, domid_t domid,
+@@ -335,9 +338,11 @@ struct xenvif *xenvif_alloc(struct device *parent, domid_t domid,
  	dev->features = dev->hw_features | NETIF_F_RXCSUM;
  	SET_ETHTOOL_OPS(dev, &xenvif_ethtool_ops);
  
@@ -76,7 +68,7 @@ index ba9faad..802a2ae 100644
  	skb_queue_head_init(&vif->rx_queue);
  	skb_queue_head_init(&vif->tx_queue);
  
-@@ -498,7 +505,7 @@ void xenvif_carrier_off(struct xenvif *vif)
+@@ -498,7 +503,7 @@ void xenvif_carrier_off(struct xenvif *vif)
  	rtnl_lock();
  	if (test_and_clear_bit(VIF_STATUS_CONNECTED, &vif->status)) {
  		netif_carrier_off(dev); /* discard queued packets */
@@ -179,6 +171,3 @@ index 986039c..14dec1b 100644
  
  	return 0;
  }
--- 
-1.7.10.4
-
