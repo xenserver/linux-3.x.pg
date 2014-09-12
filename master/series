@@ -347,6 +347,7 @@ fifo_page_fix.patch
 # nvme driver backport
 backport-nvme-driver-from-3.17.patch
 nvme-driver-fixes-to-build-3.10.patch
+nvme-zero-sg_io_hdr_msg_status-field.patch
 
 #
 # Local patches.

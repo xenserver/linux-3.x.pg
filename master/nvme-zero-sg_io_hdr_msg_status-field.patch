@@ -1,0 +1,18 @@
+diff --git a/drivers/block/nvme-scsi.c b/drivers/block/nvme-scsi.c
+index a4cd6d6..701f039 100644
+--- a/drivers/block/nvme-scsi.c
++++ b/drivers/block/nvme-scsi.c
+@@ -458,11 +458,13 @@ static int nvme_trans_completion(struct sg_io_hdr *hdr, u8 status, u8 sense_key,
+ 		hdr->status = SAM_STAT_GOOD;
+ 		hdr->masked_status = GOOD;
+ 		hdr->host_status = DID_OK;
++		hdr->msg_status = GOOD;
+ 		hdr->driver_status = DRIVER_OK;
+ 		hdr->sb_len_wr = 0;
+ 	} else {
+ 		hdr->status = status;
+ 		hdr->masked_status = status >> 1;
++		hdr->msg_status = GOOD;
+ 		hdr->host_status = DID_OK;
+ 		hdr->driver_status = DRIVER_OK;
+ 
