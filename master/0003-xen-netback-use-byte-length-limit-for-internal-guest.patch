@@ -5,20 +5,19 @@ Subject: [PATCH] xen-netback: use byte length limit for internal guest Rx
  queue.
 
 diff --git a/drivers/net/xen-netback/common.h b/drivers/net/xen-netback/common.h
-index 919d28b..d88313a 100644
+index 919d28b..47c29a4 100644
 --- a/drivers/net/xen-netback/common.h
 +++ b/drivers/net/xen-netback/common.h
-@@ -166,7 +166,8 @@ struct xenvif {
+@@ -165,7 +165,7 @@ struct xenvif {
+ 	char rx_irq_name[IFNAMSIZ+4]; /* DEVNAME-rx */
  	struct xen_netif_rx_back_ring rx;
  	struct sk_buff_head rx_queue;
- 	RING_IDX rx_last_skb_slots;
--	unsigned int rx_queue_len;
+-	RING_IDX rx_last_skb_slots;
 +	unsigned int rx_queue_max;
-+	atomic_t rx_queue_len;
+ 	unsigned int rx_queue_len;
  
  	/* This array is allocated seperately as it is large */
- 	struct gnttab_copy *grant_copy_op;
-@@ -260,6 +261,9 @@ int xenvif_dealloc_kthread(void *data);
+@@ -260,6 +260,9 @@ int xenvif_dealloc_kthread(void *data);
   */
  bool xenvif_rx_ring_slots_available(struct xenvif *vif, int needed);
  
@@ -29,7 +28,7 @@ index 919d28b..d88313a 100644
  void xenvif_zerocopy_callback(struct ubuf_info *ubuf, bool zerocopy_success);
  
 diff --git a/drivers/net/xen-netback/interface.c b/drivers/net/xen-netback/interface.c
-index ba9faad..659562f 100644
+index ba9faad..9ad5919 100644
 --- a/drivers/net/xen-netback/interface.c
 +++ b/drivers/net/xen-netback/interface.c
 @@ -43,6 +43,9 @@
@@ -42,7 +41,7 @@ index ba9faad..659562f 100644
  int xenvif_schedulable(struct xenvif *vif)
  {
  	return netif_running(vif->dev) &&
-@@ -117,10 +120,10 @@ static int xenvif_start_xmit(struct sk_buff *skb, struct net_device *dev)
+@@ -117,12 +120,9 @@ static int xenvif_start_xmit(struct sk_buff *skb, struct net_device *dev)
  	cb = XENVIF_RX_CB(skb);
  	cb->expires = jiffies + rx_drain_timeout_jiffies;
  
@@ -51,11 +50,12 @@ index ba9faad..659562f 100644
  	xenvif_kick_thread(vif);
  
 -	if (skb_queue_len(&vif->rx_queue) > vif->rx_queue_len)
-+	if (atomic_read(&vif->rx_queue_len) > vif->rx_queue_max)
- 		netif_stop_queue(vif->dev);
- 
+-		netif_stop_queue(vif->dev);
+-
  	return NETDEV_TX_OK;
-@@ -335,9 +338,11 @@ struct xenvif *xenvif_alloc(struct device *parent, domid_t domid,
+ 
+  drop:
+@@ -335,9 +335,10 @@ struct xenvif *xenvif_alloc(struct device *parent, domid_t domid,
  	dev->features = dev->hw_features | NETIF_F_RXCSUM;
  	SET_ETHTOOL_OPS(dev, &xenvif_ethtool_ops);
  
@@ -63,12 +63,11 @@ index ba9faad..659562f 100644
  	dev->tx_queue_len = XENVIF_QUEUE_LENGTH;
  
 +	vif->rx_queue_max = XENVIF_RX_QUEUE_BYTES;
-+	atomic_set(&vif->rx_queue_len, 0);
 +
  	skb_queue_head_init(&vif->rx_queue);
  	skb_queue_head_init(&vif->tx_queue);
  
-@@ -498,7 +503,7 @@ void xenvif_carrier_off(struct xenvif *vif)
+@@ -498,7 +499,7 @@ void xenvif_carrier_off(struct xenvif *vif)
  	rtnl_lock();
  	if (test_and_clear_bit(VIF_STATUS_CONNECTED, &vif->status)) {
  		netif_carrier_off(dev); /* discard queued packets */
@@ -78,34 +77,53 @@ index ba9faad..659562f 100644
  			xenvif_down(vif);
  	}
 diff --git a/drivers/net/xen-netback/netback.c b/drivers/net/xen-netback/netback.c
-index 986039c..14dec1b 100644
+index 986039c..ab3d68e 100644
 --- a/drivers/net/xen-netback/netback.c
 +++ b/drivers/net/xen-netback/netback.c
-@@ -157,6 +157,35 @@ bool xenvif_rx_ring_slots_available(struct xenvif *vif, int needed)
+@@ -157,6 +157,54 @@ bool xenvif_rx_ring_slots_available(struct xenvif *vif, int needed)
  	return false;
  }
  
 +void xenvif_rx_queue_tail(struct xenvif *vif, struct sk_buff *skb)
 +{
-+	skb_queue_tail(&vif->rx_queue, skb);
-+	atomic_add(skb->len, &vif->rx_queue_len);
-+}
++	unsigned long flags;
 +
-+static void xenvif_rx_queue_head(struct xenvif *vif, struct sk_buff *skb)
-+{
-+	skb_queue_head(&vif->rx_queue, skb);
-+	atomic_add(skb->len, &vif->rx_queue_len);
++	spin_lock_irqsave(&vif->rx_queue.lock, flags);
++
++	__skb_queue_tail(&vif->rx_queue, skb);
++
++	vif->rx_queue_len += skb->len;
++	if (vif->rx_queue_len > vif->rx_queue_max)
++		netif_stop_queue(vif->dev);
++
++	spin_unlock_irqrestore(&vif->rx_queue.lock, flags);
 +}
 +
 +static struct sk_buff *xenvif_rx_dequeue(struct xenvif *vif)
 +{
 +	struct sk_buff *skb;
 +
-+	skb = skb_dequeue(&vif->rx_queue);
++	spin_lock_irq(&vif->rx_queue.lock);
++
++	skb = __skb_dequeue(&vif->rx_queue);
 +	if (skb)
-+		atomic_sub(skb->len, &vif->rx_queue_len);
++		vif->rx_queue_len -= skb->len;
++
++	spin_unlock_irq(&vif->rx_queue.lock);
++
 +	return skb;
 +}
++
++static void xenvif_rx_queue_maybe_wake(struct xenvif *vif)
++{
++	spin_lock_irq(&vif->rx_queue.lock);
++
++	if (vif->rx_queue_len < vif->rx_queue_max)
++		netif_wake_queue(vif->dev);
++
++	spin_unlock_irq(&vif->rx_queue.lock);
++}
++
 +
 +void xenvif_rx_queue_purge(struct xenvif *vif)
 +{
@@ -117,25 +135,42 @@ index 986039c..14dec1b 100644
  /*
   * Returns true if we should start a new receive buffer instead of
   * adding 'size' bytes to a buffer which currently contains 'offset'
-@@ -572,7 +601,7 @@ static void xenvif_rx_action(struct xenvif *vif)
+@@ -572,7 +620,8 @@ static void xenvif_rx_action(struct xenvif *vif)
  
  	skb_queue_head_init(&rxq);
  
 -	while ((skb = skb_dequeue(&vif->rx_queue)) != NULL) {
-+	while ((skb = xenvif_rx_dequeue(vif)) != NULL) {
++	while (xenvif_rx_ring_slots_available(vif, XEN_NETBK_RX_SLOTS_MAX)
++	       && (skb = xenvif_rx_dequeue(vif)) != NULL) {
  		RING_IDX max_slots_needed;
  		RING_IDX old_req_cons;
  		RING_IDX ring_slots_used;
-@@ -621,7 +650,7 @@ static void xenvif_rx_action(struct xenvif *vif)
+@@ -619,15 +668,6 @@ static void xenvif_rx_action(struct xenvif *vif)
+ 		    skb_shinfo(skb)->gso_type & SKB_GSO_TCPV6))
+ 			max_slots_needed++;
  
- 		/* If the skb may not fit then bail out now */
- 		if (!xenvif_rx_ring_slots_available(vif, max_slots_needed)) {
+-		/* If the skb may not fit then bail out now */
+-		if (!xenvif_rx_ring_slots_available(vif, max_slots_needed)) {
 -			skb_queue_head(&vif->rx_queue, skb);
-+			xenvif_rx_queue_head(vif, skb);
- 			need_to_notify = true;
- 			vif->rx_last_skb_slots = max_slots_needed;
- 			break;
-@@ -1947,7 +1976,6 @@ static long xenvif_rx_queue_timeout(struct xenvif *vif)
+-			need_to_notify = true;
+-			vif->rx_last_skb_slots = max_slots_needed;
+-			break;
+-		} else
+-			vif->rx_last_skb_slots = 0;
+-
+ 		old_req_cons = vif->rx.req_cons;
+ 		XENVIF_RX_CB(skb)->meta_slots_used = xenvif_gop_skb(skb, &npo);
+ 		BUG_ON(XENVIF_RX_CB(skb)->meta_slots_used > max_slots_needed);
+@@ -1926,7 +1966,7 @@ static bool xenvif_rx_queue_ready(struct xenvif *vif)
+ static bool xenvif_have_rx_work(struct xenvif *vif)
+ {
+ 	return (!skb_queue_empty(&vif->rx_queue)
+-		&& xenvif_rx_ring_slots_available(vif, vif->rx_last_skb_slots))
++		&& xenvif_rx_ring_slots_available(vif, XEN_NETBK_RX_SLOTS_MAX))
+ 		|| xenvif_rx_queue_stalled(vif)
+ 		|| xenvif_rx_queue_ready(vif)
+ 		|| kthread_should_stop()
+@@ -1947,7 +1987,6 @@ static long xenvif_rx_queue_timeout(struct xenvif *vif)
  int xenvif_kthread_guest_rx(void *data)
  {
  	struct xenvif *vif = data;
@@ -143,7 +178,7 @@ index 986039c..14dec1b 100644
  
  	while (!kthread_should_stop()) {
  		wait_event_interruptible_timeout(vif->wq,
-@@ -1979,7 +2007,7 @@ int xenvif_kthread_guest_rx(void *data)
+@@ -1979,7 +2018,7 @@ int xenvif_kthread_guest_rx(void *data)
  			if (net_ratelimit())
  				netdev_info(vif->dev, "Guest Rx stalled");
  			netif_carrier_off(vif->dev);
@@ -152,16 +187,17 @@ index 986039c..14dec1b 100644
  		} else if (xenvif_rx_queue_ready(vif)) {
  			/* Rx slots are available. Rx is no longer
  			 * stalled.
-@@ -1987,7 +2015,7 @@ int xenvif_kthread_guest_rx(void *data)
+@@ -1987,16 +2026,15 @@ int xenvif_kthread_guest_rx(void *data)
  			if (net_ratelimit())
  				netdev_info(vif->dev, "Guest Rx ready");
  			netif_carrier_on(vif->dev);
 -		} else if (skb_queue_len(&vif->rx_queue) < vif->rx_queue_len) {
-+		} else if (atomic_read(&vif->rx_queue_len) < vif->rx_queue_max) {
- 			netif_wake_queue(vif->dev);
+-			netif_wake_queue(vif->dev);
++		} else {
++			xenvif_rx_queue_maybe_wake(vif);
  		}
  
-@@ -1995,8 +2023,7 @@ int xenvif_kthread_guest_rx(void *data)
+ 		cond_resched();
  	}
  
  	/* Bin any remaining skbs */
@@ -171,3 +207,18 @@ index 986039c..14dec1b 100644
  
  	return 0;
  }
+diff --git a/drivers/net/xen-netback/xenbus.c b/drivers/net/xen-netback/xenbus.c
+index 375c2b9..ec41e77 100644
+--- a/drivers/net/xen-netback/xenbus.c
++++ b/drivers/net/xen-netback/xenbus.c
+@@ -110,6 +110,10 @@ static int xenvif_read_io_ring(struct seq_file *m, void *v)
+ 		   vif->credit_timeout.expires,
+ 		   jiffies);
+ 
++	seq_printf(m, "\nRx internal queue: len %u max %u%s\n",
++		   vif->rx_queue_len, vif->rx_queue_max,
++		   netif_queue_stopped(vif->dev) ? " stopped" : "");
++
+ 	return 0;
+ }
+ 
