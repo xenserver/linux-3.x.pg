@@ -28,7 +28,7 @@ index 919d28b..47c29a4 100644
  void xenvif_zerocopy_callback(struct ubuf_info *ubuf, bool zerocopy_success);
  
 diff --git a/drivers/net/xen-netback/interface.c b/drivers/net/xen-netback/interface.c
-index ba9faad..9ad5919 100644
+index ba9faad..7255bc3 100644
 --- a/drivers/net/xen-netback/interface.c
 +++ b/drivers/net/xen-netback/interface.c
 @@ -43,6 +43,9 @@
@@ -36,7 +36,7 @@ index ba9faad..9ad5919 100644
  #define XENVIF_NAPI_WEIGHT  64
  
 +/* Number of bytes allowed on the internal guest Rx queue. */
-+#define XENVIF_RX_QUEUE_BYTES (XEN_NETIF_RX_RING_SIZE * PAGE_SIZE)
++#define XENVIF_RX_QUEUE_BYTES (XEN_NETIF_RX_RING_SIZE/2 * PAGE_SIZE)
 +
  int xenvif_schedulable(struct xenvif *vif)
  {
