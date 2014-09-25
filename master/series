@@ -308,7 +308,6 @@ fifo_page_fix.patch
 # netback
 0001-xen-netback-make-feature-rx-notify-mandatory.patch
 0002-xen-netback-fix-rx-stall-detection-and-queue-drainin.patch
-0003-xen-netback-use-byte-length-limit-for-internal-guest.patch
 
 # pciback
 0001-pci-export-pci_probe_reset_function.patch
