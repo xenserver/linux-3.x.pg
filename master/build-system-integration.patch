@@ -6,10 +6,10 @@ Use GIT macros instead of HG ones
 
 diff --git a/mk/Makefile b/mk/Makefile
 new file mode 100644
-index 0000000..1e95249
+index 0000000..d2f147a
 --- /dev/null
 +++ b/mk/Makefile
-@@ -0,0 +1,172 @@
+@@ -0,0 +1,173 @@
 +USE_BRANDING := yes
 +IMPORT_BRANDING := yes
 +REPONAME=linux-3.x
@@ -170,16 +170,17 @@ index 0000000..1e95249
 +	if [ "$(KERNEL_EXTRAVERSION)" == "+0" ]; then \
 +		exit 0 ; \
 +	fi ; \
++	rpm2cpio $(MY_OUTPUT_DIR)/RPMS/$(DOMAIN0_ARCH_OPTIMIZED)/$(OUTPUT_DEVEL_RPM) | \
++		cpio -i --to-stdout --quiet .$(MODULE_SYMVERS) \
++			> $(MY_OBJ_DIR)/$(KABI).new ; \
 +	if [ -f $(KABI) ]; then \
-+		rpm2cpio $(MY_OUTPUT_DIR)/RPMS/$(DOMAIN0_ARCH_OPTIMIZED)/$(OUTPUT_DEVEL_RPM) | \
-+			cpio -i --to-stdout --quiet .$(MODULE_SYMVERS) \
-+				> $(MY_OBJ_DIR)/$(KABI).new ; \
 +		if ! ./check-kabi -k $(KABI) -s $(MY_OBJ_DIR)/$(KABI).new ; then \
 +			cp -a $(MY_OBJ_DIR)/$(KABI).new $(KABI).new ; \
 +			exit 1 ; \
 +		fi ; \
 +	else \
 +		echo "'$(KABI)' missing" >&2 ; \
++		cp -a $(MY_OBJ_DIR)/$(KABI).new $(KABI).new ; \
 +		exit 1 ; \
 +	fi
 diff --git a/mk/check-kabi b/mk/check-kabi
@@ -359,7 +360,7 @@ index 0000000..da884e2
 +
 diff --git a/mk/kernel.spec.in b/mk/kernel.spec.in
 new file mode 100644
-index 0000000..5d5abd1
+index 0000000..9d5e009
 --- /dev/null
 +++ b/mk/kernel.spec.in
 @@ -0,0 +1,287 @@
