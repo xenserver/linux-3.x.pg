@@ -1,0 +1,122 @@
+From 9f27bc543bdf92e179927037e2ab8ed0261579a9 Mon Sep 17 00:00:00 2001
+From: Daniel Kiper <daniel.kiper@oracle.com>
+Date: Mon, 30 Jun 2014 19:52:58 +0200
+Subject: [PATCH 4/4] efi: Introduce EFI_PARAVIRT flag
+
+Introduce EFI_PARAVIRT flag. If it is set then kernel runs
+on EFI platform but it has not direct control on EFI stuff
+like EFI runtime, tables, structures, etc. If not this means
+that Linux Kernel has direct access to EFI infrastructure
+and everything runs as usual.
+
+This functionality is used in Xen dom0 because hypervisor
+has full control on EFI stuff and all calls from dom0 to
+EFI must be requested via special hypercall which in turn
+executes relevant EFI code in behalf of dom0.
+
+Signed-off-by: Daniel Kiper <daniel.kiper@oracle.com>
+Signed-off-by: Matt Fleming <matt.fleming@intel.com>
+diff --git a/arch/x86/platform/efi/efi.c b/arch/x86/platform/efi/efi.c
+index 920178c..2a82837 100644
+--- a/arch/x86/platform/efi/efi.c
++++ b/arch/x86/platform/efi/efi.c
+@@ -370,6 +370,9 @@ int __init efi_memblock_x86_reserve_range(void)
+ 	struct efi_info *e = &boot_params.efi_info;
+ 	unsigned long pmap;
+ 
++	if (efi_enabled(EFI_PARAVIRT))
++		return 0;
++
+ #ifdef CONFIG_X86_32
+ 	/* Can't handle data above 4GB at this time */
+ 	if (e->efi_memmap_hi) {
+@@ -650,34 +653,47 @@ static int __init efi_runtime_init(void)
+ 	 * the runtime services table so that we can grab the physical
+ 	 * address of several of the EFI runtime functions, needed to
+ 	 * set the firmware into virtual mode.
++	 *
++	 * When EFI_PARAVIRT is in force then we could not map runtime
++	 * service memory region because we do not have direct access to it.
++	 * However, runtime services are available through proxy functions
++	 * (e.g. in case of Xen dom0 EFI implementation they call special
++	 * hypercall which executes relevant EFI functions) and that is why
++	 * they are always enabled.
+ 	 */
+-	runtime = early_memremap((unsigned long)efi.systab->runtime,
+-				 sizeof(efi_runtime_services_t));
+-	if (!runtime) {
+-		pr_err("Could not map the runtime service table!\n");
+-		return -ENOMEM;
++	if (!efi_enabled(EFI_PARAVIRT)) {
++		runtime = early_memremap((unsigned long)efi.systab->runtime,
++					 sizeof(efi_runtime_services_t));
++		if (!runtime) {
++			pr_err("Could not map the runtime service table!\n");
++			return -ENOMEM;
++		}
++		/*
++		 * We will only need *early* access to the following
++		 * two EFI runtime services before set_virtual_address_map
++		 * is invoked.
++		 */
++		efi_phys.get_time = (efi_get_time_t *)runtime->get_time;
++		efi_phys.set_virtual_address_map =
++			(efi_set_virtual_address_map_t *)
++			runtime->set_virtual_address_map;
++
++		/*
++		 * Make efi_get_time can be called before entering
++		 * virtual mode.
++		 */
++		efi.get_time = phys_efi_get_time;
++		early_memunmap(runtime, sizeof(efi_runtime_services_t));
+ 	}
+-	/*
+-	 * We will only need *early* access to the following
+-	 * two EFI runtime services before set_virtual_address_map
+-	 * is invoked.
+-	 */
+-	efi_phys.get_time = (efi_get_time_t *)runtime->get_time;
+-	efi_phys.set_virtual_address_map =
+-		(efi_set_virtual_address_map_t *)
+-		runtime->set_virtual_address_map;
+-	/*
+-	 * Make efi_get_time can be called before entering
+-	 * virtual mode.
+-	 */
+-	efi.get_time = phys_efi_get_time;
+-	early_memunmap(runtime, sizeof(efi_runtime_services_t));
+ 
+ 	return 0;
+ }
+ 
+ static int __init efi_memmap_init(void)
+ {
++	if (efi_enabled(EFI_PARAVIRT))
++		return 0;
++
+ 	/* Map the EFI memory map */
+ 	memmap.map = early_memremap((unsigned long)memmap.phys_map,
+ 				   memmap.nr_map * memmap.desc_size);
+@@ -853,6 +869,9 @@ void __init efi_enter_virtual_mode(void)
+ 	void *p, *va, *new_memmap = NULL;
+ 	int count = 0;
+ 
++	if (efi_enabled(EFI_PARAVIRT))
++		return;
++
+ 	efi.systab = NULL;
+ 
+ 	/*
+diff --git a/include/linux/efi.h b/include/linux/efi.h
+index e174d72..97a6b68 100644
+--- a/include/linux/efi.h
++++ b/include/linux/efi.h
+@@ -635,6 +635,7 @@ extern int __init efi_setup_pcdp_console(char *);
+ #define EFI_RUNTIME_SERVICES	3	/* Can we use runtime services? */
+ #define EFI_MEMMAP		4	/* Can we use EFI memory map? */
+ #define EFI_64BIT		5	/* Is the firmware 64-bit? */
++#define EFI_PARAVIRT		6	/* Access is via a paravirt interface */
+ 
+ #ifdef CONFIG_EFI
+ # ifdef CONFIG_X86

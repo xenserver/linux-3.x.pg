@@ -1,0 +1,39 @@
+From 57f7138d760700f56a8aa944376c28ff83c47c26 Mon Sep 17 00:00:00 2001
+From: Daniel Kiper <daniel.kiper@oracle.com>
+Date: Sat, 12 Jul 2014 23:09:47 +0200
+Subject: [PATCH 11/11] xen: Silence compiler warnings
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Add inline keyword to silence the following compiler
+warnings if xen_efi_probe() is not used:
+
+  CC      arch/x86/xen/setup.o
+In file included from arch/x86/xen/xen-ops.h:7:0,
+                 from arch/x86/xen/setup.c:31:
+include/xen/xen-ops.h:43:35: warning: ‘xen_efi_probe’ defined but not used [-Wunused-function]
+
+Signed-off-by: Daniel Kiper <daniel.kiper@oracle.com>
+Reviewed-by: Konrad Rzeszutek Wilk <Konrad.wilk@oracle.com>
+Signed-off-by: Matt Fleming <matt.fleming@intel.com>
+---
+ include/xen/xen-ops.h |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/include/xen/xen-ops.h b/include/xen/xen-ops.h
+index 771bbba..7491ee5 100644
+--- a/include/xen/xen-ops.h
++++ b/include/xen/xen-ops.h
+@@ -40,7 +40,7 @@ bool xen_running_on_version_or_later(unsigned int major, unsigned int minor);
+ #ifdef CONFIG_XEN_EFI
+ extern efi_system_table_t *xen_efi_probe(void);
+ #else
+-static efi_system_table_t __init *xen_efi_probe(void)
++static inline efi_system_table_t __init *xen_efi_probe(void)
+ {
+ 	return NULL;
+ }
+-- 
+1.7.10.4
+

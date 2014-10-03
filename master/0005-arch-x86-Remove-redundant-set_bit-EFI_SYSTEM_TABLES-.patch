@@ -1,0 +1,33 @@
+From 9f2adfd8a97f6d9c2725888a4eeec22c17ac3dab Mon Sep 17 00:00:00 2001
+From: Daniel Kiper <daniel.kiper@oracle.com>
+Date: Mon, 30 Jun 2014 19:52:59 +0200
+Subject: [PATCH 5/5] arch/x86: Remove redundant set_bit(EFI_SYSTEM_TABLES)
+ call
+
+Remove redundant set_bit(EFI_SYSTEM_TABLES, &efi.flags) call.
+It is executed earlier in efi_systab_init().
+
+Signed-off-by: Daniel Kiper <daniel.kiper@oracle.com>
+Signed-off-by: Matt Fleming <matt.fleming@intel.com>
+diff --git a/arch/x86/platform/efi/efi.c b/arch/x86/platform/efi/efi.c
+index 2a82837..c81b08b 100644
+--- a/arch/x86/platform/efi/efi.c
++++ b/arch/x86/platform/efi/efi.c
+@@ -567,6 +567,8 @@ static int __init efi_systab_init(void *phys)
+ 		       efi.systab->hdr.revision >> 16,
+ 		       efi.systab->hdr.revision & 0xffff);
+ 
++	set_bit(EFI_SYSTEM_TABLES, &efi.flags);
++
+ 	return 0;
+ }
+ 
+@@ -732,8 +734,6 @@ void __init efi_init(void)
+ 	if (efi_systab_init(efi_phys.systab))
+ 		return;
+ 
+-	set_bit(EFI_SYSTEM_TABLES, &efi.flags);
+-
+ 	/*
+ 	 * Show what we know for posterity
+ 	 */

@@ -68,6 +68,29 @@
 # d5c9fde3dae750889168807038243ff36431d276 (3.15-rc4)
 0001-mm-page-writeback.c-fix-divide-by-zero-in-pos_ratio_.patch
 #
+# EFI backports
+#
+# 3e909599215456928e6b42a04f11c2517881570b (3.15-rc1)
+0001-efi-Move-facility-flags-to-struct-efi.patch
+# 4fa62481e231111373418f0d95dd1f24f6e83321 (3.17-rc1)
+0002-efi-Use-early_mem-instead-of-early_io.patch
+# 67a9b9c53cafd3f391dccc84a3af45334c6267fc (3.17-rc1)
+0003-arch-x86-Do-not-access-EFI-memory-map-if-it-is-not-a.patch
+# 9f27bc543bdf92e179927037e2ab8ed0261579a9 (3.17-rc1)
+0004-efi-Introduce-EFI_PARAVIRT-flag.patch
+# 9f2adfd8a97f6d9c2725888a4eeec22c17ac3dab (3.17-rc1)
+0005-arch-x86-Remove-redundant-set_bit-EFI_SYSTEM_TABLES-.patch
+# 0fe376e18f9add43e994963f7e47d24261e64d85 (3.17-rc1)
+0006-arch-x86-Remove-redundant-set_bit-EFI_MEMMAP-call.patch
+# bf1e3ae468aca7ce34110a59ed5d1b877890014b (3.17-rc1)
+0007-xen-Define-EFI-related-stuff.patch
+# be81c8a1da24288b0231be50130a64f5cdffdcd4 (3.17-rc1)
+0008-xen-Put-EFI-machinery-in-place.patch
+# 57f7138d760700f56a8aa944376c28ff83c47c26 (3.17-rc1)
+0011-xen-Silence-compiler-warnings.patch
+# c7341d6a61c3526631a4e4565cda72cb1f51d146 (3.17-rc1)
+0012-arch-x86-xen-Silence-compiler-warnings.patch
+#
 # Netback backports
 #
 # f1db320ec5788d5fcc05c0285bd0980319185497 (3.11-rc1)

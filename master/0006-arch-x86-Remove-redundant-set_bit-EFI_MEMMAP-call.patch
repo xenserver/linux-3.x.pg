@@ -1,0 +1,32 @@
+From 0fe376e18f9add43e994963f7e47d24261e64d85 Mon Sep 17 00:00:00 2001
+From: Daniel Kiper <daniel.kiper@oracle.com>
+Date: Mon, 30 Jun 2014 19:53:00 +0200
+Subject: [PATCH 6/6] arch/x86: Remove redundant set_bit(EFI_MEMMAP) call
+
+Remove redundant set_bit(EFI_MEMMAP, &efi.flags) call.
+It is executed earlier in efi_memmap_init().
+
+Signed-off-by: Daniel Kiper <daniel.kiper@oracle.com>
+Signed-off-by: Matt Fleming <matt.fleming@intel.com>
+diff --git a/arch/x86/platform/efi/efi.c b/arch/x86/platform/efi/efi.c
+index c81b08b..e945e0d 100644
+--- a/arch/x86/platform/efi/efi.c
++++ b/arch/x86/platform/efi/efi.c
+@@ -708,6 +708,8 @@ static int __init efi_memmap_init(void)
+ 	if (add_efi_memmap)
+ 		do_add_efi_memmap();
+ 
++	set_bit(EFI_MEMMAP, &efi.flags);
++
+ 	return 0;
+ }
+ 
+@@ -771,8 +773,6 @@ void __init efi_init(void)
+ 	if (efi_memmap_init())
+ 		return;
+ 
+-	set_bit(EFI_MEMMAP, &efi.flags);
+-
+ #if EFI_DEBUG
+ 	print_efi_memmap();
+ #endif

@@ -1,0 +1,158 @@
+From abc93f8eb6e46a480485f19256bdbda36ec78a84 Mon Sep 17 00:00:00 2001
+From: Daniel Kiper <daniel.kiper@oracle.com>
+Date: Mon, 30 Jun 2014 19:52:56 +0200
+Subject: [PATCH 2/2] efi: Use early_mem*() instead of early_io*()
+
+Use early_mem*() instead of early_io*() because all mapped EFI regions
+are memory (usually RAM but they could also be ROM, EPROM, EEPROM, flash,
+etc.) not I/O regions. Additionally, I/O family calls do not work correctly
+under Xen in our case. early_ioremap() skips the PFN to MFN conversion
+when building the PTE. Using it for memory will attempt to map the wrong
+machine frame. However, all artificial EFI structures created under Xen
+live in dom0 memory and should be mapped/unmapped using early_mem*() family
+calls which map domain memory.
+
+Signed-off-by: Daniel Kiper <daniel.kiper@oracle.com>
+Cc: Leif Lindholm <leif.lindholm@linaro.org>
+Cc: Mark Salter <msalter@redhat.com>
+Signed-off-by: Matt Fleming <matt.fleming@intel.com>
+diff --git a/arch/x86/include/asm/io.h b/arch/x86/include/asm/io.h
+index d8e8eef..958ba98 100644
+--- a/arch/x86/include/asm/io.h
++++ b/arch/x86/include/asm/io.h
+@@ -328,6 +328,11 @@ extern void __iomem *early_ioremap(resource_size_t phys_addr,
+ extern void __iomem *early_memremap(resource_size_t phys_addr,
+ 				    unsigned long size);
+ extern void early_iounmap(void __iomem *addr, unsigned long size);
++static inline void early_memunmap(void *addr, unsigned long size)
++{
++	early_iounmap(addr, size);
++}
++extern void fixup_early_ioremap(void);
+ extern void fixup_early_ioremap(void);
+ extern bool is_early_ioremap_ptep(pte_t *ptep);
+ 
+diff --git a/arch/x86/platform/efi/efi.c b/arch/x86/platform/efi/efi.c
+index 4fc4742..05f8a9b 100644
+--- a/arch/x86/platform/efi/efi.c
++++ b/arch/x86/platform/efi/efi.c
+@@ -447,7 +447,7 @@ void __init efi_unmap_memmap(void)
+ {
+ 	clear_bit(EFI_MEMMAP, &efi.flags);
+ 	if (memmap.map) {
+-		early_iounmap(memmap.map, memmap.nr_map * memmap.desc_size);
++		early_memunmap(memmap.map, memmap.nr_map * memmap.desc_size);
+ 		memmap.map = NULL;
+ 	}
+ }
+@@ -484,7 +484,7 @@ static int __init efi_systab_init(void *phys)
+ 		efi_system_table_64_t *systab64;
+ 		u64 tmp = 0;
+ 
+-		systab64 = early_ioremap((unsigned long)phys,
++		systab64 = early_memremap((unsigned long)phys,
+ 					 sizeof(*systab64));
+ 		if (systab64 == NULL) {
+ 			pr_err("Couldn't map the system table!\n");
+@@ -515,7 +515,7 @@ static int __init efi_systab_init(void *phys)
+ 		efi_systab.tables = systab64->tables;
+ 		tmp |= systab64->tables;
+ 
+-		early_iounmap(systab64, sizeof(*systab64));
++		early_memunmap(systab64, sizeof(*systab64));
+ #ifdef CONFIG_X86_32
+ 		if (tmp >> 32) {
+ 			pr_err("EFI data located above 4GB, disabling EFI.\n");
+@@ -525,7 +525,7 @@ static int __init efi_systab_init(void *phys)
+ 	} else {
+ 		efi_system_table_32_t *systab32;
+ 
+-		systab32 = early_ioremap((unsigned long)phys,
++		systab32 = early_memremap((unsigned long)phys,
+ 					 sizeof(*systab32));
+ 		if (systab32 == NULL) {
+ 			pr_err("Couldn't map the system table!\n");
+@@ -546,7 +546,7 @@ static int __init efi_systab_init(void *phys)
+ 		efi_systab.nr_tables = systab32->nr_tables;
+ 		efi_systab.tables = systab32->tables;
+ 
+-		early_iounmap(systab32, sizeof(*systab32));
++		early_memunmap(systab32, sizeof(*systab32));
+ 	}
+ 
+ 	efi.systab = &efi_systab;
+@@ -580,7 +580,7 @@ static int __init efi_config_init(u64 tables, int nr_tables)
+ 	/*
+ 	 * Let's see what config tables the firmware passed to us.
+ 	 */
+-	config_tables = early_ioremap(tables, nr_tables * sz);
++	config_tables = early_memremap(tables, nr_tables * sz);
+ 	if (config_tables == NULL) {
+ 		pr_err("Could not map Configuration table!\n");
+ 		return -ENOMEM;
+@@ -601,8 +601,8 @@ static int __init efi_config_init(u64 tables, int nr_tables)
+ 			if (table64 >> 32) {
+ 				pr_cont("\n");
+ 				pr_err("Table located above 4GB, disabling EFI.\n");
+-				early_iounmap(config_tables,
+-					      efi.systab->nr_tables * sz);
++				early_memunmap(config_tables,
++					       efi.systab->nr_tables * sz);
+ 				return -EINVAL;
+ 			}
+ #endif
+@@ -637,7 +637,7 @@ static int __init efi_config_init(u64 tables, int nr_tables)
+ 		tablep += sz;
+ 	}
+ 	pr_cont("\n");
+-	early_iounmap(config_tables, efi.systab->nr_tables * sz);
++	early_memunmap(config_tables, efi.systab->nr_tables * sz);
+ 	return 0;
+ }
+ 
+@@ -651,8 +651,8 @@ static int __init efi_runtime_init(void)
+ 	 * address of several of the EFI runtime functions, needed to
+ 	 * set the firmware into virtual mode.
+ 	 */
+-	runtime = early_ioremap((unsigned long)efi.systab->runtime,
+-				sizeof(efi_runtime_services_t));
++	runtime = early_memremap((unsigned long)efi.systab->runtime,
++				 sizeof(efi_runtime_services_t));
+ 	if (!runtime) {
+ 		pr_err("Could not map the runtime service table!\n");
+ 		return -ENOMEM;
+@@ -671,7 +671,7 @@ static int __init efi_runtime_init(void)
+ 	 * virtual mode.
+ 	 */
+ 	efi.get_time = phys_efi_get_time;
+-	early_iounmap(runtime, sizeof(efi_runtime_services_t));
++	early_memunmap(runtime, sizeof(efi_runtime_services_t));
+ 
+ 	return 0;
+ }
+@@ -679,7 +679,7 @@ static int __init efi_runtime_init(void)
+ static int __init efi_memmap_init(void)
+ {
+ 	/* Map the EFI memory map */
+-	memmap.map = early_ioremap((unsigned long)memmap.phys_map,
++	memmap.map = early_memremap((unsigned long)memmap.phys_map,
+ 				   memmap.nr_map * memmap.desc_size);
+ 	if (memmap.map == NULL) {
+ 		pr_err("Could not map the memory map!\n");
+@@ -721,14 +721,14 @@ void __init efi_init(void)
+ 	/*
+ 	 * Show what we know for posterity
+ 	 */
+-	c16 = tmp = early_ioremap(efi.systab->fw_vendor, 2);
++	c16 = tmp = early_memremap(efi.systab->fw_vendor, 2);
+ 	if (c16) {
+ 		for (i = 0; i < sizeof(vendor) - 1 && *c16; ++i)
+ 			vendor[i] = *c16++;
+ 		vendor[i] = '\0';
+ 	} else
+ 		pr_err("Could not map the firmware vendor!\n");
+-	early_iounmap(tmp, 2);
++	early_memunmap(tmp, 2);
+ 
+ 	pr_info("EFI v%u.%.02u by %s\n",
+ 		efi.systab->hdr.revision >> 16,

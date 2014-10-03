@@ -28,7 +28,7 @@ clear and set xen_in_preemptible_hcall around the call.
 
 Signed-off-by: David Vrabel <david.vrabel@citrix.com>
 diff --git a/arch/x86/kernel/entry_32.S b/arch/x86/kernel/entry_32.S
-index 8f3e2de..0bc2dfe 100644
+index 94e52cf..1bb8ba9 100644
 --- a/arch/x86/kernel/entry_32.S
 +++ b/arch/x86/kernel/entry_32.S
 @@ -991,7 +991,30 @@ ENTRY(xen_hypervisor_callback)
@@ -63,7 +63,7 @@ index 8f3e2de..0bc2dfe 100644
  ENDPROC(xen_hypervisor_callback)
  
 diff --git a/arch/x86/kernel/entry_64.S b/arch/x86/kernel/entry_64.S
-index 7272089..c5bb272 100644
+index 7ac938a..62115c8 100644
 --- a/arch/x86/kernel/entry_64.S
 +++ b/arch/x86/kernel/entry_64.S
 @@ -1388,7 +1388,25 @@ ENTRY(xen_do_hypervisor_callback)   # do_hypervisor_callback(struct *pt_regs)
@@ -101,7 +101,7 @@ index 7272089..c5bb272 100644
  	movl TI_flags(%rcx),%edx
  	movl $_TIF_WORK_MASK,%edi
 diff --git a/drivers/xen/Makefile b/drivers/xen/Makefile
-index 1e782c9..c539844 100644
+index 9d4b7f3..1ffdb0b 100644
 --- a/drivers/xen/Makefile
 +++ b/drivers/xen/Makefile
 @@ -3,7 +3,7 @@ obj-y	+= manage.o
@@ -153,14 +153,13 @@ index 2cfc24d..9c3c40a 100644
  	return ret;
  }
 diff --git a/include/xen/xen-ops.h b/include/xen/xen-ops.h
-index d6fe062..9e0336a 100644
+index 4d75467..943e239 100644
 --- a/include/xen/xen-ops.h
 +++ b/include/xen/xen-ops.h
-@@ -34,4 +34,31 @@ int xen_unmap_domain_mfn_range(struct vm_area_struct *vma,
- 			       int numpgs, struct page **pages);
+@@ -45,4 +45,30 @@ static inline efi_system_table_t __init *xen_efi_probe(void)
+ }
+ #endif
  
- bool xen_running_on_version_or_later(unsigned int major, unsigned int minor);
-+
 +#ifdef CONFIG_PREEMPT
 +
 +static inline void xen_preemptible_hcall_begin(void)
