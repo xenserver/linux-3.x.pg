@@ -428,8 +428,8 @@ index 0000000..6da3b36
 +ExclusiveArch: noarch i686 x86_64
 +ExclusiveOS: Linux
 +Summary: The Linux kernel built for Xen.
-+BuildRequires(pre): module-init-tools, patch >= 2.5.4, bash >= 2.03, sh-utils, tar
-+BuildRequires(pre): bzip2, findutils, gzip, m4, perl, make >= 3.78
++BuildRequires: module-init-tools, patch >= 2.5.4, bash >= 2.03, sh-utils, tar
++BuildRequires: bzip2, findutils, gzip, m4, perl, make >= 3.78
 +BuildRequires: gcc >= 2.96-98, binutils >= 2.12, redhat-rpm-config >= 8.0.32.1
 +Provides: kernel-uname-r = %{uname}
 +Autoreqprov: no
