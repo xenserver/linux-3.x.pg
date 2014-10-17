@@ -94,10 +94,10 @@ but this was seen as an acceptable thing to do.
 Signed-off-by: George Dunlap <george.dunlap@eu.citrix.com>
 
 diff --git a/arch/x86/include/asm/xen/hypercall.h b/arch/x86/include/asm/xen/hypercall.h
-index e709884..be81673 100644
+index 7d3cbfb..a0b1799 100644
 --- a/arch/x86/include/asm/xen/hypercall.h
 +++ b/arch/x86/include/asm/xen/hypercall.h
-@@ -465,6 +465,12 @@ HYPERVISOR_tmem_op(
+@@ -472,6 +472,12 @@ HYPERVISOR_tmem_op(
  	return _hypercall1(int, tmem_op, op);
  }
  
@@ -306,61 +306,19 @@ index 0000000..3823e46
 +	return 0;
 +}
 diff --git a/arch/x86/xen/mmu.c b/arch/x86/xen/mmu.c
-index fdc3ba2..3503cc5 100644
+index a8c9d99..b80dd26 100644
 --- a/arch/x86/xen/mmu.c
 +++ b/arch/x86/xen/mmu.c
-@@ -2503,7 +2503,7 @@ static int remap_area_mfn_pte_fn(pte_t *ptep, pgtable_t token,
- 	return 0;
- }
+@@ -2588,6 +2588,15 @@ int xen_remap_domain_mfn_array(struct vm_area_struct *vma,
  
--int xen_remap_domain_mfn_range(struct vm_area_struct *vma,
-+static int __xen_remap_domain_mfn_range(struct mm_struct *mm,
- 			       unsigned long addr,
- 			       xen_pfn_t mfn, int nr,
- 			       pgprot_t prot, unsigned domid,
-@@ -2521,8 +2521,6 @@ int xen_remap_domain_mfn_range(struct vm_area_struct *vma,
- 
- 	prot = __pgprot(pgprot_val(prot) | _PAGE_IOMAP);
- 
--	BUG_ON(!((vma->vm_flags & (VM_PFNMAP | VM_IO)) == (VM_PFNMAP | VM_IO)));
--
- 	rmd.mfn = mfn;
- 	rmd.prot = prot;
- 
-@@ -2531,7 +2529,7 @@ int xen_remap_domain_mfn_range(struct vm_area_struct *vma,
- 		range = (unsigned long)batch << PAGE_SHIFT;
- 
- 		rmd.mmu_update = mmu_update;
--		err = apply_to_page_range(vma->vm_mm, addr, range,
-+		err = apply_to_page_range(mm, addr, range,
- 					  remap_area_mfn_pte_fn, &rmd);
- 		if (err)
- 			goto out;
-@@ -2551,8 +2549,30 @@ out:
- 
- 	return err;
- }
-+
-+int xen_remap_domain_mfn_range(struct vm_area_struct *vma,
-+                               unsigned long addr,
-+                               xen_pfn_t mfn, int nr,
-+                               pgprot_t prot, unsigned domid,
-+			       struct page **pages)
-+{
-+
-+	BUG_ON(!((vma->vm_flags & (VM_PFNMAP | VM_IO)) == (VM_PFNMAP | VM_IO)));
-+
-+	return __xen_remap_domain_mfn_range(vma->vm_mm, addr,
-+	                                    mfn, nr, prot, domid, pages);
-+}
- EXPORT_SYMBOL_GPL(xen_remap_domain_mfn_range);
+ EXPORT_SYMBOL_GPL(xen_remap_domain_mfn_array);
  
 +int xen_remap_domain_kernel_mfn_range(unsigned long addr,
 +                                      unsigned long mfn, int nr,
 +                                      pgprot_t prot, unsigned domid)
 +{
 +	return __xen_remap_domain_mfn_range(&init_mm, addr, 
-+	                                    mfn, nr, prot, domid, NULL);
++	                                    &mfn, nr, true, prot, domid, NULL);
 +}
 +EXPORT_SYMBOL_GPL(xen_remap_domain_kernel_mfn_range);
 +
@@ -368,7 +326,7 @@ index fdc3ba2..3503cc5 100644
  int xen_unmap_domain_mfn_range(struct vm_area_struct *vma,
  			       int numpgs, struct page **pages)
 diff --git a/drivers/oprofile/buffer_sync.c b/drivers/oprofile/buffer_sync.c
-index d93b2b6..c008748 100644
+index d93b2b6..c0087483 100644
 --- a/drivers/oprofile/buffer_sync.c
 +++ b/drivers/oprofile/buffer_sync.c
 @@ -43,6 +43,10 @@ static cpumask_var_t marked_cpus;
@@ -1700,10 +1658,10 @@ index a4c5624..f2138ac 100644
  /**
   * Create a file of the given name as a child of the given root, with
 diff --git a/include/xen/interface/xen.h b/include/xen/interface/xen.h
-index 53ec416..34adebe 100644
+index 679ef1d..5caab46 100644
 --- a/include/xen/interface/xen.h
 +++ b/include/xen/interface/xen.h
-@@ -79,6 +79,7 @@
+@@ -81,6 +81,7 @@
  #define VIRQ_CONSOLE    2  /* (DOM0) Bytes received on emergency console. */
  #define VIRQ_DOM_EXC    3  /* (DOM0) Exceptional event for some domain.   */
  #define VIRQ_DEBUGGER   6  /* (DOM0) A domain has paused for debugging.   */
@@ -1858,10 +1816,10 @@ index 0000000..e80081b
 + * End:
 + */
 diff --git a/include/xen/xen-ops.h b/include/xen/xen-ops.h
-index d6fe062..6842e24 100644
+index 943e239..d63789b 100644
 --- a/include/xen/xen-ops.h
 +++ b/include/xen/xen-ops.h
-@@ -33,5 +33,9 @@ int xen_remap_domain_mfn_range(struct vm_area_struct *vma,
+@@ -34,6 +34,10 @@ int xen_remap_domain_mfn_range(struct vm_area_struct *vma,
  int xen_unmap_domain_mfn_range(struct vm_area_struct *vma,
  			       int numpgs, struct page **pages);
  
@@ -1870,7 +1828,8 @@ index d6fe062..6842e24 100644
 +			       pgprot_t prot, unsigned domid);
 +
  bool xen_running_on_version_or_later(unsigned int major, unsigned int minor);
- #endif /* INCLUDE_XEN_OPS_H */
+ 
+ #ifdef CONFIG_XEN_EFI
 diff --git a/include/xen/xenoprof.h b/include/xen/xenoprof.h
 new file mode 100644
 index 0000000..89fb8d3

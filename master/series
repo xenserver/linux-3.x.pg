@@ -303,6 +303,7 @@ blktap2-fixups.patch
 0007-x86-skip-check-for-spurious-faults-for-non-present-f.patch
 0008-x86-xen-do-not-use-_PAGE_IOMAP-PTE-flag-for-I-O-mapp.patch
 0009-x86-remove-the-Xen-specific-_PAGE_IOMAP-PTE-flag.patch
+mmapbatch-performance-improvment.patch
 
 0001-xen-install-xen-gntdev.h-and-xen-gntalloc.h.patch
 

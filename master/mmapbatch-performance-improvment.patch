@@ -1,0 +1,399 @@
+diff --git a/arch/x86/xen/mmu.c b/arch/x86/xen/mmu.c
+index 7a8aea0..a8c9d99 100644
+--- a/arch/x86/xen/mmu.c
++++ b/arch/x86/xen/mmu.c
+@@ -2445,7 +2445,8 @@ void __init xen_hvm_init_mmu_ops(void)
+ #define REMAP_BATCH_SIZE 16
+ 
+ struct remap_data {
+-	unsigned long mfn;
++	xen_pfn_t *mfn;
++	bool contiguous;
+ 	pgprot_t prot;
+ 	struct mmu_update *mmu_update;
+ };
+@@ -2454,7 +2455,12 @@ static int remap_area_mfn_pte_fn(pte_t *ptep, pgtable_t token,
+ 				 unsigned long addr, void *data)
+ {
+ 	struct remap_data *rmd = data;
+-	pte_t pte = pte_mkspecial(mfn_pte(rmd->mfn++, rmd->prot));
++	pte_t pte = pte_mkspecial(mfn_pte(*rmd->mfn, rmd->prot));
++
++	if (rmd->contiguous)
++		(*rmd->mfn)++;
++	else
++		rmd->mfn++;
+ 
+ 	rmd->mmu_update->ptr = virt_to_machine(ptep).maddr;
+ 	rmd->mmu_update->val = pte_val_ma(pte);
+@@ -2463,54 +2469,125 @@ static int remap_area_mfn_pte_fn(pte_t *ptep, pgtable_t token,
+ 	return 0;
+ }
+ 
+-int xen_remap_domain_mfn_range(struct vm_area_struct *vma,
+-			       unsigned long addr,
+-			       xen_pfn_t mfn, int nr,
+-			       pgprot_t prot, unsigned domid,
+-			       struct page **pages)
++static int __xen_remap_domain_mfn_range(struct mm_struct *mm,
++					unsigned long addr,
++					xen_pfn_t *mfn, int nr,
++					bool contiguous, pgprot_t prot,
++					unsigned domid, struct page **pages)
+ 
+ {
+ 	struct remap_data rmd;
+ 	struct mmu_update mmu_update[REMAP_BATCH_SIZE];
+ 	int batch;
++	int batch_left;
+ 	unsigned long range;
+ 	int err = 0;
++	int last_err = 0;
++
++	int next_errcode = 0;
++	int current_errcode = 0;
+ 
+ 	if (xen_feature(XENFEAT_auto_translated_physmap))
+ 		return -EINVAL;
+ 
+-	BUG_ON(!((vma->vm_flags & (VM_PFNMAP | VM_IO)) == (VM_PFNMAP | VM_IO)));
+-
+ 	rmd.mfn = mfn;
+ 	rmd.prot = prot;
++	rmd.contiguous = contiguous;
+ 
+ 	while (nr) {
++		int index = 0;
++		int done = 0;
+ 		batch = min(REMAP_BATCH_SIZE, nr);
++		batch_left = batch;
+ 		range = (unsigned long)batch << PAGE_SHIFT;
+ 
+ 		rmd.mmu_update = mmu_update;
+-		err = apply_to_page_range(vma->vm_mm, addr, range,
++		err = apply_to_page_range(mm, addr, range,
+ 					  remap_area_mfn_pte_fn, &rmd);
+ 		if (err)
+ 			goto out;
+ 
+-		err = HYPERVISOR_mmu_update(mmu_update, batch, NULL, domid);
+-		if (err < 0)
+-			goto out;
++		/* We record the error for each page that gives an error, but
++		 * continue mapping until the whole set is done */
++		do {
++			err = HYPERVISOR_mmu_update(&mmu_update[index], batch_left,
++						    &done, domid);
++
++			current_errcode += done;
++
++			if (err < 0) {
++				if ((contiguous) || (err == -ESRCH))
++					goto out;
++
++				last_err = err;
++
++				mfn[current_errcode] = err;
++				/* clear codes between last error and now*/
++				while (next_errcode < current_errcode)
++					mfn[next_errcode++] = 0;
++
++				done++; /* skip items with errors */
++				current_errcode++;
++				next_errcode = current_errcode;
++
++			}
++			batch_left -= done;
++			index += done;
++		} while (batch_left);
+ 
+ 		nr -= batch;
+ 		addr += range;
+ 	}
+ 
+-	err = 0;
++	err = last_err;
+ out:
++	/* clear any remaining returning error codes */
++	if (err && !contiguous) {
+ 
++		while (next_errcode < current_errcode)
++			mfn[next_errcode++] = 0;
++
++		if (err == -ESRCH) {
++			nr += (batch_left - batch);
++			while (nr--) {
++				mfn[current_errcode++] = err;
++			}
++		}
++	}
+ 	xen_flush_tlb_all();
+ 
+ 	return err;
+ }
++
++int xen_remap_domain_mfn_range(struct vm_area_struct *vma,
++                               unsigned long addr,
++                               xen_pfn_t mfn, int nr,
++                               pgprot_t prot, unsigned domid,
++			       struct page **pages)
++{
++
++	BUG_ON(!((vma->vm_flags & (VM_PFNMAP | VM_IO)) == (VM_PFNMAP | VM_IO)));
++
++	return __xen_remap_domain_mfn_range(vma->vm_mm, addr,
++	                                    &mfn, nr, true, prot, domid, pages);
++}
++
+ EXPORT_SYMBOL_GPL(xen_remap_domain_mfn_range);
+ 
++int xen_remap_domain_mfn_array(struct vm_area_struct *vma,
++			       unsigned long addr,
++			       xen_pfn_t *mfn, int nr,
++			       pgprot_t prot, unsigned domid,
++			       struct page **pages)
++{
++	BUG_ON(!((vma->vm_flags & (VM_PFNMAP | VM_IO)) == (VM_PFNMAP | VM_IO)));
++
++	return __xen_remap_domain_mfn_range(vma->vm_mm, addr,
++					    mfn, nr, false, prot, domid, pages);
++}
++
++EXPORT_SYMBOL_GPL(xen_remap_domain_mfn_array);
++
+ /* Returns: 0 success */
+ int xen_unmap_domain_mfn_range(struct vm_area_struct *vma,
+ 			       int numpgs, struct page **pages)
+diff --git a/drivers/xen/privcmd.c b/drivers/xen/privcmd.c
+index 2cfc24d..c2a0d06 100644
+--- a/drivers/xen/privcmd.c
++++ b/drivers/xen/privcmd.c
+@@ -154,6 +285,41 @@ static int traverse_pages(unsigned nelem, size_t size,
+ 	return ret;
+ }
+ 
++/*
++ * Similar to traverse_pages, but use each page as a "block" of
++ * data to be processed as one unit.
++ */
++static int traverse_pages_block(unsigned nelem, size_t size,
++				struct list_head *pos,
++				int (*fn)(void *data, int nr, void *state),
++				void *state)
++{
++	void *pagedata;
++	unsigned pageidx;
++	int ret = 0;
++
++	BUG_ON(size > PAGE_SIZE);
++
++	pageidx = PAGE_SIZE;
++
++	while (nelem) {
++		int nr = (PAGE_SIZE/size);
++		struct page *page;
++		if (nr > nelem)
++			nr = nelem;
++		pos = pos->next;
++		page = list_entry(pos, struct page, lru);
++		pagedata = page_address(page);
++		ret = (*fn)(pagedata, nr, state);
++		if (ret)
++			break;
++		nelem -= nr;
++	}
++
++	return ret;
++}
++
++
+ struct mmap_mfn_state {
+ 	unsigned long va;
+ 	struct vm_area_struct *vma;
+@@ -253,12 +423,14 @@ struct mmap_batch_state {
+ 	int index;
+ 	/* A tristate:
+ 	 *      0 for no errors
+-	 *      1 if at least one error has happened (and no
+-	 *          -ENOENT errors have happened)
++	 *      1 if at least one error has happened (and not -ENOENT)
+ 	 *      -ENOENT if at least 1 -ENOENT has happened.
++	 * During mmap_return_errors, it may be changed to:
++	 *      -ESRCH if -ESRCH is encountered - indicating no more values.
+ 	 */
+ 	int global_error;
+ 	int version;
++	void *first_bad_page;
+ 
+ 	/* User-space mfn array to store errors in the second pass for V1. */
+ 	xen_pfn_t __user *user_mfn;
+@@ -269,7 +441,7 @@ struct mmap_batch_state {
+ /* auto translated dom0 note: if domU being created is PV, then mfn is
+  * mfn(addr on bus). If it's auto xlated, then mfn is pfn (input to HAP).
+  */
+-static int mmap_batch_fn(void *data, void *state)
++static int mmap_batch_fn(void *data, int nr, void *state)
+ {
+ 	xen_pfn_t *mfnp = data;
+ 	struct mmap_batch_state *st = state;
+@@ -281,52 +453,73 @@ static int mmap_batch_fn(void *data, void *state)
+ 	if (xen_feature(XENFEAT_auto_translated_physmap))
+ 		cur_page = pages[st->index++];
+ 
+-	ret = xen_remap_domain_mfn_range(st->vma, st->va & PAGE_MASK, *mfnp, 1,
++	ret = xen_remap_domain_mfn_array(st->vma, st->va & PAGE_MASK, mfnp, nr,
+ 					 st->vma->vm_page_prot, st->domain,
+ 					 &cur_page);
+ 
+-	/* Store error code for second pass. */
+-	if (st->version == 1) {
+-		if (ret < 0) {
+-			/*
+-			 * V1 encodes the error codes in the 32bit top nibble of the
+-			 * mfn (with its known limitations vis-a-vis 64 bit callers).
+-			 */
+-			*mfnp |= (ret == -ENOENT) ?
+-						PRIVCMD_MMAPBATCH_PAGED_ERROR :
+-						PRIVCMD_MMAPBATCH_MFN_ERROR;
+-		}
+-	} else { /* st->version == 2 */
+-		*((int *) mfnp) = ret;
+-	}
+-
+ 	/* And see if it affects the global_error. */
+ 	if (ret < 0) {
+-		if (ret == -ENOENT)
++		if (ret == -ENOENT) {
+ 			st->global_error = -ENOENT;
+-		else {
++		} else {
+ 			/* Record that at least one error has happened. */
+ 			if (st->global_error == 0)
+ 				st->global_error = 1;
+ 		}
++		if (!st->first_bad_page)
++			st->first_bad_page = data;
++	} else if (st->first_bad_page) {
++		/* we had some errors on previouse interation,
++			 add success codes for this batch */
++		int err_num = nr;
++		while (nr--)
++			mfnp[err_num] = 0;
+ 	}
+-	st->va += PAGE_SIZE;
+ 
+-	return 0;
++	st->va += PAGE_SIZE * nr;
++
++	return (ret == -ESRCH) ? ESRCH : 0;
+ }
+ 
+ static int mmap_return_errors(void *data, void *state)
+ {
++	int err;
+ 	struct mmap_batch_state *st = state;
+ 
++	/* Skip pages before we encountered first error */
++	if (st->first_bad_page) {
++		if  (st->first_bad_page != data)
++			return 0;
++		else
++			st->first_bad_page = NULL;
++	}
++
++	if (st->global_error == -ESRCH) {
++		err = -ESRCH;
++	} else {
++		err = *((int *) data);
++
++		if (err == -ESRCH)
++			st->global_error = -ESRCH;
++	}
+ 	if (st->version == 1) {
+-		xen_pfn_t mfnp = *((xen_pfn_t *) data);
+-		if (mfnp & PRIVCMD_MMAPBATCH_MFN_ERROR)
++		if (err) {
++			xen_pfn_t mfnp;
++			__get_user(mfnp, st->user_mfn);
++
++			/*
++			 * V1 encodes the error codes in the 32bit top nibble of the
++			 * mfn (with its known limitations vis-a-vis 64 bit callers).
++			 */
++			mfnp |= (err == -ENOENT) ?
++					PRIVCMD_MMAPBATCH_PAGED_ERROR :
++					PRIVCMD_MMAPBATCH_MFN_ERROR;
++
+ 			return __put_user(mfnp, st->user_mfn++);
+-		else
++		} else {
+ 			st->user_mfn++;
++		}
+ 	} else { /* st->version == 2 */
+-		int err = *((int *) data);
+ 		if (err)
+ 			return __put_user(err, st->user_err++);
+ 		else
+@@ -435,16 +633,18 @@ static long privcmd_ioctl_mmap_batch(void __user *udata, int version)
+ 		}
+ 	}
+ 
+-	state.domain        = m.dom;
+-	state.vma           = vma;
+-	state.va            = m.addr;
+-	state.index         = 0;
+-	state.global_error  = 0;
+-	state.version       = version;
++	state.domain         = m.dom;
++	state.vma            = vma;
++	state.va             = m.addr;
++	state.index          = 0;
++	state.global_error   = 0;
++	state.version        = version;
++	state.first_bad_page = NULL;
++
++	traverse_pages_block(m.num, sizeof(xen_pfn_t),
++				    &pagelist, mmap_batch_fn, &state);
+ 
+-	/* mmap_batch_fn guarantees ret == 0 */
+-	BUG_ON(traverse_pages(m.num, sizeof(xen_pfn_t),
+-			     &pagelist, mmap_batch_fn, &state));
++	int has_ENOENT = (state.global_error == -ENOENT) ? -ENOENT : 0;
+ 
+ 	up_write(&mm->mmap_sem);
+ 
+@@ -454,13 +654,14 @@ static long privcmd_ioctl_mmap_batch(void __user *udata, int version)
+ 		state.user_err = m.err;
+ 		ret = traverse_pages(m.num, sizeof(xen_pfn_t),
+ 							 &pagelist, mmap_return_errors, &state);
+-	} else
++	} else {
+ 		ret = 0;
++	}
+ 
+ 	/* If we have not had any EFAULT-like global errors then set the global
+ 	 * error to -ENOENT if necessary. */
+-	if ((ret == 0) && (state.global_error == -ENOENT))
+-		ret = -ENOENT;
++	if (ret == 0)
++		ret = has_ENOENT;
+ 
+ out:
+ 	free_page_list(&pagelist);
+diff --git a/include/xen/xen-ops.h b/include/xen/xen-ops.h
+index 4d75467..4100eb8 100644
+--- a/include/xen/xen-ops.h
++++ b/include/xen/xen-ops.h
+@@ -34,6 +34,12 @@ int xen_remap_domain_mfn_range(struct vm_area_struct *vma,
+ int xen_unmap_domain_mfn_range(struct vm_area_struct *vma,
+ 			       int numpgs, struct page **pages);
+ 
++int xen_remap_domain_mfn_array(struct vm_area_struct *vma,
++			       unsigned long addr,
++			       xen_pfn_t *mfn, int nr,
++			       pgprot_t prot, unsigned domid, 
++			       struct page **pages);
++
+ bool xen_running_on_version_or_later(unsigned int major, unsigned int minor);
+ 
+ #ifdef CONFIG_XEN_EFI
