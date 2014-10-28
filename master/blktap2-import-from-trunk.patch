@@ -373,7 +373,7 @@ index 0000000..fa7042b
 +
 +static struct miscdevice blktap_control = {
 +	.minor    = MISC_DYNAMIC_MINOR,
-+	.name     = "blktap-control",
++	.name     = "blktap/control",
 +	.fops     = &blktap_control_file_operations,
 +};
 +
@@ -2490,7 +2490,7 @@ index 0000000..4cbb0ce
 +	init_waitqueue_head(&tap->remove_wait);
 +
 +	dev = device_create(class, NULL, ring->devno,
-+			    tap, "blktap%d", tap->minor);
++			    tap, "blktap/blktap%d", tap->minor);
 +	if (IS_ERR(dev))
 +		err = PTR_ERR(dev);
 +	if (!err)

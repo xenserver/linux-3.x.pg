@@ -394,7 +394,7 @@ index 4cbb0ce..626350b1 100644
 -	init_waitqueue_head(&tap->remove_wait);
 -
  	dev = device_create(class, NULL, ring->devno,
- 			    tap, "blktap%d", tap->minor);
+ 			    tap, "blktap/blktap%d", tap->minor);
  	if (IS_ERR(dev))
 @@ -179,8 +136,6 @@ blktap_sysfs_create(struct blktap *tap)
  	if (!err)
