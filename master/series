@@ -31,6 +31,8 @@
 0005-PCI-Add-pci_reset_slot-and-pci_reset_bus.patch
 # 3775a209d38aa3a0c7ed89a7d0f529e0230f280e (3.11-rc2)
 0001-PCI-Add-pci_wait_for_pending_transaction.patch
+# c6cc142dac52e62e1e8a2aff5de1300202b96c66 (3.11-rc3)
+0001-xen-blkback-use-balloon-pages-for-all-mappings.patch
 # 7e44892c1b6bb499cb2f6d5c0f4afcc077a26074 (3.11-rc4)
 0001-igb-fix-vlan-filtering-in-promisc-mode-when-not-in-V.patch
 # 2ac3ac8f86f2fe065d746d9a9abaca867adec577 (3.11-rc4)
@@ -67,6 +69,9 @@
 0003-PCI-Add-Virtual-Channel-to-save-restore-support.patch
 # d5c9fde3dae750889168807038243ff36431d276 (3.15-rc4)
 0001-mm-page-writeback.c-fix-divide-by-zero-in-pos_ratio_.patch
+# fb9a0c443691ceaab3daba966bbbd9f5ff3aa26f (3.16-rc6)
+0002-xen-balloon-set-ballooned-out-pages-as-invalid-in-p2.patch
+
 #
 # EFI backports
 #
@@ -370,6 +375,7 @@ CA-135938-nfs-disconnect-on-rpc-retry.patch
 export-symbols-as-non-gpl.patch
 netback-remove-unconditional-pull-skb-tail-on-tx.patch
 CP-9457-blkback-kthread-pid.patch
+limit-grant-maps-to-ballooned-pages-only.patch
 
 # Local bonding and bridging patches
 bonding-balance-slb.patch

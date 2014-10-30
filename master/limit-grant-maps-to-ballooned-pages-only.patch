@@ -1,0 +1,39 @@
+diff --git a/arch/x86/xen/p2m.c b/arch/x86/xen/p2m.c
+index 1bb40ff..6404063 100644
+--- a/arch/x86/xen/p2m.c
++++ b/arch/x86/xen/p2m.c
+@@ -966,7 +966,7 @@ int set_foreign_p2m_mapping(struct gnttab_map_grant_ref *map_ops,
+ 		WARN_ON(PagePrivate(pages[i]));
+ 		SetPagePrivate(pages[i]);
+ 		set_page_private(pages[i], mfn);
+-		pages[i]->index = pfn_to_mfn(pfn);
++		WARN( pfn_to_mfn(pfn) != INVALID_P2M_ENTRY, "Page must be ballooned.");
+ 
+ 		if (unlikely(!set_phys_to_machine(pfn, FOREIGN_FRAME(mfn)))) {
+ 			ret = -ENOMEM;
+@@ -1073,7 +1073,7 @@ int clear_foreign_p2m_mapping(struct gnttab_unmap_grant_ref *unmap_ops,
+ 		set_page_private(pages[i], INVALID_P2M_ENTRY);
+ 		WARN_ON(!PagePrivate(pages[i]));
+ 		ClearPagePrivate(pages[i]);
+-		set_phys_to_machine(pfn, pages[i]->index);
++		set_phys_to_machine(pfn, INVALID_P2M_ENTRY);
+ 
+ 		if (kmap_ops)
+ 			ret = m2p_remove_override(pages[i], &kmap_ops[i], mfn);
+diff --git a/drivers/net/xen-netback/netback.c b/drivers/net/xen-netback/netback.c
+index 4806a8c..f79dc5b 100644
+--- a/drivers/net/xen-netback/netback.c
++++ b/drivers/net/xen-netback/netback.c
+@@ -1229,12 +1229,6 @@ static void xenvif_fill_frags(struct xenvif *vif, struct sk_buff *skb)
+ 		/* Take an extra reference to offset network stack's put_page */
+ 		get_page(vif->mmap_pages[pending_idx]);
+ 	}
+-	/* FIXME: __skb_fill_page_desc set this to true because page->pfmemalloc
+-	 * overlaps with "index", and "mapping" is not set. I think mapping
+-	 * should be set. If delivered to local stack, it would drop this
+-	 * skb in sk_filter unless the socket has the right to use it.
+-	 */
+-	skb->pfmemalloc	= false;
+ }
+ 
+ static int xenvif_get_extras(struct xenvif *vif,
