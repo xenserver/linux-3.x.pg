@@ -1,0 +1,88 @@
+From 25b19304c2faac0fe748347c4d79693765997898 Mon Sep 17 00:00:00 2001
+From: David Vrabel <david.vrabel@citrix.com>
+Date: Fri, 31 Oct 2014 14:42:18 +0000
+Subject: [PATCH 2/2] x86/xen: never re-enable IRQs in spinlock slow path
+
+---
+ arch/x86/xen/spinlock.c |   20 +++++---------------
+ 1 file changed, 5 insertions(+), 15 deletions(-)
+
+diff --git a/arch/x86/xen/spinlock.c b/arch/x86/xen/spinlock.c
+index b877952..01e069a 100644
+--- a/arch/x86/xen/spinlock.c
++++ b/arch/x86/xen/spinlock.c
+@@ -197,7 +197,7 @@ static inline void unspinning_lock(struct xen_spinlock *xl, struct xen_spinlock
+ 	__this_cpu_write(lock_spinners, prev);
+ }
+ 
+-static noinline int xen_spin_lock_slow(struct arch_spinlock *lock, bool irq_enable)
++static noinline int xen_spin_lock_slow(struct arch_spinlock *lock)
+ {
+ 	struct xen_spinlock *xl = (struct xen_spinlock *)lock;
+ 	struct xen_spinlock *prev;
+@@ -218,8 +218,6 @@ static noinline int xen_spin_lock_slow(struct arch_spinlock *lock, bool irq_enab
+ 	ADD_STATS(taken_slow_nested, prev != NULL);
+ 
+ 	do {
+-		unsigned long flags;
+-
+ 		/* clear pending */
+ 		xen_clear_irq_pending(irq);
+ 
+@@ -239,12 +237,6 @@ static noinline int xen_spin_lock_slow(struct arch_spinlock *lock, bool irq_enab
+ 			goto out;
+ 		}
+ 
+-		flags = arch_local_save_flags();
+-		if (irq_enable) {
+-			ADD_STATS(taken_slow_irqenable, 1);
+-			raw_local_irq_enable();
+-		}
+-
+ 		/*
+ 		 * Block until irq becomes pending.  If we're
+ 		 * interrupted at this point (after the trylock but
+@@ -256,8 +248,6 @@ static noinline int xen_spin_lock_slow(struct arch_spinlock *lock, bool irq_enab
+ 		 */
+ 		xen_poll_irq(irq);
+ 
+-		raw_local_irq_restore(flags);
+-
+ 		ADD_STATS(taken_slow_spurious, !xen_test_irq_pending(irq));
+ 	} while (!xen_test_irq_pending(irq)); /* check for spurious wakeups */
+ 
+@@ -270,7 +260,7 @@ out:
+ 	return ret;
+ }
+ 
+-static inline void __xen_spin_lock(struct arch_spinlock *lock, bool irq_enable)
++static inline void __xen_spin_lock(struct arch_spinlock *lock)
+ {
+ 	struct xen_spinlock *xl = (struct xen_spinlock *)lock;
+ 	unsigned timeout;
+@@ -302,19 +292,19 @@ static inline void __xen_spin_lock(struct arch_spinlock *lock, bool irq_enable)
+ 		spin_time_accum_spinning(start_spin_fast);
+ 
+ 	} while (unlikely(oldval != 0 &&
+-			  (TIMEOUT == ~0 || !xen_spin_lock_slow(lock, irq_enable))));
++			  (TIMEOUT == ~0 || !xen_spin_lock_slow(lock))));
+ 
+ 	spin_time_accum_total(start_spin);
+ }
+ 
+ static void xen_spin_lock(struct arch_spinlock *lock)
+ {
+-	__xen_spin_lock(lock, false);
++	__xen_spin_lock(lock);
+ }
+ 
+ static void xen_spin_lock_flags(struct arch_spinlock *lock, unsigned long flags)
+ {
+-	__xen_spin_lock(lock, !raw_irqs_disabled_flags(flags));
++	__xen_spin_lock(lock);
+ }
+ 
+ static noinline void xen_spin_unlock_slow(struct xen_spinlock *xl)
+-- 
+1.7.10.4
+

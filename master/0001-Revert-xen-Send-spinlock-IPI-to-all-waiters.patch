@@ -1,0 +1,25 @@
+From 9a0a383d76513669318eb8db93fdd4ff2f5f0513 Mon Sep 17 00:00:00 2001
+From: David Vrabel <david.vrabel@citrix.com>
+Date: Fri, 31 Oct 2014 14:05:09 +0000
+Subject: [PATCH 1/2] Revert "xen: Send spinlock IPI to all waiters"
+
+This reverts commit 76eaca031f0af2bb303e405986f637811956a422.
+---
+ arch/x86/xen/spinlock.c |    1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/arch/x86/xen/spinlock.c b/arch/x86/xen/spinlock.c
+index 3002ec1..b877952 100644
+--- a/arch/x86/xen/spinlock.c
++++ b/arch/x86/xen/spinlock.c
+@@ -328,6 +328,7 @@ static noinline void xen_spin_unlock_slow(struct xen_spinlock *xl)
+ 		if (per_cpu(lock_spinners, cpu) == xl) {
+ 			ADD_STATS(released_slow_kicked, 1);
+ 			xen_send_IPI_one(cpu, XEN_SPIN_UNLOCK_VECTOR);
++			break;
+ 		}
+ 	}
+ }
+-- 
+1.7.10.4
+
