@@ -360,7 +360,7 @@ index 0000000..da884e2
 +
 diff --git a/mk/kernel.spec.in b/mk/kernel.spec.in
 new file mode 100644
-index 0000000..9d5e009
+index 0000000..6da3b36
 --- /dev/null
 +++ b/mk/kernel.spec.in
 @@ -0,0 +1,287 @@
@@ -508,7 +508,7 @@ index 0000000..9d5e009
 +    mkmodules=
 +fi
 +
-+make ${MAKEOPTS} bzImage $mkmodules
++%{?cov_wrap} make ${MAKEOPTS} bzImage $mkmodules
 +
 +%install
 +
