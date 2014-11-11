@@ -533,7 +533,7 @@ index 0000000..6da3b36
 +
 +# Save debuginfo
 +install -d -m 755 $RPM_BUILD_ROOT/usr/lib/debug/lib/modules/%{uname}
-+install -m 644 vmlinux $RPM_BUILD_ROOT/usr/lib/debug/lib/modules/%{uname}
++install -m 755 vmlinux $RPM_BUILD_ROOT/usr/lib/debug/lib/modules/%{uname}
 +
 +# Install -headers files
 +make ${MAKEOPTS} INSTALL_HDR_PATH=$RPM_BUILD_ROOT/usr headers_install
