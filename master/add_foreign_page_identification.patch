@@ -1,0 +1,249 @@
+diff --git a/arch/x86/xen/p2m.c b/arch/x86/xen/p2m.c
+index 6404063..e69beff 100644
+--- a/arch/x86/xen/p2m.c
++++ b/arch/x86/xen/p2m.c
+@@ -929,6 +929,45 @@ static unsigned long mfn_hash(unsigned long mfn)
+ 	return hash_long(mfn, M2P_OVERRIDE_HASH_SHIFT);
+ }
+ 
++
++
++static int
++init_page_grant_ref(struct page *p, domid_t domid, grant_ref_t grantref)
++{
++#ifdef CONFIG_X86_64
++	uint64_t gref;
++	uint64_t* gref_p = &gref;
++#else
++	uint64_t* gref_p = kmalloc(sizeof(uint64_t), GFP_KERNEL);
++	if (!gref)
++		return -ENOMEM;
++	uint64_t* gref = gref_p;
++#endif
++
++	*gref_p = ((uint64_t) grantref << 32) | domid;
++	p->private = gref;
++
++	WARN_ON(PagePrivate(p));
++	WARN_ON(PageForeign(p));
++	SetPagePrivate(p);
++	SetPageForeign(p);
++	return 0;
++}
++
++static void
++clear_page_grant_ref(struct page *p)
++{
++	WARN_ON(!PagePrivate(p));
++	WARN_ON(!PageForeign(p));
++
++#ifndef CONFIG_X86_64
++	kfree(p->private);
++#endif
++	p->private = 0;
++	ClearPagePrivate(p);
++	ClearPageForeign(p);
++}
++
+ int set_foreign_p2m_mapping(struct gnttab_map_grant_ref *map_ops,
+ 			    struct gnttab_map_grant_ref *kmap_ops,
+ 			    struct page **pages, unsigned int count)
+@@ -962,10 +1001,11 @@ int set_foreign_p2m_mapping(struct gnttab_map_grant_ref *map_ops,
+ 			mfn = PFN_DOWN(map_ops[i].dev_bus_addr);
+ 		}
+ 		pfn = page_to_pfn(pages[i]);
++		ret = init_page_grant_ref(pages[i], map_ops[i].dom, map_ops[i].ref);
++		if (ret) {
++			goto out;
++		}
+ 
+-		WARN_ON(PagePrivate(pages[i]));
+-		SetPagePrivate(pages[i]);
+-		set_page_private(pages[i], mfn);
+ 		WARN( pfn_to_mfn(pfn) != INVALID_P2M_ENTRY, "Page must be ballooned.");
+ 
+ 		if (unlikely(!set_phys_to_machine(pfn, FOREIGN_FRAME(mfn)))) {
+@@ -1070,9 +1110,7 @@ int clear_foreign_p2m_mapping(struct gnttab_unmap_grant_ref *unmap_ops,
+ 			goto out;
+ 		}
+ 
+-		set_page_private(pages[i], INVALID_P2M_ENTRY);
+-		WARN_ON(!PagePrivate(pages[i]));
+-		ClearPagePrivate(pages[i]);
++		clear_page_grant_ref(pages[i]);
+ 		set_phys_to_machine(pfn, INVALID_P2M_ENTRY);
+ 
+ 		if (kmap_ops)
+@@ -1188,24 +1226,7 @@ EXPORT_SYMBOL_GPL(m2p_remove_override);
+ 
+ struct page *m2p_find_override(unsigned long mfn)
+ {
+-	unsigned long flags;
+-	struct list_head *bucket = &m2p_overrides[mfn_hash(mfn)];
+-	struct page *p, *ret;
+-
+-	ret = NULL;
+-
+-	spin_lock_irqsave(&m2p_override_lock, flags);
+-
+-	list_for_each_entry(p, bucket, lru) {
+-		if (page_private(p) == mfn) {
+-			ret = p;
+-			break;
+-		}
+-	}
+-
+-	spin_unlock_irqrestore(&m2p_override_lock, flags);
+-
+-	return ret;
++	return NULL;
+ }
+ 
+ unsigned long m2p_find_override_pfn(unsigned long mfn, unsigned long pfn)
+diff --git a/drivers/net/xen-netback/netback.c b/drivers/net/xen-netback/netback.c
+index f79dc5b..f3d466a 100644
+--- a/drivers/net/xen-netback/netback.c
++++ b/drivers/net/xen-netback/netback.c
+@@ -308,9 +308,7 @@ static struct xenvif_rx_meta *get_next_rx_buffer(struct xenvif *vif,
+ static void xenvif_gop_frag_copy(struct xenvif *vif, struct sk_buff *skb,
+ 				 struct netrx_pending_operations *npo,
+ 				 struct page *page, unsigned long size,
+-				 unsigned long offset, int *head,
+-				 struct xenvif *foreign_vif,
+-				 grant_ref_t foreign_gref)
++				 unsigned long offset, int *head)
+ {
+ 	struct gnttab_copy *copy_gop;
+ 	struct xenvif_rx_meta *meta;
+@@ -355,9 +353,9 @@ static void xenvif_gop_frag_copy(struct xenvif *vif, struct sk_buff *skb,
+ 		copy_gop->flags = GNTCOPY_dest_gref;
+ 		copy_gop->len = bytes;
+ 
+-		if (foreign_vif) {
+-			copy_gop->source.domid = foreign_vif->domid;
+-			copy_gop->source.u.ref = foreign_gref;
++		if (PageForeign(page)) {
++			get_page_grant_ref(page, &(copy_gop->source.domid), 
++					   &(copy_gop->source.u.ref));
+ 			copy_gop->flags |= GNTCOPY_source_gref;
+ 		} else {
+ 			copy_gop->source.domid = DOMID_SELF;
+@@ -500,67 +498,16 @@ static int xenvif_gop_skb(struct sk_buff *skb,
+ 			len = skb_tail_pointer(skb) - data;
+ 
+ 		xenvif_gop_frag_copy(vif, skb, npo,
+-				     virt_to_page(data), len, offset, &head,
+-				     NULL,
+-				     0);
++				     virt_to_page(data), len, offset, &head);
+ 		data += len;
+ 	}
+ 
+ 	for (i = 0; i < nr_frags; i++) {
+-		/* This variable also signals whether foreign_gref has a real
+-		 * value or not.
+-		 */
+-		struct xenvif *foreign_vif = NULL;
+-		grant_ref_t foreign_gref;
+-
+-		if ((skb_shinfo(skb)->tx_flags & SKBTX_DEV_ZEROCOPY) &&
+-			(ubuf->callback == &xenvif_zerocopy_callback)) {
+-			const struct ubuf_info *const startpoint = ubuf;
+-
+-			/* Ideally ubuf points to the chain element which
+-			 * belongs to this frag. Or if frags were removed from
+-			 * the beginning, then shortly before it.
+-			 */
+-			ubuf = xenvif_find_gref(skb, i, ubuf);
+-
+-			/* Try again from the beginning of the list, if we
+-			 * haven't tried from there. This only makes sense in
+-			 * the unlikely event of reordering the original frags.
+-			 * For injected local pages it's an unnecessary second
+-			 * run.
+-			 */
+-			if (unlikely(!ubuf) && startpoint != head_ubuf)
+-				ubuf = xenvif_find_gref(skb, i, head_ubuf);
+-
+-			if (likely(ubuf)) {
+-				u16 pending_idx = ubuf->desc;
+-
+-				foreign_vif = ubuf_to_vif(ubuf);
+-				foreign_gref = foreign_vif->pending_tx_info[pending_idx].req.gref;
+-				/* Just a safety measure. If this was the last
+-				 * element on the list, the for loop will
+-				 * iterate again if a local page were added to
+-				 * the end. Using head_ubuf here prevents the
+-				 * second search on the chain. Or the original
+-				 * frags changed order, but that's less likely.
+-				 * In any way, ubuf shouldn't be NULL.
+-				 */
+-				ubuf = ubuf->ctx ?
+-					(struct ubuf_info *) ubuf->ctx :
+-					head_ubuf;
+-			} else
+-				/* This frag was a local page, added to the
+-				 * array after the skb left netback.
+-				 */
+-				ubuf = head_ubuf;
+-		}
+ 		xenvif_gop_frag_copy(vif, skb, npo,
+ 				     skb_frag_page(&skb_shinfo(skb)->frags[i]),
+ 				     skb_frag_size(&skb_shinfo(skb)->frags[i]),
+ 				     skb_shinfo(skb)->frags[i].page_offset,
+-				     &head,
+-				     foreign_vif,
+-				     foreign_vif ? foreign_gref : UINT_MAX);
++				     &head);
+ 	}
+ 
+ 	return npo->meta_prod - old_meta_prod;
+diff --git a/include/linux/page-flags.h b/include/linux/page-flags.h
+index 6d53675..a76f404 100644
+--- a/include/linux/page-flags.h
++++ b/include/linux/page-flags.h
+@@ -122,6 +122,7 @@ enum pageflags {
+ 
+ 	/* XEN */
+ 	PG_pinned = PG_owner_priv_1,
++	PG_foreign = PG_owner_priv_1,
+ 	PG_savepinned = PG_dirty,
+ 
+ 	/* SLOB */
+@@ -205,6 +206,7 @@ PAGEFLAG(Active, active) __CLEARPAGEFLAG(Active, active)
+ __PAGEFLAG(Slab, slab)
+ PAGEFLAG(Checked, checked)		/* Used by some filesystems */
+ PAGEFLAG(Pinned, pinned) TESTSCFLAG(Pinned, pinned)	/* Xen */
++PAGEFLAG(Foreign, foreign);				/* Pinned alias */
+ PAGEFLAG(SavePinned, savepinned);			/* Xen */
+ PAGEFLAG(Reserved, reserved) __CLEARPAGEFLAG(Reserved, reserved)
+ PAGEFLAG(SwapBacked, swapbacked) __CLEARPAGEFLAG(SwapBacked, swapbacked)
+diff --git a/include/xen/grant_table.h b/include/xen/grant_table.h
+index 694dcaf..49d3e1c 100644
+--- a/include/xen/grant_table.h
++++ b/include/xen/grant_table.h
+@@ -45,6 +45,7 @@
+ #include <asm/xen/hypervisor.h>
+ 
+ #include <xen/features.h>
++#include <linux/mm_types.h>
+ 
+ #define GNTTAB_RESERVED_XENSTORE 1
+ 
+@@ -202,4 +203,16 @@ int gnttab_unmap_refs(struct gnttab_unmap_grant_ref *unmap_ops,
+ void gnttab_batch_map(struct gnttab_map_grant_ref *batch, unsigned count);
+ void gnttab_batch_copy(struct gnttab_copy *batch, unsigned count);
+ 
++static inline void
++get_page_grant_ref(struct page *p, domid_t* domid, grant_ref_t* grantref)
++{
++#ifdef CONFIG_X86_64
++	uint64_t gref = p->private;
++#else
++	uint64_t gref = *p->private;
++#endif
++	*domid = gref & 0xffff;
++	*grantref = gref >> 32;
++}
++
+ #endif /* __ASM_GNTTAB_H__ */
