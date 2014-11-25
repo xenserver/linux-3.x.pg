@@ -385,6 +385,7 @@ limit-grant-maps-to-ballooned-pages-only.patch
 add_foreign_page_identification.patch
 0001-Revert-xen-Send-spinlock-IPI-to-all-waiters.patch
 0002-x86-xen-never-re-enable-IRQs-in-spinlock-slow-path.patch
+safe_grant_unmap.patch
 
 # Local bonding and bridging patches
 bonding-balance-slb.patch
