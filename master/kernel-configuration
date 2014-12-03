@@ -1,6 +1,6 @@
 diff --git a/buildconfigs/linux-defconfig_xen_x86_64 b/buildconfigs/linux-defconfig_xen_x86_64
 new file mode 100644
-index 0000000..fde25df
+index 0000000..6809bf7
 --- /dev/null
 +++ b/buildconfigs/linux-defconfig_xen_x86_64
 @@ -0,0 +1,3816 @@
@@ -139,7 +139,7 @@ index 0000000..fde25df
 +# CONFIG_RCU_NOCB_CPU is not set
 +CONFIG_IKCONFIG=y
 +CONFIG_IKCONFIG_PROC=y
-+CONFIG_LOG_BUF_SHIFT=17
++CONFIG_LOG_BUF_SHIFT=18
 +CONFIG_HAVE_UNSTABLE_SCHED_CLOCK=y
 +CONFIG_ARCH_SUPPORTS_NUMA_BALANCING=y
 +CONFIG_ARCH_WANTS_PROT_NUMA_PROT_NONE=y
