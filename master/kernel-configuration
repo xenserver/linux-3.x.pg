@@ -1,6 +1,6 @@
 diff --git a/buildconfigs/linux-defconfig_xen_x86_32 b/buildconfigs/linux-defconfig_xen_x86_32
 new file mode 100644
-index 0000000..3eb5f41
+index 0000000..9ec3f0f
 --- /dev/null
 +++ b/buildconfigs/linux-defconfig_xen_x86_32
 @@ -0,0 +1,3837 @@
@@ -3841,15 +3841,12 @@ index 0000000..3eb5f41
 +CONFIG_CLZ_TAB=y
 +# CONFIG_CORDIC is not set
 +# CONFIG_DDR is not set
-+CONFIG_MPILIB=m
-+CONFIG_OID_REGISTRY=m
-+CONFIG_UCS2_STRING=y
 diff --git a/buildconfigs/linux-defconfig_xen_x86_64 b/buildconfigs/linux-defconfig_xen_x86_64
 new file mode 100644
-index 0000000..91668df
+index 0000000..6809bf7
 --- /dev/null
 +++ b/buildconfigs/linux-defconfig_xen_x86_64
-@@ -0,0 +1,3811 @@
+@@ -0,0 +1,3816 @@
 +#
 +# Automatically generated file; DO NOT EDIT.
 +# Linux/x86_64 3.10.41 Kernel Configuration
@@ -3998,8 +3995,8 @@ index 0000000..91668df
 +CONFIG_CGROUP_CPUACCT=y
 +CONFIG_RESOURCE_COUNTERS=y
 +CONFIG_MEMCG=y
-+CONFIG_MEMCG_SWAP=n
-+CONFIG_MEMCG_KMEM=n
++# CONFIG_MEMCG_SWAP is not set
++# CONFIG_MEMCG_KMEM is not set
 +# CONFIG_CGROUP_HUGETLB is not set
 +# CONFIG_CGROUP_PERF is not set
 +CONFIG_CGROUP_SCHED=y
@@ -4015,6 +4012,7 @@ index 0000000..91668df
 +CONFIG_PID_NS=y
 +CONFIG_NET_NS=y
 +CONFIG_SCHED_AUTOGROUP=y
++CONFIG_MM_OWNER=y
 +# CONFIG_SYSFS_DEPRECATED is not set
 +CONFIG_RELAY=y
 +CONFIG_BLK_DEV_INITRD=y
@@ -5037,7 +5035,7 @@ index 0000000..91668df
 +CONFIG_FW_LOADER=y
 +CONFIG_FIRMWARE_IN_KERNEL=y
 +CONFIG_EXTRA_FIRMWARE=""
-+CONFIG_FW_LOADER_USER_HELPER=n
++# CONFIG_FW_LOADER_USER_HELPER is not set
 +# CONFIG_DEBUG_DRIVER is not set
 +# CONFIG_DEBUG_DEVRES is not set
 +CONFIG_SYS_HYPERVISOR=y
@@ -6892,6 +6890,7 @@ index 0000000..91668df
 +CONFIG_XEN_ACPI_PROCESSOR=y
 +CONFIG_XEN_MCE_LOG=y
 +CONFIG_XEN_HAVE_PVMMU=y
++CONFIG_XEN_EFI=y
 +# CONFIG_STAGING is not set
 +CONFIG_X86_PLATFORM_DEVICES=y
 +# CONFIG_ACER_WMI is not set
