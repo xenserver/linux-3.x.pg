@@ -377,7 +377,6 @@ netback-remove-unconditional-pull-skb-tail-on-tx.patch
 CP-9457-blkback-kthread-pid.patch
 limit-grant-maps-to-ballooned-pages-only.patch
 add_foreign_page_identification.patch
-safe_grant_unmap.patch
 0001-Revert-xen-Send-spinlock-IPI-to-all-waiters.patch
 0002-x86-xen-never-re-enable-IRQs-in-spinlock-slow-path.patch
 
