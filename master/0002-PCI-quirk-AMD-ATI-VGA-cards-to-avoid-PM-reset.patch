@@ -1,0 +1,43 @@
+From 3d7a34ecf6bb446bf0928aa7d7f51acaa8816063 Mon Sep 17 00:00:00 2001
+From: Alex Williamson <alex.williamson@redhat.com>
+Date: Wed, 19 Nov 2014 15:26:37 -0700
+Subject: [PATCH 2/2] PCI: quirk AMD/ATI VGA cards to avoid PM reset
+
+Some AMD/ATI GPUs report that they support PM reset (NoSoftRst-) even
+though using it has no apparent affect on the device.  Connected
+monitors remain sync'd, framebuffer contents are retained, etc.  When
+a PM reset option is advertised, users like vfio-pci expect that it
+does something and won't go to extra measures, like PCI bus resets,
+to cleanup the device.  Mark it as unavailable.  This only affects the
+pci-sysfs reset interace and anyone making use of pci_reset_function()
+like vfio-pci or legacy KVM device assignment.
+
+Signed-off-by: Alex Williamson <alex.williamson@redhat.com>
+Cc: Alex Deucher <alexander.deucher@amd.com>
+diff --git a/drivers/pci/quirks.c b/drivers/pci/quirks.c
+index df4655c..dc2b5f4 100644
+--- a/drivers/pci/quirks.c
++++ b/drivers/pci/quirks.c
+@@ -55,6 +55,22 @@ static void quirk_mellanox_tavor(struct pci_dev *dev)
+ DECLARE_PCI_FIXUP_FINAL(PCI_VENDOR_ID_MELLANOX,PCI_DEVICE_ID_MELLANOX_TAVOR,quirk_mellanox_tavor);
+ DECLARE_PCI_FIXUP_FINAL(PCI_VENDOR_ID_MELLANOX,PCI_DEVICE_ID_MELLANOX_TAVOR_BRIDGE,quirk_mellanox_tavor);
+ 
++static void quirk_no_pm_reset(struct pci_dev *dev)
++{
++	dev->dev_flags |= PCI_DEV_FLAGS_NO_PM_RESET;
++}
++
++/*
++ * Some AMD/ATI GPUS (HD8570 - Oland) report supporting PM reset via D3->D0
++ * transition (NoSoftRst-).  This reset mechanims seems to have no effect
++ * whatsoever on the device, even retaining the framebuffer contents and
++ * monitor sync.  Advertising this support makes other layers, like VFIO
++ * assume pci_reset_function() is viable for this device.  Mark it as
++ * unavailable to skip it when testing reset methods.
++ */
++DECLARE_PCI_FIXUP_CLASS_HEADER(PCI_VENDOR_ID_ATI, PCI_ANY_ID,
++			       PCI_CLASS_DISPLAY_VGA, 0, quirk_no_pm_reset);
++
+ /* Deal with broken BIOS'es that neglect to enable passive release,
+    which can cause problems in combination with the 82441FX/PPro MTRRs */
+ static void quirk_passive_release(struct pci_dev *dev)

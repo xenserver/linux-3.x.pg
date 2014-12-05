@@ -71,6 +71,10 @@
 0001-mm-page-writeback.c-fix-divide-by-zero-in-pos_ratio_.patch
 # fb9a0c443691ceaab3daba966bbbd9f5ff3aa26f (3.16-rc6)
 0002-xen-balloon-set-ballooned-out-pages-as-invalid-in-p2.patch
+# 3ab5d207c221f061ff99c1f39af468ed948e3577 (linux-vfio tree)
+0001-PCI-Allow-device-quirks-to-exclude-D3-D0-PM-reset.patch
+# 3d7a34ecf6bb446bf0928aa7d7f51acaa8816063 (linux-vfio tree)
+0002-PCI-quirk-AMD-ATI-VGA-cards-to-avoid-PM-reset.patch
 
 #
 # EFI backports

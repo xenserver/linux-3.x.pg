@@ -1,0 +1,36 @@
+From 3ab5d207c221f061ff99c1f39af468ed948e3577 Mon Sep 17 00:00:00 2001
+From: Alex Williamson <alex.williamson@redhat.com>
+Date: Mon, 17 Nov 2014 16:14:37 -0700
+Subject: [PATCH 1/2] PCI: Allow device quirks to exclude D3->D0 PM reset
+
+Some devices expose they can do a PM reset (NoSoftRst-) even though
+it may not do anything.  This gives us a way to tag those devices so
+that we won't opt for this reset mechanism.
+
+Signed-off-by: Alex Williamson <alex.williamson@redhat.com>
+diff --git a/drivers/pci/pci.c b/drivers/pci/pci.c
+index 07ce96e..6fad4e3 100644
+--- a/drivers/pci/pci.c
++++ b/drivers/pci/pci.c
+@@ -3245,7 +3245,7 @@ static int pci_pm_reset(struct pci_dev *dev, int probe)
+ {
+ 	u16 csr;
+ 
+-	if (!dev->pm_cap)
++	if (!dev->pm_cap || dev->dev_flags & PCI_DEV_FLAGS_NO_PM_RESET)
+ 		return -ENOTTY;
+ 
+ 	pci_read_config_word(dev, dev->pm_cap + PCI_PM_CTRL, &csr);
+diff --git a/include/linux/pci.h b/include/linux/pci.h
+index c9b4523..11fef42 100644
+--- a/include/linux/pci.h
++++ b/include/linux/pci.h
+@@ -170,6 +170,8 @@ enum pci_dev_flags {
+ 	PCI_DEV_FLAGS_NO_D3 = (__force pci_dev_flags_t) 2,
+ 	/* Provide indication device is assigned by a Virtual Machine Manager */
+ 	PCI_DEV_FLAGS_ASSIGNED = (__force pci_dev_flags_t) 4,
++	/* Do not use PM reset even if device advertises NoSoftRst- */
++	PCI_DEV_FLAGS_NO_PM_RESET = (__force pci_dev_flags_t) 6,
+ };
+ 
+ enum pci_irq_reroute_variant {
