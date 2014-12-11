@@ -363,7 +363,6 @@ nvme-zero-sg_io_hdr_msg_status-field.patch
 #
 # Local patches.
 #
-drivers-misc-uklog.patch
 net-core__order-3_frag_allocator_causes_swiotlb_bouncing_under_xen.patch
 idle_cpu-return-0-during-softirq.patch
 call-kexec-before-offlining-noncrashing-cpus.patch
