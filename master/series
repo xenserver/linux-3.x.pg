@@ -347,6 +347,7 @@ fifo_page_fix.patch
 # netback
 0001-xen-netback-make-feature-rx-notify-mandatory.patch
 0002-xen-netback-fix-rx-stall-detection-and-queue-drainin.patch
+netback-remove-unconditional-pull-skb-tail-on-tx.patch
 
 # pciback
 0001-pci-export-pci_probe_reset_function.patch
@@ -354,6 +355,12 @@ fifo_page_fix.patch
 
 # Preemptible privcmd hypercalls
 0001-x86-xen-allow-privcmd-hypercalls-to-be-preempted.patch
+
+# Grant table
+xen-gntdev-grant-copy.patch
+limit-grant-maps-to-ballooned-pages-only.patch
+add_foreign_page_identification.patch
+safe_grant_unmap.patch
 
 # nvme driver backport
 backport-nvme-driver-from-3.17.patch
@@ -368,7 +375,6 @@ idle_cpu-return-0-during-softirq.patch
 call-kexec-before-offlining-noncrashing-cpus.patch
 fnic-disable-tracing-by-default.patch
 bnx2-disable-gro.patch
-xen-gntdev-grant-copy.patch
 x86-apic-disable-physflat-under-xen.patch
 xen-no-pmu.patch
 default-to-32bit-blkback-abi.patch
@@ -378,13 +384,9 @@ restricted-evtchn-dev.patch
 restricted-privcmd.patch
 CA-135938-nfs-disconnect-on-rpc-retry.patch
 export-symbols-as-non-gpl.patch
-netback-remove-unconditional-pull-skb-tail-on-tx.patch
 CP-9457-blkback-kthread-pid.patch
-limit-grant-maps-to-ballooned-pages-only.patch
-add_foreign_page_identification.patch
 0001-Revert-xen-Send-spinlock-IPI-to-all-waiters.patch
 0002-x86-xen-never-re-enable-IRQs-in-spinlock-slow-path.patch
-safe_grant_unmap.patch
 
 # Local bonding and bridging patches
 bonding-balance-slb.patch
