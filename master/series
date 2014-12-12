@@ -394,6 +394,9 @@ bonding-no-updelay-on-first-active-slave.patch
 bridge-lock-fdb-after-garp.patch
 CA-137716-fix-bond-slb-softlockup-while-tx.patch
 
+# In-kernel device emulator support
+xen-ioemu-inject-msi.patch
+
 #
 # Debugging/hacks
 #

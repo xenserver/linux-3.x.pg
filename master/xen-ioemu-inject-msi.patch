@@ -1,0 +1,134 @@
+diff --git a/drivers/xen/Makefile b/drivers/xen/Makefile
+index 1ffdb0b..57d91f4 100644
+--- a/drivers/xen/Makefile
++++ b/drivers/xen/Makefile
+@@ -4,6 +4,7 @@ obj-$(CONFIG_HOTPLUG_CPU)		+= cpu_hotplug.o
+ endif
+ obj-$(CONFIG_X86)			+= fallback.o
+ obj-y	+= grant-table.o features.o balloon.o preempt.o
++obj-y	+= ioemu.o
+ obj-y	+= events/
+ obj-y	+= xenbus/
+ 
+diff --git a/drivers/xen/ioemu.c b/drivers/xen/ioemu.c
+new file mode 100644
+index 0000000..369b897
+--- /dev/null
++++ b/drivers/xen/ioemu.c
+@@ -0,0 +1,54 @@
++/*
++ * Helpers for in-kernel device emulators.
++ *
++ * Copyright (C) 2014 Citrix Systems UK Ltd.
++ *
++ * This program is free software; you can redistribute it and/or
++ * modify it under the terms of the GNU General Public License version 2
++ * as published by the Free Software Foundation; or, when distributed
++ * separately from the Linux kernel or incorporated into other
++ * software packages, subject to the following license:
++ *
++ * Permission is hereby granted, free of charge, to any person obtaining a copy
++ * of this source file (the "Software"), to deal in the Software without
++ * restriction, including without limitation the rights to use, copy, modify,
++ * merge, publish, distribute, sublicense, and/or sell copies of the Software,
++ * and to permit persons to whom the Software is furnished to do so, subject to
++ * the following conditions:
++ *
++ * The above copyright notice and this permission notice shall be included in
++ * all copies or substantial portions of the Software.
++ *
++ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
++ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
++ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
++ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
++ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
++ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
++ * IN THE SOFTWARE.
++ */
++#include <linux/kernel.h>
++
++#include <xen/interface/xen.h>
++#include <xen/hvm.h>
++#include <xen/ioemu.h>
++
++/**
++ * xen_ioemu_inject_msi - inject an MSI into a guest
++ * @domid: domain to inject MSI into
++ * @addr: address for MSI
++ * @data: data for MSI
++ *
++ * This is a simple wrapper around the HVMOP_inject_msi hypercall.
++ */
++int xen_ioemu_inject_msi(domid_t domid, uint64_t addr, uint32_t data)
++{
++	struct xen_hvm_inject_msi xinfo;
++
++	xinfo.domid = domid;
++	xinfo.addr = addr;
++	xinfo.data = data;
++
++	return HYPERVISOR_hvm_op(HVMOP_inject_msi, &xinfo);
++}
++EXPORT_SYMBOL(xen_ioemu_inject_msi);
+diff --git a/include/xen/interface/hvm/hvm_op.h b/include/xen/interface/hvm/hvm_op.h
+index a9c4c1b..83aeb64 100644
+--- a/include/xen/interface/hvm/hvm_op.h
++++ b/include/xen/interface/hvm/hvm_op.h
+@@ -128,4 +128,16 @@ struct xen_hvm_get_mem_type {
+ };
+ DEFINE_GUEST_HANDLE_STRUCT(xen_hvm_get_mem_type);
+ 
++/* MSI injection for emulated devices */
++#define HVMOP_inject_msi         16
++struct xen_hvm_inject_msi {
++    /* Domain to be injected */
++    domid_t   domid;
++    /* Data -- lower 32 bits */
++    uint32_t  data;
++    /* Address (0xfeexxxxx) */
++    uint64_t  addr;
++};
++DEFINE_GUEST_HANDLE_STRUCT(xen_hvm_inject_msi);
++
+ #endif /* __XEN_PUBLIC_HVM_HVM_OP_H__ */
+diff --git a/include/xen/ioemu.h b/include/xen/ioemu.h
+new file mode 100644
+index 0000000..95eb4e7
+--- /dev/null
++++ b/include/xen/ioemu.h
+@@ -0,0 +1,35 @@
++/*
++ * Helpers for in-kernel device emulators.
++ *
++ * Copyright (C) 2014 Citrix Systems UK Ltd.
++ *
++ * This program is free software; you can redistribute it and/or
++ * modify it under the terms of the GNU General Public License version 2
++ * as published by the Free Software Foundation; or, when distributed
++ * separately from the Linux kernel or incorporated into other
++ * software packages, subject to the following license:
++ *
++ * Permission is hereby granted, free of charge, to any person obtaining a copy
++ * of this source file (the "Software"), to deal in the Software without
++ * restriction, including without limitation the rights to use, copy, modify,
++ * merge, publish, distribute, sublicense, and/or sell copies of the Software,
++ * and to permit persons to whom the Software is furnished to do so, subject to
++ * the following conditions:
++ *
++ * The above copyright notice and this permission notice shall be included in
++ * all copies or substantial portions of the Software.
++ *
++ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
++ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
++ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
++ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
++ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
++ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
++ * IN THE SOFTWARE.
++ */
++#ifndef _XEN_IOEMU_H
++#define _XEN_IOEMU_H
++
++int xen_ioemu_inject_msi(domid_t domid, uint64_t addr, uint32_t data);
++
++#endif /* #ifndef _XEN_IOEMU_H */
