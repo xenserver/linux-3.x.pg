@@ -397,7 +397,6 @@ CA-137716-fix-bond-slb-softlockup-while-tx.patch
 #
 # Debugging/hacks
 #
-0001-xen-add-xen_trace-for-adding-trace-records-to-the-Xe.patch
 0001-xen-oprofile-Patch-from-Michael-Petullo.patch
 
 #
