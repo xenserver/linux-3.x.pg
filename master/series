@@ -383,7 +383,6 @@ default-xen-swiotlb-size-128MiB.patch
 restricted-evtchn-dev.patch
 restricted-privcmd.patch
 CA-135938-nfs-disconnect-on-rpc-retry.patch
-export-symbols-as-non-gpl.patch
 CP-9457-blkback-kthread-pid.patch
 0001-Revert-xen-Send-spinlock-IPI-to-all-waiters.patch
 0002-x86-xen-never-re-enable-IRQs-in-spinlock-slow-path.patch
