@@ -1,0 +1,50 @@
+From b41c5fa3419525d6f39eacb58b2378900d640829 Mon Sep 17 00:00:00 2001
+From: Jenny Herbert <jennifer.herbert@citrix.com>
+Date: Thu, 18 Dec 2014 14:48:15 +0000
+Subject: [PATCH 1/4] mm: provide an alternate set of pages for userspace
+ mappings
+
+Add an option array of pages to struct vm_area_struct that can be used
+find the page backing a VMA.  This is useful in cases where the normal
+mechanisms for finding the page don't work.
+
+One use case is a Xen PV guest mapping foreign pages into userspace.  The
+PTEs contain MFNs which must be translated to PFNs to lookup the page.
+For foreign pages (those owned by another guest) the M2P lookup returns
+the PFN as seen by the foreign guest (which would be completely the wrong
+page for the local guest).
+
+FIXME: need to handle vm_split().
+---
+ include/linux/mm_types.h |    1 +
+ mm/memory.c              |    2 ++
+ 2 files changed, 3 insertions(+)
+
+diff --git a/include/linux/mm_types.h b/include/linux/mm_types.h
+index 10a9a17..dc5bb5f 100644
+--- a/include/linux/mm_types.h
++++ b/include/linux/mm_types.h
+@@ -289,6 +289,7 @@ struct vm_area_struct {
+ #ifdef CONFIG_NUMA
+ 	struct mempolicy *vm_policy;	/* NUMA policy for the VMA */
+ #endif
++	struct page	**pages;
+ };
+ 
+ struct core_thread {
+diff --git a/mm/memory.c b/mm/memory.c
+index 4b60011..3ca13bb 100644
+--- a/mm/memory.c
++++ b/mm/memory.c
+@@ -774,6 +774,8 @@ struct page *vm_normal_page(struct vm_area_struct *vma, unsigned long addr,
+ 	if (HAVE_PTE_SPECIAL) {
+ 		if (likely(!pte_special(pte)))
+ 			goto check_pfn;
++		if (vma->pages)
++			return vma->pages[(addr - vma->vm_start) >> PAGE_SHIFT];
+ 		if (vma->vm_flags & (VM_PFNMAP | VM_MIXEDMAP))
+ 			return NULL;
+ 		if (!is_zero_pfn(pfn))
+-- 
+1.7.10.4
+

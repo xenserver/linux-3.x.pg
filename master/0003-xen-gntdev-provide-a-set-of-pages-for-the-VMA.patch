@@ -1,0 +1,27 @@
+From 2b1685ffbb49083a013c4fe3ab1daad220ce63c8 Mon Sep 17 00:00:00 2001
+From: Jenny Herbert <jennifer.herbert@citrix.com>
+Date: Thu, 18 Dec 2014 14:59:07 +0000
+Subject: [PATCH 3/4] xen/gntdev: provide a set of pages for the VMA
+
+For each VMA for grant maps, provide the correct array of pages so
+get_user_pages() works.
+---
+ drivers/xen/gntdev.c |    2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/drivers/xen/gntdev.c b/drivers/xen/gntdev.c
+index 8e43e10..14376e8 100644
+--- a/drivers/xen/gntdev.c
++++ b/drivers/xen/gntdev.c
+@@ -972,6 +972,8 @@ static int gntdev_mmap(struct file *flip, struct vm_area_struct *vma)
+ 					    vma->vm_end - vma->vm_start,
+ 					    set_grant_ptes_as_special, NULL);
+ 		}
++
++		vma->pages = map->pages;
+ 	}
+ 
+ 	return 0;
+-- 
+1.7.10.4
+

@@ -361,6 +361,10 @@ xen-gntdev-grant-copy.patch
 limit-grant-maps-to-ballooned-pages-only.patch
 add_foreign_page_identification.patch
 safe_grant_unmap.patch
+0001-mm-provide-an-alternate-set-of-pages-for-userspace-m.patch
+0002-xen-gntdev-mark-userspace-PTEs-as-special-on-x86-PV-.patch
+0003-xen-gntdev-provide-a-set-of-pages-for-the-VMA.patch
+0004-x86-xen-remove-the-M2P-override.patch
 
 # nvme driver backport
 backport-nvme-driver-from-3.17.patch
