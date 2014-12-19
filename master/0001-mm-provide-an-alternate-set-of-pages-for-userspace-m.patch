@@ -14,21 +14,22 @@ For foreign pages (those owned by another guest) the M2P lookup returns
 the PFN as seen by the foreign guest (which would be completely the wrong
 page for the local guest).
 
-FIXME: need to handle vm_split().
----
- include/linux/mm_types.h |    1 +
- mm/memory.c              |    2 ++
- 2 files changed, 3 insertions(+)
-
 diff --git a/include/linux/mm_types.h b/include/linux/mm_types.h
-index 10a9a17..dc5bb5f 100644
+index 10a9a17..eb9e7d6 100644
 --- a/include/linux/mm_types.h
 +++ b/include/linux/mm_types.h
-@@ -289,6 +289,7 @@ struct vm_area_struct {
+@@ -289,6 +289,14 @@ struct vm_area_struct {
  #ifdef CONFIG_NUMA
  	struct mempolicy *vm_policy;	/* NUMA policy for the VMA */
  #endif
-+	struct page	**pages;
++	/*
++	 * Array of pages to override the default vm_normal_page()
++	 * result iff the PTE is special.
++	 *
++	 * The memory for this should be refcounted in vm_ops->open
++	 * and vm_ops->close.
++	 */
++	struct page **pages;
  };
  
  struct core_thread {
@@ -45,6 +46,37 @@ index 4b60011..3ca13bb 100644
  		if (vma->vm_flags & (VM_PFNMAP | VM_MIXEDMAP))
  			return NULL;
  		if (!is_zero_pfn(pfn))
--- 
-1.7.10.4
-
+diff --git a/mm/mmap.c b/mm/mmap.c
+index 8f87b14..fe747d0 100644
+--- a/mm/mmap.c
++++ b/mm/mmap.c
+@@ -2408,6 +2408,7 @@ static int __split_vma(struct mm_struct * mm, struct vm_area_struct * vma,
+ {
+ 	struct mempolicy *pol;
+ 	struct vm_area_struct *new;
++	unsigned long delta;
+ 	int err = -ENOMEM;
+ 
+ 	if (is_vm_hugetlb_page(vma) && (addr &
+@@ -2423,11 +2424,20 @@ static int __split_vma(struct mm_struct * mm, struct vm_area_struct * vma,
+ 
+ 	INIT_LIST_HEAD(&new->anon_vma_chain);
+ 
++	delta = (addr - vma->vm_start) >> PAGE_SHIFT;
++
+ 	if (new_below)
+ 		new->vm_end = addr;
+ 	else {
+ 		new->vm_start = addr;
+-		new->vm_pgoff += ((addr - vma->vm_start) >> PAGE_SHIFT);
++		new->vm_pgoff += delta;
++	}
++
++	if (vma->pages) {
++		if (new_below)
++			vma->pages += delta;
++		else
++			new->pages += delta;
+ 	}
+ 
+ 	pol = mpol_dup(vma_policy(vma));
