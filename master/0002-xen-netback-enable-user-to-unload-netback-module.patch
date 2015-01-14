@@ -1,7 +1,7 @@
 From b103f358d9f6f58658f1a6dc08912ab921dd86f1 Mon Sep 17 00:00:00 2001
 From: Wei Liu <wei.liu2@citrix.com>
 Date: Thu, 16 May 2013 23:26:11 +0000
-Subject: [PATCH] xen-netback: enable user to unload netback module
+Subject: [PATCH 2/2] xen-netback: enable user to unload netback module
 MIME-Version: 1.0
 Content-Type: text/plain; charset=UTF-8
 Content-Transfer-Encoding: 8bit
@@ -17,11 +17,18 @@ VMs or migrate them to another host or unplug all vifs before hand.
 Signed-off-by: Wei Liu <wei.liu2@citrix.com>
 Acked-by: Ian Campbell <ian.campbell@citrix.com>¬
 Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ drivers/net/xen-netback/common.h    |    1 +
+ drivers/net/xen-netback/interface.c |   19 ++++++++++++++++++-
+ drivers/net/xen-netback/netback.c   |   20 ++++++++++++++++++++
+ drivers/net/xen-netback/xenbus.c    |    5 +++++
+ 4 files changed, 44 insertions(+), 1 deletion(-)
+
 diff --git a/drivers/net/xen-netback/common.h b/drivers/net/xen-netback/common.h
-index f2faa77..a3f613c 100644
+index 9d7f172..6102a6c 100644
 --- a/drivers/net/xen-netback/common.h
 +++ b/drivers/net/xen-netback/common.h
-@@ -122,6 +122,7 @@ void xenvif_get(struct xenvif *vif);
+@@ -120,6 +120,7 @@ void xenvif_get(struct xenvif *vif);
  void xenvif_put(struct xenvif *vif);
  
  int xenvif_xenbus_init(void);
@@ -30,10 +37,19 @@ index f2faa77..a3f613c 100644
  int xenvif_schedulable(struct xenvif *vif);
  
 diff --git a/drivers/net/xen-netback/interface.c b/drivers/net/xen-netback/interface.c
-index 540a796..f2ca5b3 100644
+index d984141..82202c2 100644
 --- a/drivers/net/xen-netback/interface.c
 +++ b/drivers/net/xen-netback/interface.c
-@@ -345,6 +345,7 @@ int xenvif_connect(struct xenvif *vif, unsigned long tx_ring_ref,
+@@ -316,6 +316,8 @@ int xenvif_connect(struct xenvif *vif, unsigned long tx_ring_ref,
+ 	if (vif->irq)
+ 		return 0;
+ 
++	__module_get(THIS_MODULE);
++
+ 	err = xen_netbk_map_frontend_rings(vif, tx_ring_ref, rx_ring_ref);
+ 	if (err < 0)
+ 		goto err;
+@@ -343,6 +345,7 @@ int xenvif_connect(struct xenvif *vif, unsigned long tx_ring_ref,
  err_unmap:
  	xen_netbk_unmap_frontend_rings(vif);
  err:
@@ -41,11 +57,45 @@ index 540a796..f2ca5b3 100644
  	return err;
  }
  
+@@ -360,18 +363,32 @@ void xenvif_carrier_off(struct xenvif *vif)
+ 
+ void xenvif_disconnect(struct xenvif *vif)
+ {
++	/* Disconnect funtion might get called by generic framework
++	 * even before vif connects, so we need to check if we really
++	 * need to do a module_put.
++	 */
++	int need_module_put = 0;
++
+ 	if (netif_carrier_ok(vif->dev))
+ 		xenvif_carrier_off(vif);
+ 
+ 	atomic_dec(&vif->refcnt);
+ 	wait_event(vif->waiting_to_free, atomic_read(&vif->refcnt) == 0);
+ 
+-	if (vif->irq)
++	if (vif->irq) {
+ 		unbind_from_irqhandler(vif->irq, vif);
++		/* vif->irq is valid, we had a module_get in
++		 * xenvif_connect.
++		 */
++		need_module_put = 1;
++	}
+ 
+ 	unregister_netdev(vif->dev);
+ 
+ 	xen_netbk_unmap_frontend_rings(vif);
+ 
+ 	free_netdev(vif->dev);
++
++	if (need_module_put)
++		module_put(THIS_MODULE);
+ }
 diff --git a/drivers/net/xen-netback/netback.c b/drivers/net/xen-netback/netback.c
-index 986a9e3..25312cc 100644
+index 295a9c2..2d9477f 100644
 --- a/drivers/net/xen-netback/netback.c
 +++ b/drivers/net/xen-netback/netback.c
-@@ -1984,5 +1984,25 @@ failed_init:
+@@ -1949,5 +1949,25 @@ failed_init:
  
  module_init(netback_init);
  
@@ -72,10 +122,10 @@ index 986a9e3..25312cc 100644
  MODULE_LICENSE("Dual BSD/GPL");
  MODULE_ALIAS("xen-backend:vif");
 diff --git a/drivers/net/xen-netback/xenbus.c b/drivers/net/xen-netback/xenbus.c
-index 8a9e875..48f6f98 100644
+index 410018c..d230c14 100644
 --- a/drivers/net/xen-netback/xenbus.c
 +++ b/drivers/net/xen-netback/xenbus.c
-@@ -583,3 +583,8 @@ int xenvif_xenbus_init(void)
+@@ -485,3 +485,8 @@ int xenvif_xenbus_init(void)
  {
  	return xenbus_register_backend(&netback_driver);
  }
@@ -84,3 +134,6 @@ index 8a9e875..48f6f98 100644
 +{
 +	return xenbus_unregister_driver(&netback_driver);
 +}
+-- 
+1.7.10.4
+

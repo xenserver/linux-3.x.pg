@@ -1,7 +1,7 @@
 From 383eda32b891002d5064cc97243c94b7cf78137a Mon Sep 17 00:00:00 2001
 From: Joe Perches <joe@perches.com>
 Date: Thu, 27 Jun 2013 21:57:49 -0700
-Subject: [PATCH] xen: Use more current logging styles
+Subject: [PATCH 5/5] xen: Use more current logging styles
 
 Instead of mixing printk and pr_<level> forms,
 just use pr_<level>

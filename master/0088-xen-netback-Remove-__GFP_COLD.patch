@@ -1,0 +1,32 @@
+From 44cc8ed17e203479827ef6b6d37404d2665da6fb Mon Sep 17 00:00:00 2001
+From: Zoltan Kiss <zoltan.kiss@linaro.org>
+Date: Tue, 28 Oct 2014 15:29:31 +0000
+Subject: [PATCH 88/88] xen-netback: Remove __GFP_COLD
+
+This flag is unnecessary, it came from some old code.
+
+Suggested-by: Eric Dumazet <eric.dumazet@gmail.com>
+Signed-off-by: Zoltan Kiss <zoltan.kiss@linaro.org>
+Signed-off-by: David Vrabel <david.vrabel@citrix.com>
+Acked-by: Wei Liu <wei.liu2@citrix.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ drivers/net/xen-netback/netback.c |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/net/xen-netback/netback.c b/drivers/net/xen-netback/netback.c
+index 08f6599..85fec0fb 100644
+--- a/drivers/net/xen-netback/netback.c
++++ b/drivers/net/xen-netback/netback.c
+@@ -1494,7 +1494,7 @@ static int xenvif_handle_frag_list(struct xenvif_queue *queue, struct sk_buff *s
+ 		unsigned int len;
+ 
+ 		BUG_ON(i >= MAX_SKB_FRAGS);
+-		page = alloc_page(GFP_ATOMIC|__GFP_COLD);
++		page = alloc_page(GFP_ATOMIC);
+ 		if (!page) {
+ 			int j;
+ 			skb->truesize += skb->data_len;
+-- 
+1.7.10.4
+

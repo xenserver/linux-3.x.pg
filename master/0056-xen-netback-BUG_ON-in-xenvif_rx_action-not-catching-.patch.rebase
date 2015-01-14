@@ -1,0 +1,54 @@
+From b9e037f5fd85dcbc53024290fc46195b82194aac Mon Sep 17 00:00:00 2001
+From: Paul Durrant <paul.durrant@citrix.com>
+Date: Wed, 14 Jan 2015 15:57:59 +0000
+Subject: [PATCH 56/56] (rebase) xen-netback: BUG_ON in xenvif_rx_action() not
+ catching overflow
+
+Original commit id 1425c7a4e8d3d2eebf308bcbdc3fa3c1247686b4:
+
+    The BUG_ON to catch ring overflow in xenvif_rx_action() makes the assumption
+    that meta_slots_used == ring slots used. This is not necessarily the case
+    for GSO packets, because the non-prefix GSO protocol consumes one more ring
+    slot than meta-slot for the 'extra_info'. This patch changes the test to
+    actually check ring slots.
+
+    Signed-off-by: Paul Durrant <paul.durrant@citrix.com>
+    Cc: Ian Campbell <ian.campbell@citrix.com>
+    Cc: Wei Liu <wei.liu2@citrix.com>
+    Cc: Sander Eikelenboom <linux@eikelenboom.it>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+Signed-off-by: Paul Durrant <paul.durrant@citrix.com>
+---
+ drivers/net/xen-netback/netback.c |    7 ++++++-
+ 1 file changed, 6 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/net/xen-netback/netback.c b/drivers/net/xen-netback/netback.c
+index 1c93bc2..ae34f5f 100644
+--- a/drivers/net/xen-netback/netback.c
++++ b/drivers/net/xen-netback/netback.c
+@@ -511,6 +511,8 @@ static void xenvif_rx_action(struct xenvif *vif)
+ 
+ 	while ((skb = skb_dequeue(&vif->rx_queue)) != NULL) {
+ 		RING_IDX max_slots_needed;
++		RING_IDX old_req_cons;
++		RING_IDX ring_slots_used;
+ 		int i;
+ 
+ 		/* We need a cheap worse case estimate for the number of
+@@ -558,8 +560,11 @@ static void xenvif_rx_action(struct xenvif *vif)
+ 		} else
+ 			vif->rx_last_skb_slots = 0;
+ 
++		old_req_cons = vif->rx.req_cons;
+ 		XENVIF_RX_CB(skb)->meta_slots_used = xenvif_gop_skb(skb, &npo);
+-		BUG_ON(XENVIF_RX_CB(skb)->meta_slots_used > max_slots_needed);
++		ring_slots_used = vif->rx.req_cons - old_req_cons;
++
++		BUG_ON(ring_slots_used > max_slots_needed);
+ 
+ 		__skb_queue_tail(&rxq, skb);
+ 	}
+-- 
+1.7.10.4
+

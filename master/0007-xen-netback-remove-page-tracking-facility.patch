@@ -1,7 +1,7 @@
 From 43e9d1943278e96150b449ea1fa81f4ae27729d5 Mon Sep 17 00:00:00 2001
 From: Wei Liu <wei.liu2@citrix.com>
 Date: Mon, 26 Aug 2013 12:59:37 +0100
-Subject: [PATCH] xen-netback: remove page tracking facility
+Subject: [PATCH 7/7] xen-netback: remove page tracking facility
 
 The data flow from DomU to DomU on the same host in current copying
 scheme with tracking facility:

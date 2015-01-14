@@ -17,6 +17,8 @@
 0006-x86-xen-Sync-the-CMOS-RTC-as-well-as-the-Xen-wallclo.patch
 # 65a45fa2f640f72757ef00f2bc83f9654d65a62b (3.11-rc1)
 0001-xen-p2m-avoid-unneccesary-TLB-flush-in-m2p_remove_ov.patch
+# 49c1241384b599421a5e8c9f73f72e2052dd416d (3.11-rc1)
+0001-SCSI-csiostor-Retain-default-adapter-configuration-i.patch
 # 64e8674fbe6bc848333a9b7e19f8cc019dde9eab (3.11-rc2)
 0001-PCI-Add-pci_reset_bridge_secondary_bus.patch
 # 5c32b35b004f5ef70dcf62bbc42b8bed1e50b471 (3.11-rc2)
@@ -55,6 +57,14 @@
 0005-xen-balloon-ensure-preemption-is-disabled-when-using.patch
 # 6a6f6e72eca5ed999689c69d1ac411fe319844a0 (3.12-rc1)
 0006-xen-balloon-remove-BUG_ON-in-increase_reservation.patch
+# 66b52b0dc82c5c88d769dc1c7d44cf45d0deb07c (3.12-rc1)
+0001-net-add-ndo-to-get-id-of-physical-port-of-the-device.patch
+# 66cae9ed6bc46b8cc57a9693f99f69926f3cc7ef (3.12-rc1)
+0002-rtnl-export-physical-port-id-via-RT-netlink.patch
+# ff80e519ab1b3a6abb2c6bbf684b98be07111879 (3.12-rc1)
+0003-net-export-physical-port-id-via-sysfs.patch
+# 2b2b614dd24e4e6474fcf2dcf69c95c908838959 (3.12-rc2)
+0001-tracing-events-Add-bounce-tracing-to-swiotbl.patch
 # 24f69373e212d4356268fbb1d01c5735423c300d (3.12-rc3)
 0007-xen-balloon-don-t-alloc-page-while-non-preemptible.patch
 # 7cde9b27e7b3a2e09d647bb4f6d94e842698d2d5 (3.12-rc6)
@@ -69,6 +79,25 @@
 0003-PCI-Add-Virtual-Channel-to-save-restore-support.patch
 # dca692880e887739a669f6c41a80ca68ce2b09fc (3.13-rc1)
 CIFS-O_DIRECT-opens-should-work-on-directio-mounts.patch
+# 32e475d76a3e40879cd9ee4f69b19615062280d7 (3.13-rc3)
+0001-sched-Expose-preempt_schedule_irq.patch
+# 518d00b7498c5894be94545848d55e5b9c55749e (v3.13-rc8) in nullblk_3_13.patch
+# fc1bc35443741e132dd0118e8dbac53f69a6f76e (v3.13-rc6) in nullblk_3_13.patch
+# 200052440d3b56f593038a35b7c14bdc780184a9 (v3.13-rc6) in nullblk_3_13.patch
+# 89ed05eea093d4c18df5d504d104f29b874fea29 (v3.13-rc6) in nullblk_3_13.patch
+# d15ee6b1a43afbe1a6cece3bd8d336a9d5cb7060 (v3.13-rc6) in nullblk_3_13.patch
+# 2d263a7856cbaf26dd89b671e2161c4a49f8461b (v3.13-rc6) in nullblk_3_13.patch
+# 12f8f4fc0314103d47f9b1cbc812597b8d893ce1 (v3.13-rc6) in nullblk_3_13.patch
+# 0c56010c83703e1f33325838eda9a2077827b6f1 (v3.13-rc6) in nullblk_3_13.patch
+# 044c8d4b15743f6e0a4cb6f2aeb32745a116ebff (v3.13-rc1) in nullblk_3_13.patch
+# f2298c0403b0dfcaef637eba0c02c4a06d7a25ab (v3.13-rc1) in nullblk_3_13.patch
+nullblk_3_13.patch
+# fa35864e0bb7f7c13b9c6d6751ddac9b42d4810f (3.14-rc1)
+0001-tuntap-Fix-for-a-race-in-accessing-numqueues.patch
+# ed1f50c3a7c1ad1b1b4d584308eab77d57a330f8 (3.14-rc1)
+0001-net-add-skb_checksum_setup.patch
+# 81201baa15df09decc1475f3eab86089b7f24d1d (xen/tip.git devel/for-linus-3.15)
+0001-xen-grant-table-Refactor-gnttab_-un-map_refs-to-avoi.patch
 # d5c9fde3dae750889168807038243ff36431d276 (3.15-rc4)
 0001-mm-page-writeback.c-fix-divide-by-zero-in-pos_ratio_.patch
 # fb9a0c443691ceaab3daba966bbbd9f5ff3aa26f (3.16-rc6)
@@ -77,6 +106,197 @@ CIFS-O_DIRECT-opens-should-work-on-directio-mounts.patch
 0001-PCI-Allow-device-quirks-to-exclude-D3-D0-PM-reset.patch
 # 3d7a34ecf6bb446bf0928aa7d7f51acaa8816063 (linux-vfio tree)
 0002-PCI-quirk-AMD-ATI-VGA-cards-to-avoid-PM-reset.patch
+
+#
+# xen-netback backports
+#
+xen-netback-revert-to-v3.10
+# f1db320ec5788d5fcc05c0285bd0980319185497 (3.11-rc1)
+0001-xen-netback-remove-dead-code.patch
+# b103f358d9f6f58658f1a6dc08912ab921dd86f1 (3.11-rc1)
+0002-xen-netback-enable-user-to-unload-netback-module.patch
+# e1f00a69ec26e3eb9847c61c665b8fb3f0c6b477 (3.11-rc1)
+0003-xen-netback-split-event-channels-support-for-Xen-bac.patch.rebase
+# 07cc61bfc0e5d9da80e353365717d45d29db0081 (3.11-rc1)
+0004-xen-netback-double-free-on-unload.patch
+# 383eda32b891002d5064cc97243c94b7cf78137a (3.11-rc1)
+0005-xen-Use-more-current-logging-styles.patch
+# 8ef2c3bca599710a410cbecb4867e27728fef043 (3.11-rc1)
+0006-xen-netback-xenbus.c-use-more-current-logging-styles.patch
+# 43e9d1943278e96150b449ea1fa81f4ae27729d5 (3.12-rc1)
+0007-xen-netback-remove-page-tracking-facility.patch
+# b3f980bd827e6e81a050c518d60ed7811a83061d (3.12-rc1)
+0008-xen-netback-switch-to-NAPI-kthread-1-1-model.patch
+# 7376419a4697657b2e0ab904a592aacc2e485bf1 (3.12-rc1)
+0009-xen-netback-rename-functions.patch
+# a9677bc024dcaafcf36c1cc4b0706b87be26ee5f (3.12-rc2)
+0010-xen-netback-fix-possible-format-string-flaw.patch
+# 6e43fc04a6bc357d260583b8440882f28069207f (3.12-rc2)
+0011-xen-netback-count-number-required-slots-for-an-skb-m.patch
+# 279f438e36c0a70b23b86d2090aeec50155034a9 (3.12-rc2)
+0012-xen-netback-Don-t-destroy-the-netdev-until-the-vif-i.patch
+# ea732dff5cfa10789007bf4a5b935388a0bb2a8f (3.12-rc4)
+0013-xen-netback-Handle-backend-state-transitions-in-a-mo.patch
+# dc62ccaccfb139d9b04bbc5a2688a4402adbfab3 (3.12-rc7)
+0014-xen-netback-transition-to-CLOSED-when-removing-a-VIF.patch
+# 146c8a77d27bcbd7722120f70f51e3b287205d0a (3.13-rc1)
+0015-xen-netback-add-support-for-IPv6-checksum-offload-to.patch
+# 2eba61d55e5104d0bf08ba4a9cc609613f52b4c9 (3.13-rc1)
+0016-xen-netback-add-support-for-IPv6-checksum-offload-fr.patch
+# 7365bcfa32d2c9d212c41d52ff3509d70b6a3466 (3.13-rc1)
+0017-xen-netback-Unconditionally-set-NETIF_F_RXCSUM.patch
+# a94685876859be30446357db6d6c4a9c951305b4 (3.13-rc1)
+0018-xen-netback-handle-IPv6-TCP-GSO-packets-from-the-gue.patch
+# 82cada22a0bbec6a7afb573ef5fb6c512aaa2739 (3.13-rc1)
+0019-xen-netback-enable-IPv6-TCP-GSO-to-the-guest.patch
+# 059dfa6a93b779516321e5112db9d7621b1367ba (3.13-rc1)
+0020-xen-netback-use-jiffies_64-value-to-calculate-credit.patch
+# db739ef37f07a1a12e388dbaec225d9d9d5d6ded (3.13-rc1)
+0021-xen-netback-stop-the-VIF-thread-before-unbinding-IRQ.patch
+# ae5e8127b712313ec1b99356019ce9226fea8b88 (3.13-rc3)
+0022-xen-netback-include-definition-of-csum_ipv6_magic.patch
+# 67fa36609fe0a0a4b4c99120e5093599556e4c5b (3.13-rc4)
+0023-xen-netback-clear-vif-task-on-disconnect.patch
+# 1431fb31ecbaba1b5718006128f0f2ed0b94e1c3 (3.13-rc4)
+0024-xen-netback-fix-fragment-detection-in-checksum-setup.patch
+# ca2f09f2b2c6c25047cfc545d057c4edfcfe561c (3.14-rc1)
+0025-xen-netback-improve-guest-receive-side-flow-control.patch
+# d52eb0d46f3606b9de9965cebb2beb2202a0dc62 (3.13-rc4)
+0026-xen-netback-make-sure-skb-linear-area-covers-checksu.patch
+# 10574059ce0451c6572c85329c772aa15085f8eb (3.13-rc4)
+0027-xen-netback-napi-fix-abuse-of-budget.patch
+# d9601a36ffdb5c142697bef1228afb5ba4ee4003 (3.13-rc4)
+0028-xen-netback-napi-don-t-prematurely-request-a-tx-even.patch
+# a3314f3d40215349ab2427800c1e10676691389f (3.13-rc4)
+0029-xen-netback-fix-gso_prefix-check.patch
+# 7022ef8b2a673db3d12a348331181f579afe9b22 (3.13-rc5)
+0030-xen-netback-fix-fragments-error-handling-in-checksum.patch
+# 0c8d087c04cdcef501064552149289866e53aa6c (3.13-rc7)
+0031-xen-netback-fix-some-error-return-code.patch
+# b89587a7af4b2a2e0682c304224be4041e993548 (3.14-rc1)
+0032-xen-netback-add-gso_segs-calculation.patch
+# ac3d5ac277352fe6e27809286768e9f1f8aa388d (3.13-rc7)
+0033-xen-netback-fix-guest-receive-side-array-sizes.patch
+# f35f76ee76df008131bbe01a2297de0c55ee2297 (3.13-rc8)
+0034-xen-netback-Include-header-for-vmalloc.patch
+# 11b57f90257c1d6a91cee720151b69e0c2020cf6 (3.14-rc1)
+0035-xen-netback-stop-vif-thread-spinning-if-frontend-is-.patch
+# 2721637c1c0f644d7d67d0698c4a32b440d7f0f8 (3.14-rc1)
+0036-xen-netback-use-new-skb_checksum_setup-function.patch
+# 9ab9831b4c59d379a17f92a6157c7e921811dea2 (3.14-rc3)
+0037-xen-netback-Fix-Rx-stall-due-to-race-condition.patch
+# 8f13dd9612286cc0d38d32ff9543763b7c74f6a5 (3.15-rc1)
+0038-xen-netback-Use-skb-cb-for-pending_idx.patch
+# 121fa4b77775549c3c5eb41eb335d7dcbb801f90 (3.15-rc1)
+0039-xen-netback-Minor-refactoring-of-netback-code.patch
+# 3e2234b3149f66bc4be2343a3a0f637d922e4a36 (3.15-rc1)
+0040-xen-netback-Handle-foreign-mapped-pages-on-the-guest.patch
+# f53c3fe8dad725b014e9c7682720d8e3e2a8a5b3 (3.15-rc1)
+0041-xen-netback-Introduce-TX-grant-mapping.patch
+# 62bad3199a4c20505fc36c169deef20b25e17c5f (3.15-rc1)
+0042-xen-netback-Remove-old-TX-grant-copy-definitons-and-.patch
+# 1bb332af4cd889e4b64dacbf4a793ceb3a70445d (3.15-rc1)
+0043-xen-netback-Add-stat-counters-for-zerocopy.patch
+# e3377f36ca20a034dce56335dc9b89f41094d845 (3.15-rc1)
+0044-xen-netback-Handle-guests-with-too-many-frags.patch
+# 093507885ae5dc0288af07fbb922d2f85b3a88a6 (3.15-rc1)
+0045-xen-netback-Timeout-packets-in-RX-path.patch
+# e9275f5e2df1b2098a8cc405d87b88b9affd73e6 (3.15-rc1)
+0046-xen-netback-Aggregate-TX-unmap-operations.patch
+# 5bd076708664313f2bdbbc1cf71093313b7774a1 (3.14-rc7)
+0047-Xen-netback-Fix-issue-caused-by-using-gso_type-wrong.patch.rebase
+# 836fbaf459f9c041826864021688e9bd131e722c (3.14-rc7)
+0048-xen-netback-use-skb_is_gso-in-xenvif_start_xmit.patch
+# 397dfd9f93ccfe71660eafbaac651a96195c24ed (3.15-rc1)
+0049-Revert-xen-netback-Aggregate-TX-unmap-operations.patch
+# 2c5f4f8422e8cf3dd15638226e964f2e13132267 (3.15-rc1)
+0050-xen-netback-Proper-printf-format-for-ptrdiff_t-is-t.patch
+# 869b9b19b3affd81cee853d33c0b124797f3c387 (3.15-rc1)
+0051-xen-netback-Stop-using-xenvif_tx_pending_slots_avail.patch
+# 0e59a4a553df312b5308c75085f7f02b12680d12 (3.15-rc1)
+0052-xen-netback-Non-functional-follow-up-patch-for-grant.patch
+# 7aceb47a9df3383b24824c3e4bd4f029e4598fda (3.15-rc1)
+0053-xen-netback-Functional-follow-up-patch-for-grant-map.patch
+# 0576eddf24df716d8570ef8ca11452a9f98eaab2 (3.15-rc1)
+0054-xen-netback-remove-pointless-clause-from-if-statemen.patch
+# a02eb4732cf975d7fc71b6d1a71c058c9988b949 (3.15-rc1)
+0055-xen-netback-worse-case-estimate-in-xenvif_rx_action-.patch
+# 1425c7a4e8d3d2eebf308bcbdc3fa3c1247686b4 (3.15-rc1)
+0056-xen-netback-BUG_ON-in-xenvif_rx_action-not-catching-.patch.rebase
+# e9d8b2c2968499c1f96563e6522c56958d5a1d0d (3.15-rc1)
+0057-xen-netback-disable-rogue-vif-in-kthread-context.patch
+# 9074ce249321861e535cdf8de9af0930a174dda9 (3.15-rc1)
+0058-xen-netback-Rename-map-ops.patch
+# bdab82759b8e3620096d6db46dc1cac38a52d779 (3.15-rc1)
+0059-xen-netback-Grant-copy-the-header-instead-of-map-and.patch
+# 00aefceb2fffcf4ea2fbc97ef5d4f79ef2668ecc (3.15-rc1)
+0060-xen-netback-Trivial-format-string-fix.patch
+# 583757446ba6850eff96cef6565d729266da9c5b (3.15-rc7)
+0061-xen-netback-Fix-grant-ref-resolution-in-RX-path.patch
+# 0d08fceb2e21c30ca3e1e462e678723f806acf18 (3.15-rc7)
+0062-xen-netback-fix-race-between-napi_complete-and-inter.patch
+# a55d9766cecf2b1b9af4fcf93b2d41b71e599c76 (3.16-rc1)
+0063-xen-netback-Move-grant_copy_op-array-back-into-struc.patch
+# e9ce7cb6b107407e4798e8905b18ad8b642766f6 (3.16-rc1)
+0064-xen-netback-Factor-queue-specific-data-into-queue-st.patch
+# 8d3d53b3e43363e79ab9a9ecc149b06c1314b25d (3.16-rc1)
+0065-xen-netback-Add-support-for-multiple-queues.patch
+# 59ae9fc67007da8b5aea7b0a31c3607745cfbfee (3.16-rc1)
+0066-xen-netback-Fix-handling-of-skbs-requiring-too-many-.patch.rebase
+# e7b599d7c1dbdcdb9d4228ec9d3934c139592ba3 (3.16-rc1)
+0067-net-xen-netback-include-linux-vmalloc.h-again.patch
+# f7b50c4e7ced702d80d3b873d81a2cdafb580f13 (3.16-rc3)
+0068-xen-netback-bookkeep-number-of-active-queues-in-our-.patch
+# f51de24356e49e4dcb5095e87717065580912120 (3.17-rc1)
+0069-xen-netback-Adding-debugfs-io_ring_qX-files.patch
+# 1a998d3e6bc1e44f4c0bc7509bdedef8ed3845ec (3.16-rc7)
+0070-xen-netback-Fix-handling-frag_list-on-grant-op-error.patch
+# b42cc6e421e7bf74e545483aa34b99d2a2ca6d3a (3.16-rc7)
+0071-xen-netback-Fix-releasing-frag_list-skbs-in-error-pa.patch
+# 1b860da0404a76af8533099ffe0a965490939369 (3.16-rc7)
+0072-xen-netback-Fix-releasing-header-slot-on-error-path.patch
+# d8cfbfc4660054150ca1b7c501a8edc0771022f9 (3.16-rc7)
+0073-xen-netback-Fix-pointer-incrementation-to-avoid-inco.patch
+# 3d1af1df9762e56e563e8fd088a1b4ce2bcfaf8b (3.17-rc1)
+0074-xen-netback-Using-a-new-state-bit-instead-of-carrier.patch
+# f34a4cf9c9b4fd35ba7f9a596cedb011879a1a4d (3.17-rc1)
+0075-xen-netback-Turn-off-the-carrier-if-the-guest-is-not.patch
+# 743b0a92b92a0e1b6a68497ccd18a0d60a4b6082 (3.17-rc1)
+0076-xen-netback-Fix-vif-disable-handling.patch
+# 2561cc15e3816e4323f9e79a6890bff94c0bbec2 (3.17-rc1)
+0077-xen-netback-Don-t-deschedule-NAPI-when-carrier-off.patch
+# 5c807005fa60deef2db6616d9b7b24fc4c436be9 (3.17-rc1)
+0078-xen-netback-fix-debugfs-write-length-check.patch
+# 628fa76b09d7b0923c142631fc25b6affbfb868d (3.17-rc1)
+0079-xen-netback-fix-debugfs-entry-creation.patch
+# ea2c5e134237eadc9924ce821ded678750024549 (3.17-rc1)
+0080-xen-netback-move-NAPI-add-remove-calls.patch
+# a64bd934528e26e8956112e43a279fba2ee0634e (3.17-rc1)
+0081-xen-netback-don-t-stop-dealloc-kthread-too-early.patch
+# b1252858213f39700dac1bc3295b6e88f6cce24b (3.17-rc1)
+0082-xen-netback-remove-loop-waiting-function.patch
+# e24f8191cc35ae3780b4656a6befae8b8657edc2 (3.17-rc5)
+0083-xen-netback-move-netif_napi_add-before-binding-inter.patch
+# bc96f648df1bbc2729abbb84513cf4f64273a1f1 (3.18-rc3)
+0084-xen-netback-make-feature-rx-notify-mandatory.patch
+# f48da8b14d04ca87ffcffe68829afd45f926ec6a (3.18-rc3)
+0085-xen-netback-fix-unlimited-guest-Rx-internal-queue-an.patch
+# ecf08d2dbb96d5a4b4bcc53a39e8d29cc8fef02e (3.18-rc3)
+0086-xen-netback-reintroduce-guest-Rx-stall-detection.patch
+# 8fe78989c3445a221cfcc54964e7e62718883615 (3.19-rc1)
+0087-xen-netback-Disable-NAPI-after-disabling-interrupts.patch
+# 44cc8ed17e203479827ef6b6d37404d2665da6fb (3.19-rc1)
+0088-xen-netback-Remove-__GFP_COLD.patch
+# 7e5d7753956b374516530e156c5e8aa19652398d (3.19-rc1)
+0089-xen-netback-remove-unconditional-__pskb_pull_tail-in.patch
+# 2dd34339ac6305c4f2f4e589b858212e339d31e9 (3.18-rc7)
+0090-xen-netback-do-not-report-success-if-backend_create_.patch
+# f15650b7f94879667f253bc32de7431c1baf2d6e (3.19-rc1)
+0091-netback-don-t-store-invalid-vif-pointer.patch
+# 26c0e102585d5a4d311f5d6eb7f524d288e7f6b7 (3.19-rc1)
+0092-xen-netback-support-frontends-without-feature-rx-not.patch
+# 07ff890daeda31cf23173865edf50bcb03e100c3 (3.19-rc4)
+0093-xen-netback-fixing-the-propagation-of-the-transmit-s.patch
 
 #
 # EFI backports
@@ -101,170 +321,6 @@ CIFS-O_DIRECT-opens-should-work-on-directio-mounts.patch
 0011-xen-Silence-compiler-warnings.patch
 # c7341d6a61c3526631a4e4565cda72cb1f51d146 (3.17-rc1)
 0012-arch-x86-xen-Silence-compiler-warnings.patch
-#
-# Netback backports
-#
-# f1db320ec5788d5fcc05c0285bd0980319185497 (3.11-rc1)
-0001-xen-netback-remove-dead-code.patch
-# b103f358d9f6f58658f1a6dc08912ab921dd86f1 (3.11-rc1)
-0002-xen-netback-enable-user-to-unload-netback-module.patch
-# e1f00a69ec26e3eb9847c61c665b8fb3f0c6b477 (3.11-rc1)
-0003-xen-netback-split-event-channels-support-for-Xen-bac.patch
-# 07cc61bfc0e5d9da80e353365717d45d29db0081 (3.11-rc1)
-0004-xen-netback-double-free-on-unload.patch
-# 383eda32b891002d5064cc97243c94b7cf78137a (3.11-rc1)
-0005-xen-Use-more-current-logging-styles.patch
-# 8ef2c3bca599710a410cbecb4867e27728fef043 (3.11-rc1)
-0006-xen-netback-xenbus.c-use-more-current-logging-styles.patch
-# 49c1241384b599421a5e8c9f73f72e2052dd416d (3.11-rc1)
-0001-SCSI-csiostor-Retain-default-adapter-configuration-i.patch
-# 43e9d1943278e96150b449ea1fa81f4ae27729d5 (3.12-rc1)
-0007-xen-netback-remove-page-tracking-facility.patch
-# b3f980bd827e6e81a050c518d60ed7811a83061d (3.12-rc1)
-0008-xen-netback-switch-to-NAPI-kthread-1-1-model.patch
-# 7376419a4697657b2e0ab904a592aacc2e485bf1 (3.12-rc1)
-0009-xen-netback-rename-functions.patch
-# a9677bc024dcaafcf36c1cc4b0706b87be26ee5f (3.12-rc2)
-0010-xen-netback-fix-possible-format-string-flaw.patch
-# db739ef37f07a1a12e388dbaec225d9d9d5d6ded (3.13-rc1)
-0011-xen-netback-stop-the-VIF-thread-before-unbinding-IRQ.patch
-# 66b52b0dc82c5c88d769dc1c7d44cf45d0deb07c (3.12-rc1)
-0001-net-add-ndo-to-get-id-of-physical-port-of-the-device.patch
-# 66cae9ed6bc46b8cc57a9693f99f69926f3cc7ef (3.12-rc1)
-0002-rtnl-export-physical-port-id-via-RT-netlink.patch
-# ff80e519ab1b3a6abb2c6bbf684b98be07111879 (3.12-rc1)
-0003-net-export-physical-port-id-via-sysfs.patch
-# 32e475d76a3e40879cd9ee4f69b19615062280d7 (3.13-rc3)
-0001-sched-Expose-preempt_schedule_irq.patch
-# fa35864e0bb7f7c13b9c6d6751ddac9b42d4810f (3.14-rc1)
-0001-tuntap-Fix-for-a-race-in-accessing-numqueues.patch
-# 2b2b614dd24e4e6474fcf2dcf69c95c908838959 (3.12-rc2)
-0001-tracing-events-Add-bounce-tracing-to-swiotbl.patch
-# 146c8a77d27bcbd7722120f70f51e3b287205d0a (3.13-rc1)
-0001-xen-netback-add-support-for-IPv6-checksum-offload-to.patch
-# 2eba61d55e5104d0bf08ba4a9cc609613f52b4c9 (3.13-rc1)
-0001-xen-netback-add-support-for-IPv6-checksum-offload-fr.patch
-# 7365bcfa32d2c9d212c41d52ff3509d70b6a3466 (3.13-rc1)
-0001-xen-netback-Unconditionally-set-NETIF_F_RXCSUM.patch
-# a94685876859be30446357db6d6c4a9c951305b4 (3.13-rc1)
-0001-xen-netback-handle-IPv6-TCP-GSO-packets-from-the-gue.patch
-# 82cada22a0bbec6a7afb573ef5fb6c512aaa2739 (3.13-rc1)
-0001-xen-netback-enable-IPv6-TCP-GSO-to-the-guest.patch
-# 67fa36609fe0a0a4b4c99120e5093599556e4c5b (3.13-rc4)
-0001-xen-netback-clear-vif-task-on-disconnect.patch
-# 1431fb31ecbaba1b5718006128f0f2ed0b94e1c3 (3.13-rc4)
-0001-xen-netback-fix-fragment-detection-in-checksum-setup.patch
-# ca2f09f2b2c6c25047cfc545d057c4edfcfe561c (3.14-rc1)
-0001-xen-netback-improve-guest-receive-side-flow-control.patch
-# d52eb0d46f3606b9de9965cebb2beb2202a0dc62 (3.13-rc4)
-0001-xen-netback-make-sure-skb-linear-area-covers-checksu.patch
-# 10574059ce0451c6572c85329c772aa15085f8eb (3.13-rc4)
-0001-xen-netback-napi-fix-abuse-of-budget.patch
-# d9601a36ffdb5c142697bef1228afb5ba4ee4003 (3.13-rc4)
-0002-xen-netback-napi-don-t-prematurely-request-a-tx-even.patch
-# a3314f3d40215349ab2427800c1e10676691389f (3.13-rc4)
-0001-xen-netback-fix-gso_prefix-check.patch
-# b89587a7af4b2a2e0682c304224be4041e993548 (3.14-rc1)
-0001-xen-netback-add-gso_segs-calculation.patch
-# ac3d5ac277352fe6e27809286768e9f1f8aa388d (3.13-rc7)
-0001-xen-netback-fix-guest-receive-side-array-sizes.patch
-# 11b57f90257c1d6a91cee720151b69e0c2020cf6 (3.14-rc1)
-0001-xen-netback-stop-vif-thread-spinning-if-frontend-is-.patch
-# ae5e8127b712313ec1b99356019ce9226fea8b88 (3.13-rc3)
-0001-xen-netback-include-definition-of-csum_ipv6_magic.patch
-# 7022ef8b2a673db3d12a348331181f579afe9b22 (3.13-rc5)
-0001-xen-netback-fix-fragments-error-handling-in-checksum.patch
-# 0c8d087c04cdcef501064552149289866e53aa6c (3.13-rc7)
-0001-xen-netback-fix-some-error-return-code.patch
-# f35f76ee76df008131bbe01a2297de0c55ee2297 (3.13-rc8)
-0001-xen-netback-Include-header-for-vmalloc.patch
-# ed1f50c3a7c1ad1b1b4d584308eab77d57a330f8 (3.14-rc1)
-0001-net-add-skb_checksum_setup.patch
-# 2721637c1c0f644d7d67d0698c4a32b440d7f0f8 (3.14-rc1)
-0001-xen-netback-use-new-skb_checksum_setup-function.patch
-# 9ab9831b4c59d379a17f92a6157c7e921811dea2 (3.14-rc3)
-0001-xen-netback-Fix-Rx-stall-due-to-race-condition.patch
-# 8f13dd9612286cc0d38d32ff9543763b7c74f6a5
-0002-xen-netback-Use-skb-cb-for-pending_idx.patch
-# 121fa4b77775549c3c5eb41eb335d7dcbb801f90
-0003-xen-netback-Minor-refactoring-of-netback-code.patch
-# 3e2234b3149f66bc4be2343a3a0f637d922e4a36
-0004-xen-netback-Handle-foreign-mapped-pages-on-the-guest.patch
-# f53c3fe8dad725b014e9c7682720d8e3e2a8a5b3
-0005-xen-netback-Introduce-TX-grant-mapping.patch
-# 62bad3199a4c20505fc36c169deef20b25e17c5f
-0006-xen-netback-Remove-old-TX-grant-copy-definitons-and-.patch
-# 1bb332af4cd889e4b64dacbf4a793ceb3a70445d
-0007-xen-netback-Add-stat-counters-for-zerocopy.patch
-# e3377f36ca20a034dce56335dc9b89f41094d845
-0008-xen-netback-Handle-guests-with-too-many-frags.patch
-# 093507885ae5dc0288af07fbb922d2f85b3a88a6
-0009-xen-netback-Timeout-packets-in-RX-path.patch
-# 2c5f4f8422e8cf3dd15638226e964f2e13132267
-0001-xen-netback-Proper-printf-format-for-ptrdiff_t-is-t.patch
-# 869b9b19b3affd81cee853d33c0b124797f3c387
-0001-xen-netback-Stop-using-xenvif_tx_pending_slots_avail.patch
-# 0e59a4a553df312b5308c75085f7f02b12680d12
-0001-xen-netback-Non-functional-follow-up-patch-for-grant.patch
-# 7aceb47a9df3383b24824c3e4bd4f029e4598fda
-0001-xen-netback-Functional-follow-up-patch-for-grant-map.patch
-# 81201baa15df09decc1475f3eab86089b7f24d1d (xen/tip.git devel/for-linus-3.15)
-0001-xen-grant-table-Refactor-gnttab_-un-map_refs-to-avoi.patch
-# 9074ce249321861e535cdf8de9af0930a174dda9
-0001-xen-netback-Rename-map-ops.patch
-# bdab82759b8e3620096d6db46dc1cac38a52d779
-0002-xen-netback-Grant-copy-the-header-instead-of-map-and.patch
-# 00aefceb2fffcf4ea2fbc97ef5d4f79ef2668ecc
-0003-xen-netback-Trivial-format-string-fix.patch
-# 518d00b7498c5894be94545848d55e5b9c55749e (v3.13-rc8) in nullblk_3_13.patch
-# fc1bc35443741e132dd0118e8dbac53f69a6f76e (v3.13-rc6) in nullblk_3_13.patch
-# 200052440d3b56f593038a35b7c14bdc780184a9 (v3.13-rc6) in nullblk_3_13.patch
-# 89ed05eea093d4c18df5d504d104f29b874fea29 (v3.13-rc6) in nullblk_3_13.patch
-# d15ee6b1a43afbe1a6cece3bd8d336a9d5cb7060 (v3.13-rc6) in nullblk_3_13.patch
-# 2d263a7856cbaf26dd89b671e2161c4a49f8461b (v3.13-rc6) in nullblk_3_13.patch
-# 12f8f4fc0314103d47f9b1cbc812597b8d893ce1 (v3.13-rc6) in nullblk_3_13.patch
-# 0c56010c83703e1f33325838eda9a2077827b6f1 (v3.13-rc6) in nullblk_3_13.patch
-# 044c8d4b15743f6e0a4cb6f2aeb32745a116ebff (v3.13-rc1) in nullblk_3_13.patch
-# f2298c0403b0dfcaef637eba0c02c4a06d7a25ab (v3.13-rc1) in nullblk_3_13.patch
-nullblk_3_13.patch
-# e9d8b2c2968499c1f96563e6522c56958d5a1d0d (3.15-rc1)
-0001-xen-netback-disable-rogue-vif-in-kthread-context.patch
-# 5bd076708664313f2bdbbc1cf71093313b7774a1 (3.14-rc7)
-0001-Xen-netback-Fix-issue-caused-by-using-gso_type-wrong.patch
-# 583757446ba6850eff96cef6565d729266da9c5b
-0001-xen-netback-Fix-grant-ref-resolution-in-RX-path.patch
-# 836fbaf459f9c041826864021688e9bd131e722c (3.14-rc7)
-0001-xen-netback-use-skb_is_gso-in-xenvif_start_xmit.patch
-# a02eb4732cf975d7fc71b6d1a71c058c9988b949 (3.15-rc1)
-0001-xen-netback-worse-case-estimate-in-xenvif_rx_action-.patch
-# 1425c7a4e8d3d2eebf308bcbdc3fa3c1247686b4 (3.15-rc1)
-0001-xen-netback-BUG_ON-in-xenvif_rx_action-not-catching-.patch
-# 0d08fceb2e21c30ca3e1e462e678723f806acf18
-0001-xen-netback-fix-race-between-napi_complete-and-inter.patch
-#
-fix-rx-action-slot-estimation.patch
-# 59ae9fc67007da8b5aea7b0a31c3607745cfbfee (3.15.1)
-0001-xen-netback-Fix-handling-of-skbs-requiring-too-many-slots.patch
-#
-0001-xen-netback-Adding-debugfs-io_ring_qX-files.patch
-#
-0001-xen-netback-Fix-handling-frag_list-on-grant-op-error-path.patch
-#
-0002-xen-netback-Fix-releasing-frag_list-skbs-in-error-path.patch
-#
-0003-xen-netback-Fix-releasing-header-slot-on-error-path.patch
-#
-0004-xen-netback-Fix-pointer-incrementation-to-avoid-incorrect-logging.patch
-#
-0001-xen-netback-Using-a-new-state-bit-instead-of-carrier.patch
-#
-0002-xen-netback-Turn-off-the-carrier-if-the-guest-is-not-able-to-receive.patch
-#
-0004-xen-netback-Dont-deschedule-NAPI-when-carrier-off.patch
-#
-0002-xen-netback-dont-stop-dealloc-kthread-too-early.patch
-#
-0003-xen-netback-remove-loop-waiting-function.patch
 
 #
 # skb_segment fixes
@@ -343,11 +399,6 @@ blkback-debug-ring.diff
 0015-xen-x86-set-VIRQ_TIMER-priority-to-maximum.patch
 0016-xen-events-use-the-FIFO-based-ABI-if-available.patch
 fifo_page_fix.patch
-
-# netback
-0001-xen-netback-make-feature-rx-notify-mandatory.patch
-0002-xen-netback-fix-rx-stall-detection-and-queue-drainin.patch
-netback-remove-unconditional-pull-skb-tail-on-tx.patch
 
 # pciback
 0001-pci-export-pci_probe_reset_function.patch

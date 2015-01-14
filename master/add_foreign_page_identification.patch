@@ -1,5 +1,5 @@
 diff --git a/arch/x86/xen/p2m.c b/arch/x86/xen/p2m.c
-index 6404063..e69beff 100644
+index 6404063..390daa7 100644
 --- a/arch/x86/xen/p2m.c
 +++ b/arch/x86/xen/p2m.c
 @@ -929,6 +929,45 @@ static unsigned long mfn_hash(unsigned long mfn)
@@ -101,26 +101,26 @@ index 6404063..e69beff 100644
  
  unsigned long m2p_find_override_pfn(unsigned long mfn, unsigned long pfn)
 diff --git a/drivers/net/xen-netback/netback.c b/drivers/net/xen-netback/netback.c
-index f79dc5b..f3d466a 100644
+index 6441318..b0c4b0c 100644
 --- a/drivers/net/xen-netback/netback.c
 +++ b/drivers/net/xen-netback/netback.c
-@@ -308,9 +308,7 @@ static struct xenvif_rx_meta *get_next_rx_buffer(struct xenvif *vif,
- static void xenvif_gop_frag_copy(struct xenvif *vif, struct sk_buff *skb,
+@@ -314,9 +314,7 @@ static struct xenvif_rx_meta *get_next_rx_buffer(struct xenvif_queue *queue,
+ static void xenvif_gop_frag_copy(struct xenvif_queue *queue, struct sk_buff *skb,
  				 struct netrx_pending_operations *npo,
  				 struct page *page, unsigned long size,
 -				 unsigned long offset, int *head,
--				 struct xenvif *foreign_vif,
+-				 struct xenvif_queue *foreign_queue,
 -				 grant_ref_t foreign_gref)
 +				 unsigned long offset, int *head)
  {
  	struct gnttab_copy *copy_gop;
  	struct xenvif_rx_meta *meta;
-@@ -355,9 +353,9 @@ static void xenvif_gop_frag_copy(struct xenvif *vif, struct sk_buff *skb,
+@@ -361,9 +359,9 @@ static void xenvif_gop_frag_copy(struct xenvif_queue *queue, struct sk_buff *skb
  		copy_gop->flags = GNTCOPY_dest_gref;
  		copy_gop->len = bytes;
  
--		if (foreign_vif) {
--			copy_gop->source.domid = foreign_vif->domid;
+-		if (foreign_queue) {
+-			copy_gop->source.domid = foreign_queue->vif->domid;
 -			copy_gop->source.u.ref = foreign_gref;
 +		if (PageForeign(page)) {
 +			get_page_grant_ref(page, &(copy_gop->source.domid), 
@@ -128,10 +128,10 @@ index f79dc5b..f3d466a 100644
  			copy_gop->flags |= GNTCOPY_source_gref;
  		} else {
  			copy_gop->source.domid = DOMID_SELF;
-@@ -500,67 +498,16 @@ static int xenvif_gop_skb(struct sk_buff *skb,
+@@ -507,68 +505,16 @@ static int xenvif_gop_skb(struct sk_buff *skb,
  			len = skb_tail_pointer(skb) - data;
  
- 		xenvif_gop_frag_copy(vif, skb, npo,
+ 		xenvif_gop_frag_copy(queue, skb, npo,
 -				     virt_to_page(data), len, offset, &head,
 -				     NULL,
 -				     0);
@@ -143,7 +143,7 @@ index f79dc5b..f3d466a 100644
 -		/* This variable also signals whether foreign_gref has a real
 -		 * value or not.
 -		 */
--		struct xenvif *foreign_vif = NULL;
+-		struct xenvif_queue *foreign_queue = NULL;
 -		grant_ref_t foreign_gref;
 -
 -		if ((skb_shinfo(skb)->tx_flags & SKBTX_DEV_ZEROCOPY) &&
@@ -168,8 +168,9 @@ index f79dc5b..f3d466a 100644
 -			if (likely(ubuf)) {
 -				u16 pending_idx = ubuf->desc;
 -
--				foreign_vif = ubuf_to_vif(ubuf);
--				foreign_gref = foreign_vif->pending_tx_info[pending_idx].req.gref;
+-				foreign_queue = ubuf_to_queue(ubuf);
+-				foreign_gref =
+-					foreign_queue->pending_tx_info[pending_idx].req.gref;
 -				/* Just a safety measure. If this was the last
 -				 * element on the list, the for loop will
 -				 * iterate again if a local page were added to
@@ -187,13 +188,13 @@ index f79dc5b..f3d466a 100644
 -				 */
 -				ubuf = head_ubuf;
 -		}
- 		xenvif_gop_frag_copy(vif, skb, npo,
+ 		xenvif_gop_frag_copy(queue, skb, npo,
  				     skb_frag_page(&skb_shinfo(skb)->frags[i]),
  				     skb_frag_size(&skb_shinfo(skb)->frags[i]),
  				     skb_shinfo(skb)->frags[i].page_offset,
 -				     &head,
--				     foreign_vif,
--				     foreign_vif ? foreign_gref : UINT_MAX);
+-				     foreign_queue,
+-				     foreign_queue ? foreign_gref : UINT_MAX);
 +				     &head);
  	}
  

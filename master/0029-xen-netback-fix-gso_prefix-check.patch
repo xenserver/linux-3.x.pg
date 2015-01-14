@@ -1,0 +1,41 @@
+From a3314f3d40215349ab2427800c1e10676691389f Mon Sep 17 00:00:00 2001
+From: Paul Durrant <Paul.Durrant@citrix.com>
+Date: Thu, 12 Dec 2013 14:20:13 +0000
+Subject: [PATCH 29/29] xen-netback: fix gso_prefix check
+
+There is a mistake in checking the gso_prefix mask when passing large
+packets to a guest. The wrong shift is applied to the bit - the raw skb
+gso type is used rather then the translated one. This leads to large packets
+being handed to the guest without the GSO metadata. This patch fixes the
+check.
+
+The mistake manifested as errors whilst running Microsoft HCK large packet
+offload tests between a pair of Windows 8 VMs. I have verified this patch
+fixes those errors.
+
+Signed-off-by: Paul Durrant <paul.durrant@citrix.com>
+Cc: Wei Liu <wei.liu2@citrix.com>
+Cc: Ian Campbell <ian.campbell@citrix.com>
+Cc: David Vrabel <david.vrabel@citrix.com>
+Acked-by: Ian Campbell <ian.campbell@citrix.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ drivers/net/xen-netback/netback.c |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/net/xen-netback/netback.c b/drivers/net/xen-netback/netback.c
+index 33b8aa6..e884ee1 100644
+--- a/drivers/net/xen-netback/netback.c
++++ b/drivers/net/xen-netback/netback.c
+@@ -452,7 +452,7 @@ static int xenvif_gop_skb(struct sk_buff *skb,
+ 	}
+ 
+ 	/* Set up a GSO prefix descriptor, if necessary */
+-	if ((1 << skb_shinfo(skb)->gso_type) & vif->gso_prefix_mask) {
++	if ((1 << gso_type) & vif->gso_prefix_mask) {
+ 		req = RING_GET_REQUEST(&vif->rx, vif->rx.req_cons++);
+ 		meta = npo->meta + npo->meta_prod++;
+ 		meta->gso_type = gso_type;
+-- 
+1.7.10.4
+

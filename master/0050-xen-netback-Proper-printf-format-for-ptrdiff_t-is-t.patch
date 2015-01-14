@@ -1,0 +1,35 @@
+From 2c5f4f8422e8cf3dd15638226e964f2e13132267 Mon Sep 17 00:00:00 2001
+From: "David S. Miller" <davem@davemloft.net>
+Date: Tue, 25 Mar 2014 19:02:16 -0400
+Subject: [PATCH 50/50] xen-netback: Proper printf format for ptrdiff_t is
+ 't'.
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+This fixes:
+
+drivers/net/xen-netback/netback.c: In function ‘xenvif_tx_dealloc_action’:
+drivers/net/xen-netback/netback.c:1573:8: warning: format ‘%x’ expects argument of type ‘unsigned int’, but argument 3 has type ‘long int’ [-Wformat=]
+
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ drivers/net/xen-netback/netback.c |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/net/xen-netback/netback.c b/drivers/net/xen-netback/netback.c
+index 1f595e5..1e46287 100644
+--- a/drivers/net/xen-netback/netback.c
++++ b/drivers/net/xen-netback/netback.c
+@@ -1569,7 +1569,7 @@ static inline void xenvif_tx_dealloc_action(struct xenvif *vif)
+ 					vif->pages_to_unmap,
+ 					gop - vif->tx_unmap_ops);
+ 		if (ret) {
+-			netdev_err(vif->dev, "Unmap fail: nr_ops %x ret %d\n",
++			netdev_err(vif->dev, "Unmap fail: nr_ops %tx ret %d\n",
+ 				   gop - vif->tx_unmap_ops, ret);
+ 			for (i = 0; i < gop - vif->tx_unmap_ops; ++i) {
+ 				if (gop[i].status != GNTST_okay)
+-- 
+1.7.10.4
+
