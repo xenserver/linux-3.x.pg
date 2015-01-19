@@ -1,0 +1,91 @@
+From 0dbc3bcc0567754f5da3551cd0742377fa3973c7 Mon Sep 17 00:00:00 2001
+From: David Vrabel <david.vrabel@citrix.com>
+Date: Thu, 15 Jan 2015 17:16:24 +0000
+Subject: [PATCH 3/5] mm: memory hotplug with an existing resource
+
+Add add_memory_resource() to add memory using an existing "System RAM".
+This is useful if the memory is being located by find a free resource slot
+with allocate_resource().
+
+Signed-off-by: David Vrabel <david.vrabel@citrix.com>
+---
+ include/linux/memory_hotplug.h |    2 ++
+ mm/memory_hotplug.c            |   28 +++++++++++++++++++++-------
+ 2 files changed, 23 insertions(+), 7 deletions(-)
+
+diff --git a/include/linux/memory_hotplug.h b/include/linux/memory_hotplug.h
+index 3e622c6..e527650 100644
+--- a/include/linux/memory_hotplug.h
++++ b/include/linux/memory_hotplug.h
+@@ -11,6 +11,7 @@ struct zone;
+ struct pglist_data;
+ struct mem_section;
+ struct memory_block;
++struct resource;
+ 
+ #ifdef CONFIG_MEMORY_HOTPLUG
+ 
+@@ -247,6 +248,7 @@ static inline void try_offline_node(int nid) {}
+ 
+ extern int mem_online_node(int nid);
+ extern int add_memory(int nid, u64 start, u64 size);
++extern int add_memory_resource(int nid, struct resource *resource);
+ extern int arch_add_memory(int nid, u64 start, u64 size);
+ extern int offline_pages(unsigned long start_pfn, unsigned long nr_pages);
+ extern int offline_memory_block(struct memory_block *mem);
+diff --git a/mm/memory_hotplug.c b/mm/memory_hotplug.c
+index 1ad92b4..b0df8ad 100644
+--- a/mm/memory_hotplug.c
++++ b/mm/memory_hotplug.c
+@@ -1089,20 +1089,18 @@ out:
+ }
+ 
+ /* we are OK calling __meminit stuff here - we have CONFIG_MEMORY_HOTPLUG */
+-int __ref add_memory(int nid, u64 start, u64 size)
++int __ref add_memory_resource(int nid, struct resource *res)
+ {
++	u64 start, size;
+ 	pg_data_t *pgdat = NULL;
+ 	bool new_pgdat;
+ 	bool new_node;
+-	struct resource *res;
+ 	int ret;
+ 
+-	lock_memory_hotplug();
++	start = res->start;
++	size = resource_size(res);
+ 
+-	res = register_memory_resource(start, size);
+-	ret = -EEXIST;
+-	if (!res)
+-		goto out;
++	lock_memory_hotplug();
+ 
+ 	{	/* Stupid hack to suppress address-never-null warning */
+ 		void *p = NODE_DATA(nid);
+@@ -1150,6 +1148,22 @@ out:
+ 	unlock_memory_hotplug();
+ 	return ret;
+ }
++EXPORT_SYMBOL_GPL(add_memory_resource);
++
++int __ref add_memory(int nid, u64 start, u64 size)
++{
++	struct resource *res;
++	int ret;
++
++	res = register_memory_resource(start, size);
++	if (!res)
++		return -EEXIST;
++
++	ret = add_memory_resource(nid, res);
++	if (ret < 0)
++		release_memory_resource(res);
++	return ret;
++}
+ EXPORT_SYMBOL_GPL(add_memory);
+ 
+ #ifdef CONFIG_MEMORY_HOTREMOVE
+-- 
+1.7.10.4
+

@@ -1,0 +1,37 @@
+From 47e32fd4bd51179c71d522fb4479803de24c7596 Mon Sep 17 00:00:00 2001
+From: David Vrabel <david.vrabel@citrix.com>
+Date: Fri, 16 Jan 2015 15:45:08 +0000
+Subject: [PATCH 2/5] x86/xen: replace p2m_mid_identity when allocating a new
+ p2m leaf
+
+Signed-off-by: David Vrabel <david.vrabel@citrix.com>
+---
+ arch/x86/xen/p2m.c |   12 ++++++++++++
+ 1 file changed, 12 insertions(+)
+
+diff --git a/arch/x86/xen/p2m.c b/arch/x86/xen/p2m.c
+index 6400c50..4b60aa5 100644
+--- a/arch/x86/xen/p2m.c
++++ b/arch/x86/xen/p2m.c
+@@ -552,6 +552,18 @@ static bool alloc_p2m(unsigned long pfn)
+ 			free_p2m_page(mid);
+ 	}
+ 
++	if (mid == p2m_mid_identity) {
++		/* Mid level is identity, allocate a new one */
++		mid = alloc_p2m_page();
++		if (!mid)
++			return false;
++
++		p2m_mid_init(mid, p2m_identity);
++
++		if (cmpxchg(top_p, p2m_mid_identity, mid) != p2m_mid_identity)
++			free_p2m_page(mid);
++	}
++
+ 	top_mfn_p = &p2m_top_mfn[topidx];
+ 	mid_mfn = p2m_top_mfn_p[topidx];
+ 
+-- 
+1.7.10.4
+

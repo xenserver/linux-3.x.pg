@@ -1,0 +1,44 @@
+From 97ee9fcdb5a2079f8c0f2bac3a583a3a6069751e Mon Sep 17 00:00:00 2001
+From: David Vrabel <david.vrabel@citrix.com>
+Date: Mon, 19 Jan 2015 11:08:05 +0000
+Subject: [PATCH 5/5] x86/xen: discard RAM regions above the maximum
+ reservation
+
+During setup, discard RAM regions that are above the maximum
+reservation (instead of marking them as E820_UNUSABLE).  This allows
+hotplug memory to be placed at these addresses.
+
+Signed-off-by: David Vrabel <david.vrabel@citrix.com>
+---
+ arch/x86/xen/setup.c |    6 ++++--
+ 1 file changed, 4 insertions(+), 2 deletions(-)
+
+diff --git a/arch/x86/xen/setup.c b/arch/x86/xen/setup.c
+index daa9e09..5fb2a04 100644
+--- a/arch/x86/xen/setup.c
++++ b/arch/x86/xen/setup.c
+@@ -427,6 +427,7 @@ char * __init xen_memory_setup(void)
+ 		u64 addr = map[i].addr;
+ 		u64 size = map[i].size;
+ 		u32 type = map[i].type;
++		bool discard = false;
+ 
+ 		if (type == E820_RAM) {
+ 			if (addr < mem_end) {
+@@ -436,10 +437,11 @@ char * __init xen_memory_setup(void)
+ 				extra_pages -= size / PAGE_SIZE;
+ 				xen_add_extra_mem(addr, size);
+ 			} else
+-				type = E820_UNUSABLE;
++				discard = true;
+ 		}
+ 
+-		xen_align_and_add_e820_region(addr, size, type);
++		if (!discard)
++			xen_align_and_add_e820_region(addr, size, type);
+ 
+ 		map[i].addr += size;
+ 		map[i].size -= size;
+-- 
+1.7.10.4
+
