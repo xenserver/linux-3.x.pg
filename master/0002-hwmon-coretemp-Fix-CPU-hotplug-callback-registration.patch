@@ -1,0 +1,100 @@
+From 3289705fe2b429569f37730ecf660719b8924420 Mon Sep 17 00:00:00 2001
+From: "Srivatsa S. Bhat" <srivatsa.bhat@linux.vnet.ibm.com>
+Date: Tue, 11 Mar 2014 02:11:11 +0530
+Subject: [PATCH 1/1] hwmon, coretemp: Fix CPU hotplug callback registration
+
+Subsystems that want to register CPU hotplug callbacks, as well as perform
+initialization for the CPUs that are already online, often do it as shown
+below:
+
+	get_online_cpus();
+
+	for_each_online_cpu(cpu)
+		init_cpu(cpu);
+
+	register_cpu_notifier(&foobar_cpu_notifier);
+
+	put_online_cpus();
+
+This is wrong, since it is prone to ABBA deadlocks involving the
+cpu_add_remove_lock and the cpu_hotplug.lock (when running concurrently
+with CPU hotplug operations).
+
+Instead, the correct and race-free way of performing the callback
+registration is:
+
+	cpu_notifier_register_begin();
+
+	for_each_online_cpu(cpu)
+		init_cpu(cpu);
+
+	/* Note the use of the double underscored version of the API */
+	__register_cpu_notifier(&foobar_cpu_notifier);
+
+	cpu_notifier_register_done();
+
+Fix the hwmon coretemp code by using this latter form of callback
+registration.
+
+Cc: Fenghua Yu <fenghua.yu@intel.com>
+Cc: Jean Delvare <jdelvare@suse.de>
+Cc: Ingo Molnar <mingo@kernel.org>
+Acked-by: Guenter Roeck <linux@roeck-us.net>
+Signed-off-by: Srivatsa S. Bhat <srivatsa.bhat@linux.vnet.ibm.com>
+Signed-off-by: Rafael J. Wysocki <rafael.j.wysocki@intel.com>
+---
+ drivers/hwmon/coretemp.c |   14 +++++++-------
+ 1 file changed, 7 insertions(+), 7 deletions(-)
+
+diff --git a/drivers/hwmon/coretemp.c b/drivers/hwmon/coretemp.c
+index bbb0b0d..746a6ad 100644
+--- a/drivers/hwmon/coretemp.c
++++ b/drivers/hwmon/coretemp.c
+@@ -849,20 +849,20 @@ static int __init coretemp_init(void)
+ 	if (err)
+ 		goto exit;
+ 
+-	get_online_cpus();
++	cpu_notifier_register_begin();
+ 	for_each_online_cpu(i)
+ 		get_core_online(i);
+ 
+ #ifndef CONFIG_HOTPLUG_CPU
+ 	if (list_empty(&pdev_list)) {
+-		put_online_cpus();
++		cpu_notifier_register_done();
+ 		err = -ENODEV;
+ 		goto exit_driver_unreg;
+ 	}
+ #endif
+ 
+-	register_hotcpu_notifier(&coretemp_cpu_notifier);
+-	put_online_cpus();
++	__register_hotcpu_notifier(&coretemp_cpu_notifier);
++	cpu_notifier_register_done();
+ 	return 0;
+ 
+ #ifndef CONFIG_HOTPLUG_CPU
+@@ -877,8 +877,8 @@ static void __exit coretemp_exit(void)
+ {
+ 	struct pdev_entry *p, *n;
+ 
+-	get_online_cpus();
+-	unregister_hotcpu_notifier(&coretemp_cpu_notifier);
++	cpu_notifier_register_begin();
++	__unregister_hotcpu_notifier(&coretemp_cpu_notifier);
+ 	mutex_lock(&pdev_list_mutex);
+ 	list_for_each_entry_safe(p, n, &pdev_list, list) {
+ 		platform_device_unregister(p->pdev);
+@@ -886,7 +886,7 @@ static void __exit coretemp_exit(void)
+ 		kfree(p);
+ 	}
+ 	mutex_unlock(&pdev_list_mutex);
+-	put_online_cpus();
++	cpu_notifier_register_done();
+ 	platform_driver_unregister(&coretemp_driver);
+ }
+ 
+-- 
+1.7.10.4
+
