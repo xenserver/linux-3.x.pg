@@ -349,6 +349,7 @@ xen-netback-revert-to-v3.10
 #
 # Build system integration
 #
+kbuild-AFTER_LINK.patch
 build-system-integration.patch
 avoid_svn_execution.patch
 

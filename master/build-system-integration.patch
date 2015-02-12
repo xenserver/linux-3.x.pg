@@ -360,10 +360,10 @@ index 0000000..da884e2
 +
 diff --git a/mk/kernel.spec.in b/mk/kernel.spec.in
 new file mode 100644
-index 0000000..6da3b36
+index 0000000..a3d797c
 --- /dev/null
 +++ b/mk/kernel.spec.in
-@@ -0,0 +1,287 @@
+@@ -0,0 +1,295 @@
 +# -*- rpm-spec -*-
 +
 +# The full kernel uname version
@@ -498,6 +498,14 @@ index 0000000..6da3b36
 +cp -f %{_sourcedir}/kernel-%{target}.config .config
 +
 +%build
++
++# This override tweaks the kernel makefiles so that we run debugedit on an
++# object before embedding it.  When we later run find-debuginfo.sh, it will
++# run debugedit again.  The edits it does change the build ID bits embedded
++# in the stripped object, but repeating debugedit is a no-op.  We do it
++# beforehand to get the proper final build ID bits into the embedded image.
++# This affects the vDSO images in vmlinux, and the vmlinux image in bzImage.
++export AFTER_LINK='sh -xc "/usr/lib/rpm/debugedit -b $$RPM_BUILD_DIR -d /usr/src/debug -i $@ > $@.id"'
 +
 +cd linux-%{version}
 +%{DEFINE_MAKEOPTS}
