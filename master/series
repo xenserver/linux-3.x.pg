@@ -301,6 +301,8 @@ xen-netback-revert-to-v3.10
 0092-xen-netback-support-frontends-without-feature-rx-not.patch
 # 07ff890daeda31cf23173865edf50bcb03e100c3 (3.19-rc4)
 0093-xen-netback-fixing-the-propagation-of-the-transmit-s.patch
+# 1650d5455bd2dc6b5ee134bd6fc1a3236c266b5b (3.20-rc1)
+0001-xen-netback-always-fully-coalesce-guest-Rx-packets.patch
 
 #
 # EFI backports
