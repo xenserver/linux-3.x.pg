@@ -347,7 +347,7 @@ index 0000000..104b192
 +#include "grant_table.h"
 +//#include "hvm/save.h"
 +
-+#define XEN_DOMCTL_INTERFACE_VERSION 0x0000000a
++#define XEN_DOMCTL_INTERFACE_VERSION 0x0000000b
 +
 +#if 1
 +/*

@@ -98,6 +98,10 @@ nullblk_3_13.patch
 0001-net-add-skb_checksum_setup.patch
 # 81201baa15df09decc1475f3eab86089b7f24d1d (xen/tip.git devel/for-linus-3.15)
 0001-xen-grant-table-Refactor-gnttab_-un-map_refs-to-avoi.patch
+# 93ae4f978ca7f26d17df915ac7afc919c1dd0353 (3.15-rc1)
+0001-CPU-hotplug-Provide-lockless-versions-of-callback-re.patch
+# 3289705fe2b429569f37730ecf660719b8924420 (3.15-rc1)
+0002-hwmon-coretemp-Fix-CPU-hotplug-callback-registration.patch
 # d5c9fde3dae750889168807038243ff36431d276 (3.15-rc4)
 0001-mm-page-writeback.c-fix-divide-by-zero-in-pos_ratio_.patch
 # fb9a0c443691ceaab3daba966bbbd9f5ff3aa26f (3.16-rc6)
