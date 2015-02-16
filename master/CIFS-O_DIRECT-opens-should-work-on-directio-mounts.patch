@@ -71,7 +71,7 @@ index 7ddddf2..5a5a872 100644
  const struct address_space_operations cifs_addr_ops = {
  	.readpage = cifs_readpage,
  	.readpages = cifs_readpages,
-@@ -3672,6 +3693,7 @@ const struct address_space_operations cifs_addr_ops = {
+@@ -3682,6 +3682,7 @@ const struct address_space_operations cifs_addr_ops = {
  	.write_end = cifs_write_end,
  	.set_page_dirty = __set_page_dirty_nobuffers,
  	.releasepage = cifs_release_page,
