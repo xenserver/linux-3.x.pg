@@ -7,6 +7,15 @@ Now that VMAs can have pages directly associated with them, the broken M2P
 override mechanism is no longer needed and can be removed.
 
 FIXME: disentangle the kunmap_ops change from this.
+---
+ arch/x86/include/asm/xen/page.h     |   21 +--
+ arch/x86/xen/p2m.c                  |  239 ++---------------------------------
+ drivers/block/xen-blkback/blkback.c |    4 +-
+ drivers/xen/gntdev.c                |   26 ++--
+ drivers/xen/grant-table.c           |    6 +-
+ include/xen/grant_table.h           |    4 +-
+ 6 files changed, 35 insertions(+), 265 deletions(-)
+
 diff --git a/arch/x86/include/asm/xen/page.h b/arch/x86/include/asm/xen/page.h
 index cc0cbe2..393abb6 100644
 --- a/arch/x86/include/asm/xen/page.h
@@ -49,7 +58,7 @@ index cc0cbe2..393abb6 100644
  	/*
  	 * pfn is ~0 if there are no entries in the m2p for mfn or if the
 diff --git a/arch/x86/xen/p2m.c b/arch/x86/xen/p2m.c
-index 453bf23..4b60aa5 100644
+index 390daa7..cd01877 100644
 --- a/arch/x86/xen/p2m.c
 +++ b/arch/x86/xen/p2m.c
 @@ -177,8 +177,6 @@
@@ -70,7 +79,7 @@ index 453bf23..4b60aa5 100644
  }
  #ifdef CONFIG_X86_64
  #include <linux/bootmem.h>
-@@ -922,30 +918,6 @@ bool set_phys_to_machine(unsigned long pfn, unsigned long mfn)
+@@ -907,30 +903,6 @@ bool set_phys_to_machine(unsigned long pfn, unsigned long mfn)
  	return true;
  }
  
@@ -101,7 +110,7 @@ index 453bf23..4b60aa5 100644
  static int
  init_page_grant_ref(struct page *p, domid_t domid, grant_ref_t grantref)
  {
-@@ -988,17 +960,15 @@ int set_foreign_p2m_mapping(struct gnttab_map_grant_ref *map_ops,
+@@ -973,17 +945,15 @@ int set_foreign_p2m_mapping(struct gnttab_map_grant_ref *map_ops,
  			    struct page **pages, unsigned int count)
  {
  	int i, ret = 0;
@@ -123,7 +132,7 @@ index 453bf23..4b60aa5 100644
  	}
  
  	for (i = 0; i < count; i++) {
-@@ -1027,95 +997,22 @@ int set_foreign_p2m_mapping(struct gnttab_map_grant_ref *map_ops,
+@@ -1012,95 +982,22 @@ int set_foreign_p2m_mapping(struct gnttab_map_grant_ref *map_ops,
  			ret = -ENOMEM;
  			goto out;
  		}
@@ -220,7 +229,7 @@ index 453bf23..4b60aa5 100644
  	for (i = 0; i < count; i++) {
  		unsigned long mfn = get_phys_to_machine(page_to_pfn(pages[i]));
  		unsigned long pfn = page_to_pfn(pages[i]);
-@@ -1127,135 +1024,17 @@ int clear_foreign_p2m_mapping(struct gnttab_unmap_grant_ref *unmap_ops,
+@@ -1112,135 +1009,17 @@ int clear_foreign_p2m_mapping(struct gnttab_unmap_grant_ref *unmap_ops,
  
  		clear_page_grant_ref(pages[i]);
  		set_phys_to_machine(pfn, INVALID_P2M_ENTRY);
@@ -360,8 +369,30 @@ index 453bf23..4b60aa5 100644
  #ifdef CONFIG_XEN_DEBUG_FS
  #include <linux/debugfs.h>
  #include "debugfs.h"
+diff --git a/drivers/block/xen-blkback/blkback.c b/drivers/block/xen-blkback/blkback.c
+index 6445c4d..4ce0665 100644
+--- a/drivers/block/xen-blkback/blkback.c
++++ b/drivers/block/xen-blkback/blkback.c
+@@ -316,7 +316,7 @@ static void free_persistent_gnts(struct xen_blkif *blkif, struct rb_root *root,
+ 	unmap_data.done = &free_persistent_gnts_unmap_callback;
+ 	unmap_data.pages = pages;
+ 	unmap_data.unmap_ops = unmap;
+-	unmap_data.kmap_ops = NULL;
++	unmap_data.kunmap_ops = NULL;
+ 
+ 	foreach_grant_safe(persistent_gnt, n, root, node) {
+ 		BUG_ON(persistent_gnt->handle ==
+@@ -599,7 +599,7 @@ static void xen_blkbk_unmap_populate(struct pending_req *req)
+ 	work->data = req;
+ 	work->done= &xen_blkbk_unmap_and_respond_callback;
+ 	work->unmap_ops = req->unmap;
+-	work->kmap_ops = NULL;
++	work->kunmap_ops = NULL;
+ 	work->pages = req->pages;
+ 	work->count = invcount;
+ 
 diff --git a/drivers/xen/gntdev.c b/drivers/xen/gntdev.c
-index f2c43b1..2dd3b57 100644
+index 14376e8..a78caaf 100644
 --- a/drivers/xen/gntdev.c
 +++ b/drivers/xen/gntdev.c
 @@ -89,6 +89,7 @@ struct grant_map {
@@ -432,20 +463,20 @@ index f2c43b1..2dd3b57 100644
  	}
  	return err;
  }
-@@ -329,7 +335,7 @@ static int __unmap_grant_pages(struct grant_map *map, int offset, int pages)
+@@ -348,7 +354,7 @@ static int __unmap_grant_pages(struct grant_map *map, int offset, int pages)
  	}
  
- 	err = gnttab_unmap_refs(map->unmap_ops + offset,
--			use_ptemod ? map->kmap_ops + offset : NULL, map->pages + offset,
-+			use_ptemod ? map->kunmap_ops + offset : NULL, map->pages + offset,
- 			pages);
- 	if (err)
- 		return err;
+ 	unmap_data.unmap_ops = map->unmap_ops + offset;
+-	unmap_data.kmap_ops = use_ptemod ? map->kmap_ops + offset : NULL;
++	unmap_data.kunmap_ops = use_ptemod ? map->kunmap_ops + offset : NULL;
+ 	unmap_data.pages = map->pages + offset;
+ 	unmap_data.count = pages;
+ 
 diff --git a/drivers/xen/grant-table.c b/drivers/xen/grant-table.c
-index e8f02ad..dd1958e 100644
+index 859c843..03b1b249 100644
 --- a/drivers/xen/grant-table.c
 +++ b/drivers/xen/grant-table.c
-@@ -899,7 +899,7 @@ int gnttab_map_refs(struct gnttab_map_grant_ref *map_ops,
+@@ -900,7 +900,7 @@ int gnttab_map_refs(struct gnttab_map_grant_ref *map_ops,
  EXPORT_SYMBOL_GPL(gnttab_map_refs);
  
  int gnttab_unmap_refs(struct gnttab_unmap_grant_ref *unmap_ops,
@@ -454,7 +485,7 @@ index e8f02ad..dd1958e 100644
  		      struct page **pages, unsigned int count)
  {
  	int ret;
-@@ -908,7 +908,7 @@ int gnttab_unmap_refs(struct gnttab_unmap_grant_ref *unmap_ops,
+@@ -909,7 +909,7 @@ int gnttab_unmap_refs(struct gnttab_unmap_grant_ref *unmap_ops,
  	if (ret)
  		return ret;
  
@@ -463,16 +494,37 @@ index e8f02ad..dd1958e 100644
  }
  EXPORT_SYMBOL_GPL(gnttab_unmap_refs);
  
+@@ -942,7 +942,7 @@ void __gnttab_unmap_refs_async(struct gntab_unmap_queue_data* item)
+ 		}
+ 	}
+ 
+-	ret = gnttab_unmap_refs(item->unmap_ops, item->kmap_ops,
++	ret = gnttab_unmap_refs(item->unmap_ops, item->kunmap_ops,
+ 				item->pages, item->count);
+ 	item->done(ret, item);
+ }
 diff --git a/include/xen/grant_table.h b/include/xen/grant_table.h
-index 49d3e1c..70f36e7 100644
+index ee828c4..a49373a 100644
 --- a/include/xen/grant_table.h
 +++ b/include/xen/grant_table.h
-@@ -188,7 +188,7 @@ int gnttab_map_refs(struct gnttab_map_grant_ref *map_ops,
+@@ -69,7 +69,7 @@ struct gntab_unmap_queue_data
+ 	void *data;
+ 	gnttab_unmap_refs_done	done;
+ 	struct gnttab_unmap_grant_ref *unmap_ops;
+-	struct gnttab_map_grant_ref *kmap_ops;
++	struct gnttab_unmap_grant_ref *kunmap_ops;
+ 	struct page **pages;
+ 	unsigned int count;
+ 	unsigned int age;
+@@ -204,7 +204,7 @@ int gnttab_map_refs(struct gnttab_map_grant_ref *map_ops,
  		    struct gnttab_map_grant_ref *kmap_ops,
  		    struct page **pages, unsigned int count);
  int gnttab_unmap_refs(struct gnttab_unmap_grant_ref *unmap_ops,
 -		      struct gnttab_map_grant_ref *kunmap_ops,
 +		      struct gnttab_unmap_grant_ref *kunmap_ops,
  		      struct page **pages, unsigned int count);
+ void gnttab_unmap_refs_async(struct gntab_unmap_queue_data* item);
  
- /* Perform a batch of grant map/copy operations. Retry every batch slot
+-- 
+1.7.10.4
+
