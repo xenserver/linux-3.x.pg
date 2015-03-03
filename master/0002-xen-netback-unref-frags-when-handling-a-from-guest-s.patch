@@ -1,0 +1,108 @@
+From a4878307b8a898e5fb3bc5b9f2d4f5b185ae2962 Mon Sep 17 00:00:00 2001
+From: David Vrabel <david.vrabel@citrix.com>
+Date: Tue, 3 Mar 2015 14:03:33 +0000
+Subject: [PATCH 2/2] xen-netback: unref frags when handling a from-guest skb
+ with a frag list
+
+Every time a VIF is destroyed up-to 256 pages may be leaked if packets
+with more than MAX_SKB_FRAGS frags where transmitted from the guest.
+Even worse, if another user of ballooned pages allocated one of these
+ballooned pages it would not handle the the unexpectedly non-zero page
+count (e.g., gntdev would deadlock when unmapping a grant because the
+page count would never reach 1).
+
+When handling a from-guest skb with a frag list, unref the frags
+before releasing them so they are freed correctly when the VIF is
+destroyed.
+
+Also swap over to the new (local) frags /after/ calling the skb
+destructor.  This isn't strictly necessary but it's less confusing.
+
+Signed-off-by: David Vrabel <david.vrabel@citrix.com>
+---
+ drivers/net/xen-netback/netback.c |   43 +++++++++++++++++++------------------
+ 1 file changed, 22 insertions(+), 21 deletions(-)
+
+diff --git a/drivers/net/xen-netback/netback.c b/drivers/net/xen-netback/netback.c
+index f7a31d2..3d06eeb 100644
+--- a/drivers/net/xen-netback/netback.c
++++ b/drivers/net/xen-netback/netback.c
+@@ -1343,7 +1343,7 @@ static int xenvif_handle_frag_list(struct xenvif_queue *queue, struct sk_buff *s
+ {
+ 	unsigned int offset = skb_headlen(skb);
+ 	skb_frag_t frags[MAX_SKB_FRAGS];
+-	int i;
++	int i, nr_frags;
+ 	struct ubuf_info *uarg;
+ 	struct sk_buff *nskb = skb_shinfo(skb)->frag_list;
+ 
+@@ -1357,17 +1357,16 @@ static int xenvif_handle_frag_list(struct xenvif_queue *queue, struct sk_buff *s
+ 	skb->data_len += nskb->len;
+ 
+ 	/* create a brand new frags array and coalesce there */
+-	for (i = 0; offset < skb->len; i++) {
++	for (nr_frags = 0; offset < skb->len; nr_frags++) {
+ 		struct page *page;
+ 		unsigned int len;
+ 
+-		BUG_ON(i >= MAX_SKB_FRAGS);
++		BUG_ON(nr_frags >= MAX_SKB_FRAGS);
+ 		page = alloc_page(GFP_ATOMIC);
+ 		if (!page) {
+-			int j;
+ 			skb->truesize += skb->data_len;
+-			for (j = 0; j < i; j++)
+-				put_page(frags[j].page.p);
++			for (i = 0; i < nr_frags; i++)
++				put_page(frags[i].page.p);
+ 			return -ENOMEM;
+ 		}
+ 
+@@ -1379,27 +1378,29 @@ static int xenvif_handle_frag_list(struct xenvif_queue *queue, struct sk_buff *s
+ 			BUG();
+ 
+ 		offset += len;
+-		frags[i].page.p = page;
+-		frags[i].page_offset = 0;
+-		skb_frag_size_set(&frags[i], len);
++		frags[nr_frags].page.p = page;
++		frags[nr_frags].page_offset = 0;
++		skb_frag_size_set(&frags[nr_frags], len);
+ 	}
+-	/* swap out with old one */
+-	memcpy(skb_shinfo(skb)->frags,
+-	       frags,
+-	       i * sizeof(skb_frag_t));
+-	skb_shinfo(skb)->nr_frags = i;
+-	skb->truesize += i * PAGE_SIZE;
+-
+-	/* remove traces of mapped pages and frag_list */
++
++	/* Copied all the bits from the frag list -- free it. */
+ 	skb_frag_list_init(skb);
+-	uarg = skb_shinfo(skb)->destructor_arg;
+-	/* increase inflight counter to offset decrement in callback */
++	xenvif_skb_zerocopy_prepare(queue, nskb);
++	kfree_skb(nskb);
++
++	/* Release all the original (foreign) frags. */
++	for (i = 0; i < skb_shinfo(skb)->nr_frags; i++)
++		skb_frag_unref(skb, i);
+ 	atomic_inc(&queue->inflight_packets);
++	uarg = skb_shinfo(skb)->destructor_arg;
+ 	uarg->callback(uarg, true);
+ 	skb_shinfo(skb)->destructor_arg = NULL;
+ 
+-	xenvif_skb_zerocopy_prepare(queue, nskb);
+-	kfree_skb(nskb);
++	/* Fill the skb with the new (local) frags. */
++	memcpy(skb_shinfo(skb)->frags, frags,
++	       nr_frags * sizeof(skb_frag_t));
++	skb_shinfo(skb)->nr_frags = nr_frags;
++	skb->truesize += nr_frags * PAGE_SIZE;
+ 
+ 	return 0;
+ }
+-- 
+1.7.10.4
+
