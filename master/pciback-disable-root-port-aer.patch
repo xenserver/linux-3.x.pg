@@ -1,0 +1,72 @@
+xen-pciback: Disable root port Fatal system error reporting by default
+
+Guests can potentially disable/cause the PCI device to stop responding at any
+time.
+
+Any access by Dom0, DomU or Xen to the PCI device may cause a Fatal PCI Express
+error. Root ports can be configured to signal BIOS code that such an error has
+occured and the BIOS code can injected NMI interrupts after detecting the 
+Fatal PCI Express error.
+
+The injected NMI interrupt may lead to a host crash as Xen may not be able to
+determine the cause of the NMI interrupt.
+
+Thus a guest with a PCI device passed through may be able to trigger a host 
+crash.
+
+Disabling Fatal Error reporting in the PCI Express root port prevents the 
+error from propogating to system firmware and removes that attack vector for
+triggering host crashes.
+diff --git a/drivers/xen/xen-pciback/pci_stub.c b/drivers/xen/xen-pciback/pci_stub.c
+index d6c29aa..1ee3e73 100644
+--- a/drivers/xen/xen-pciback/pci_stub.c
++++ b/drivers/xen/xen-pciback/pci_stub.c
+@@ -31,6 +31,9 @@ wait_queue_head_t xen_pcibk_aer_wait_queue;
+ static DECLARE_RWSEM(pcistub_sem);
+ module_param_named(hide, pci_devs_to_hide, charp, 0444);
+ 
++bool disable_rp_fatal_err_reporting = true;
++module_param(disable_rp_fatal_err_reporting, bool, S_IRUGO);
++
+ struct pcistub_device_id {
+ 	struct list_head slot_list;
+ 	int domain;
+@@ -440,6 +443,7 @@ static int pcistub_init_device(struct pci_dev *dev)
+ {
+ 	struct xen_pcibk_dev_data *dev_data;
+ 	int err = 0;
++	struct pci_dev *tmp = NULL;
+ 
+ 	dev_dbg(&dev->dev, "initializing...\n");
+ 
+@@ -494,6 +498,30 @@ static int pcistub_init_device(struct pci_dev *dev)
+ 				err);
+ 	}
+ 
++	if (disable_rp_fatal_err_reporting) {
++		/* Find the root port for this device and disable AER reporting */
++		tmp = dev;
++		do {
++			if (pci_is_root_bus(tmp->bus))
++				break;
++			tmp = tmp->bus->self;
++		} while (tmp != NULL);
++
++		if ((tmp != dev) && (tmp != NULL)) {
++			uint16_t val;
++			pcie_capability_read_word(tmp, PCI_EXP_RTCTL, &val);
++			if ( val & PCI_EXP_RTCTL_SEFEE) {
++				dev_info(&dev->dev,
++					"Disabling System Fatal Error reporting on root port"
++					" %02x:%02x.%d\n",
++					tmp->bus->number, PCI_SLOT(tmp->devfn),
++					PCI_FUNC(tmp->devfn));
++				pcie_capability_clear_word(tmp, PCI_EXP_RTCTL,
++					   PCI_EXP_RTCTL_SEFEE);
++			}
++		}
++	}
++
+ 	/* We need the device active to save the state. */
+ 	dev_dbg(&dev->dev, "save state of device\n");
+ 	pci_save_state(dev);

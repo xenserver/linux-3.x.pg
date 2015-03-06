@@ -417,6 +417,7 @@ fifo_page_fix.patch
 # pciback
 0001-pci-export-pci_probe_reset_function.patch
 0002-xen-pciback-provide-a-reset-sysfs-file-to-try-harder.patch
+pciback-disable-root-port-aer.patch
 
 # Preemptible privcmd hypercalls
 0001-x86-xen-allow-privcmd-hypercalls-to-be-preempted.patch
