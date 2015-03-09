@@ -329,26 +329,6 @@ xen-netback-revert-to-v3.10
 0012-arch-x86-xen-Silence-compiler-warnings.patch
 
 #
-# skb_segment fixes
-#
-# 030737bc (3.13-rc1)
-0001-net-generalize-skb_segment.patch
-# 9d8506cc (3.13-rc1)
-0002-gso-handle-new-frag_list-of-frags-GRO-packets.patch
-# 289dccbe (3.14-rc1)
-0001-net-use-kfree_skb_list-helper.patch
-# 8cb19905 (3.14-rc7)
-0003-skbuff-skb_segment-s-frag-nskb_frag.patch
-# 4e1beba1 (3.14-rc7)
-0004-skbuff-skb_segment-s-skb_frag-frag.patch
-# df5771ff (3.14-rc7)
-0005-skbuff-skb_segment-s-skb-head_skb.patch
-# 1a4cedaf (3.14-rc7)
-0006-skbuff-skb_segment-s-fskb-list_skb.patch
-# 1fd819ec (3.14-rc7)
-0007-skbuff-skb_segment-orphan-frags-before-copying.patch
-
-#
 # Build system integration
 #
 kbuild-AFTER_LINK.patch
