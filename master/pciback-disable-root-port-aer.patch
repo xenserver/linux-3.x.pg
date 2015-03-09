@@ -18,7 +18,7 @@ Disabling Fatal Error reporting in the PCI Express root port prevents the
 error from propogating to system firmware and removes that attack vector for
 triggering host crashes.
 diff --git a/drivers/xen/xen-pciback/pci_stub.c b/drivers/xen/xen-pciback/pci_stub.c
-index d6c29aa..1ee3e73 100644
+index d6c29aa..aa46452 100644
 --- a/drivers/xen/xen-pciback/pci_stub.c
 +++ b/drivers/xen/xen-pciback/pci_stub.c
 @@ -31,6 +31,9 @@ wait_queue_head_t xen_pcibk_aer_wait_queue;
@@ -39,7 +39,7 @@ index d6c29aa..1ee3e73 100644
  
  	dev_dbg(&dev->dev, "initializing...\n");
  
-@@ -494,6 +498,30 @@ static int pcistub_init_device(struct pci_dev *dev)
+@@ -494,6 +498,33 @@ static int pcistub_init_device(struct pci_dev *dev)
  				err);
  	}
  
@@ -55,14 +55,17 @@ index d6c29aa..1ee3e73 100644
 +		if ((tmp != dev) && (tmp != NULL)) {
 +			uint16_t val;
 +			pcie_capability_read_word(tmp, PCI_EXP_RTCTL, &val);
-+			if ( val & PCI_EXP_RTCTL_SEFEE) {
++			if ( val & (PCI_EXP_RTCTL_SECEE | PCI_EXP_RTCTL_SEFEE
++						| PCI_EXP_RTCTL_SENFEE)) {
 +				dev_info(&dev->dev,
-+					"Disabling System Fatal Error reporting on root port"
++					"Disabling System Error reporting on root port"
 +					" %02x:%02x.%d\n",
 +					tmp->bus->number, PCI_SLOT(tmp->devfn),
 +					PCI_FUNC(tmp->devfn));
 +				pcie_capability_clear_word(tmp, PCI_EXP_RTCTL,
-+					   PCI_EXP_RTCTL_SEFEE);
++					   PCI_EXP_RTCTL_SEFEE |
++					   PCI_EXP_RTCTL_SENFEE |
++					   PCI_EXP_RTCTL_SECEE);
 +			}
 +		}
 +	}
