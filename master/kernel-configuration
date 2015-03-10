@@ -1,9 +1,9 @@
 diff --git a/buildconfigs/linux-defconfig_xen_x86_64 b/buildconfigs/linux-defconfig_xen_x86_64
 new file mode 100644
-index 0000000..299f9d3
+index 0000000..c17fd13c
 --- /dev/null
 +++ b/buildconfigs/linux-defconfig_xen_x86_64
-@@ -0,0 +1,3821 @@
+@@ -0,0 +1,3824 @@
 +#
 +# Automatically generated file; DO NOT EDIT.
 +# Linux/x86_64 3.10.0+0 Kernel Configuration
@@ -330,6 +330,7 @@ index 0000000..299f9d3
 +CONFIG_INLINE_READ_UNLOCK_IRQ=y
 +CONFIG_INLINE_WRITE_UNLOCK=y
 +CONFIG_INLINE_WRITE_UNLOCK_IRQ=y
++CONFIG_ARCH_SUPPORTS_ATOMIC_RMW=y
 +CONFIG_MUTEX_SPIN_ON_OWNER=y
 +CONFIG_FREEZER=y
 +
@@ -400,6 +401,8 @@ index 0000000..299f9d3
 +CONFIG_X86_MCE_THRESHOLD=y
 +CONFIG_X86_MCE_INJECT=m
 +CONFIG_X86_THERMAL_VECTOR=y
++CONFIG_X86_16BIT=y
++CONFIG_X86_ESPFIX64=y
 +CONFIG_I8K=m
 +CONFIG_MICROCODE=m
 +CONFIG_MICROCODE_INTEL=y
