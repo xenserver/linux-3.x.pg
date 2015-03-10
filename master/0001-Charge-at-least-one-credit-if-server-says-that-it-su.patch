@@ -1,0 +1,49 @@
+From 2b80d049eb6dd08431f63fc0c5ce78567648a033 Mon Sep 17 00:00:00 2001
+From: Steve French <smfrench@gmail.com>
+Date: Sun, 23 Jun 2013 18:43:37 -0500
+Subject: [PATCH 1/1] Charge at least one credit, if server says that it
+ supports multicredit
+
+In SMB2.1 and later the server will usually set the large MTU flag, and
+we need to charge at least one credit, if server says that since
+it supports multicredit.  Windows seems to let us get away with putting
+a zero there, but they confirmed that it is wrong and the spec says
+to put one there (if the request is under 64K and the CAP_LARGE_MTU
+was returned during protocol negotiation by the server.
+
+CC: Pavel Shilovsky <piastry@etersoft.ru>
+Signed-off-by: Steve French <smfrench@gmail.com>
+---
+ fs/cifs/smb2pdu.c |    9 ++++++++-
+ 1 file changed, 8 insertions(+), 1 deletion(-)
+
+diff --git a/fs/cifs/smb2pdu.c b/fs/cifs/smb2pdu.c
+index 92fd6c5..0de6a82 100644
+--- a/fs/cifs/smb2pdu.c
++++ b/fs/cifs/smb2pdu.c
+@@ -1,7 +1,7 @@
+ /*
+  *   fs/cifs/smb2pdu.c
+  *
+- *   Copyright (C) International Business Machines  Corp., 2009, 2012
++ *   Copyright (C) International Business Machines  Corp., 2009, 2013
+  *                 Etersoft, 2012
+  *   Author(s): Steve French (sfrench@us.ibm.com)
+  *              Pavel Shilovsky (pshilovsky@samba.org) 2012
+@@ -108,6 +108,13 @@ smb2_hdr_assemble(struct smb2_hdr *hdr, __le16 smb2_cmd /* command */ ,
+ 	if (!tcon)
+ 		goto out;
+ 
++	/* BB FIXME when we do write > 64K add +1 for every 64K in req or rsp */
++	/* GLOBAL_CAP_LARGE_MTU will only be set if dialect > SMB2.02 */
++	/* See sections 2.2.4 and 3.2.4.1.5 of MS-SMB2 */
++	if (tcon->ses->server->capabilities & SMB2_GLOBAL_CAP_LARGE_MTU)
++		hdr->CreditCharge = cpu_to_le16(1);
++	/* else CreditCharge MBZ */
++
+ 	hdr->TreeId = tcon->tid;
+ 	/* Uid is not converted */
+ 	if (tcon->ses)
+-- 
+1.7.10.4
+

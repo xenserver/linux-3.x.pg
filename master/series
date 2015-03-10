@@ -19,6 +19,12 @@
 0001-xen-p2m-avoid-unneccesary-TLB-flush-in-m2p_remove_ov.patch
 # 49c1241384b599421a5e8c9f73f72e2052dd416d (3.11-rc1)
 0001-SCSI-csiostor-Retain-default-adapter-configuration-i.patch
+# 2b80d049eb6dd08431f63fc0c5ce78567648a033 (3.11-rc1)
+0001-Charge-at-least-one-credit-if-server-says-that-it-su.patch
+# 84ceeb9626655ce7c2745f724571ca8008b4695e (3.11-rc1)
+0001-CIFS-fix-static-checker-warning.patch
+# 2a2c41c07c710f2c1afe3748bdde40db9ea9d9e6 (3.11-rc1)
+0001-revalidate-directories-instiantiated-via-FIND_-in-or.patch
 # 64e8674fbe6bc848333a9b7e19f8cc019dde9eab (3.11-rc2)
 0001-PCI-Add-pci_reset_bridge_secondary_bus.patch
 # 5c32b35b004f5ef70dcf62bbc42b8bed1e50b471 (3.11-rc2)
