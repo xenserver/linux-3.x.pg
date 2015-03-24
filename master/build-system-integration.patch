@@ -360,10 +360,10 @@ index 0000000..da884e2
 +
 diff --git a/mk/kernel.spec.in b/mk/kernel.spec.in
 new file mode 100644
-index 0000000..a3d797c
+index 0000000..4a3157d
 --- /dev/null
 +++ b/mk/kernel.spec.in
-@@ -0,0 +1,295 @@
+@@ -0,0 +1,303 @@
 +# -*- rpm-spec -*-
 +
 +# The full kernel uname version
@@ -534,9 +534,6 @@ index 0000000..a3d797c
 +    make ${MAKEOPTS} INSTALL_MOD_PATH=$RPM_BUILD_ROOT modules_install
 +    # mark modules executable so that strip-to-file can strip them
 +    find $RPM_BUILD_ROOT/lib/modules/%{uname} -name "*.ko" -type f | xargs chmod u+x
-+    
-+    # Remove files created by depmod. These are recreated at install time.
-+    rm -f $RPM_BUILD_ROOT/lib/modules/%{uname}/modules.*
 +fi
 +
 +# Save debuginfo
@@ -643,6 +640,17 @@ index 0000000..a3d797c
 +/boot/config-%{uname}
 +%dir /lib/modules/%{uname}
 +/lib/modules/%{uname}/kernel
++/lib/modules/%{uname}/modules.order
++/lib/modules/%{uname}/modules.builtin
++%exclude /lib/modules/%{uname}/modules.alias
++%exclude /lib/modules/%{uname}/modules.alias.bin
++%exclude /lib/modules/%{uname}/modules.builtin.bin
++%exclude /lib/modules/%{uname}/modules.dep
++%exclude /lib/modules/%{uname}/modules.dep.bin
++%exclude /lib/modules/%{uname}/modules.devname
++%exclude /lib/modules/%{uname}/modules.softdep
++%exclude /lib/modules/%{uname}/modules.symbols
++%exclude /lib/modules/%{uname}/modules.symbols.bin
 +
 +%files headers
 +%defattr(-,root,root)
