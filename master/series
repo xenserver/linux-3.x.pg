@@ -69,6 +69,8 @@
 0007-xen-balloon-don-t-alloc-page-while-non-preemptible.patch
 # 7cde9b27e7b3a2e09d647bb4f6d94e842698d2d5 (3.12-rc6)
 0001-xen-Fix-possible-user-space-selector-corruption.patch
+# 2f6c9479633780ba4a3484bba7eba5a721a5cf20 (3.12-rc6)
+CA-165060-CIFS-Enable-files-greater-than-2GB.patch
 # 74d332c13b2148ae934ea94dac1745ae92efe8e5 (3.13-rc1)
 0001-net-extend-net_device-allocation-to-vmalloc.patch
 # 157e876ffe0b28821a0d82d8ac944fe7363bbe87 (3.13-rc1)
