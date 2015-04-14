@@ -1,0 +1,162 @@
+diff --git a/drivers/block/blktap2/blktap.h b/drivers/block/blktap2/blktap.h
+index 49d4bdf..db47ce2 100644
+--- a/drivers/block/blktap2/blktap.h
++++ b/drivers/block/blktap2/blktap.h
+@@ -113,6 +113,15 @@ struct blktap {
+ };
+ 
+ struct blktap_page_pool {
++	/*
++	 * Use a pool-specific reference count for the current pool
++	 * users, rather than the kobject reference count. We can then
++	 * delete the kobject immediately (and safely) when there are
++	 * no users.
++	 *
++	 * See blktap_page_pool_get() and blktap_page_pool_put().
++	 */
++	atomic_t                       users;
+ 	struct mempool_s              *bufs;
+ 	spinlock_t                     lock;
+ 	struct kobject                 kobj;
+@@ -157,7 +166,9 @@ void blktap_device_start_queue(struct blktap *tap);
+ 
+ int blktap_page_pool_init(struct kobject *);
+ void blktap_page_pool_exit(void);
+-struct blktap_page_pool *blktap_page_pool_get(const char *);
++void blktap_page_pool_get(struct blktap_page_pool *pool);
++void blktap_page_pool_put(struct blktap_page_pool *pool);
++struct blktap_page_pool *blktap_page_pool_get_by_name(const char *);
+ 
+ size_t blktap_request_debug(struct blktap *, char *, size_t);
+ struct blktap_request *blktap_request_alloc(struct blktap *);
+diff --git a/drivers/block/blktap2/control.c b/drivers/block/blktap2/control.c
+index 3a81d82..63480d4 100644
+--- a/drivers/block/blktap2/control.c
++++ b/drivers/block/blktap2/control.c
+@@ -68,7 +68,7 @@ blktap_control_create_tap(void)
+ 	if (!tap)
+ 		return NULL;
+ 
+-	kobject_get(&default_pool->kobj);
++	blktap_page_pool_get(default_pool);
+ 	tap->pool = default_pool;
+ 
+ 	err = blktap_ring_create(tap);
+@@ -84,7 +84,7 @@ blktap_control_create_tap(void)
+ fail_ring:
+ 	blktap_ring_destroy(tap);
+ fail_tap:
+-	kobject_put(&default_pool->kobj);
++	blktap_page_pool_put(default_pool);
+ 	blktap_control_put_minor(tap);
+ 
+ 	return NULL;
+@@ -99,7 +99,7 @@ blktap_control_destroy_tap(struct blktap *tap)
+ 	if (err)
+ 		return err;
+ 
+-	kobject_put(&tap->pool->kobj);
++	blktap_page_pool_put(tap->pool);
+ 
+ 	blktap_sysfs_destroy(tap);
+ 
+@@ -195,12 +195,12 @@ blktap_control_store_default_pool(struct device *device,
+ {
+ 	struct blktap_page_pool *pool, *tmp = default_pool;
+ 
+-	pool = blktap_page_pool_get(buf);
++	pool = blktap_page_pool_get_by_name(buf);
+ 	if (IS_ERR(pool))
+ 		return PTR_ERR(pool);
+ 
+ 	default_pool = pool;
+-	kobject_put(&tmp->kobj);
++	blktap_page_pool_put(tmp);
+ 
+ 	return size;
+ }
+@@ -244,7 +244,7 @@ blktap_control_init(void)
+ 	if (err)
+ 		return err;
+ 
+-	default_pool = blktap_page_pool_get("default");
++	default_pool = blktap_page_pool_get_by_name("default");
+ 	if (IS_ERR(default_pool)) {
+ 		err = PTR_ERR(default_pool);
+ 		default_pool = NULL;
+@@ -262,7 +262,7 @@ static void
+ blktap_control_exit(void)
+ {
+ 	if (default_pool) {
+-		kobject_put(&default_pool->kobj);
++		blktap_page_pool_put(default_pool);
+ 		default_pool = NULL;
+ 	}
+ 
+diff --git a/drivers/block/blktap2/request.c b/drivers/block/blktap2/request.c
+index f17c673..3a568f6 100644
+--- a/drivers/block/blktap2/request.c
++++ b/drivers/block/blktap2/request.c
+@@ -362,6 +362,7 @@ blktap_page_pool_create(const char *name, int nr_pages)
+ 	if (!pool)
+ 		goto fail;
+ 
++	atomic_set(&pool->users, 1);
+ 	spin_lock_init(&pool->lock);
+ 	INIT_LIST_HEAD(&pool->waiters);
+ 
+@@ -388,8 +389,20 @@ fail:
+ 	return NULL;
+ }
+ 
+-struct blktap_page_pool*
+-blktap_page_pool_get(const char *name)
++void blktap_page_pool_get(struct blktap_page_pool *pool)
++{
++	atomic_inc(&pool->users);
++}
++
++void blktap_page_pool_put(struct blktap_page_pool *pool)
++{
++	mutex_lock(&pool_set_mutex);
++	if (atomic_dec_and_test(&pool->users))
++		kobject_del(&pool->kobj);
++	mutex_unlock(&pool_set_mutex);
++}
++
++struct blktap_page_pool *blktap_page_pool_get_by_name(const char *name)
+ {
+ 	struct kobject *kobj;
+ 
+@@ -399,6 +412,12 @@ blktap_page_pool_get(const char *name)
+ 	if (!kobj)
+ 		kobj = blktap_page_pool_create(name,
+ 					       POOL_DEFAULT_PAGES);
++	else {
++		struct blktap_page_pool *pool = kobj_to_pool(kobj);
++
++		blktap_page_pool_get(pool);
++		kobject_put(kobj); /* Put ref from __blktap_kset_find_obj(). */
++	}
+ 
+ 	mutex_unlock(&pool_set_mutex);
+ 
+diff --git a/drivers/block/blktap2/sysfs.c b/drivers/block/blktap2/sysfs.c
+index ca8a8ba5..34a3c5f 100644
+--- a/drivers/block/blktap2/sysfs.c
++++ b/drivers/block/blktap2/sysfs.c
+@@ -110,12 +110,12 @@ blktap_sysfs_store_pool(struct device *dev,
+ 	if (tap->device.gd)
+ 		return -EBUSY;
+ 
+-	pool = blktap_page_pool_get(buf);
++	pool = blktap_page_pool_get_by_name(buf);
+ 	if (IS_ERR(pool))
+ 		return PTR_ERR(pool);
+ 
+ 	tap->pool = pool;
+-	kobject_put(&tmp->kobj);
++	blktap_page_pool_put(tmp);
+ 
+ 	return size;
+ }
