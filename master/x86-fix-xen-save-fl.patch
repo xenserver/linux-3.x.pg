@@ -1,0 +1,53 @@
+diff --git a/arch/x86/xen/irq.c b/arch/x86/xen/irq.c
+index 01a4dc0..2420111 100644
+--- a/arch/x86/xen/irq.c
++++ b/arch/x86/xen/irq.c
+@@ -25,18 +25,14 @@ void xen_force_evtchn_callback(void)
+ static unsigned long xen_save_fl(void)
+ {
+ 	struct vcpu_info *vcpu;
+-	unsigned long flags;
++	unsigned long flags = native_save_fl();
+ 
+ 	vcpu = this_cpu_read(xen_vcpu);
+ 
+-	/* flag has opposite sense of mask */
+-	flags = !vcpu->evtchn_upcall_mask;
++	if (vcpu->evtchn_upcall_mask)
++		flags &= ~X86_EFLAGS_IF;
+ 
+-	/* convert to IF type flag
+-	   -0 -> 0x00000000
+-	   -1 -> 0xffffffff
+-	*/
+-	return (-flags) & X86_EFLAGS_IF;
++	return flags;
+ }
+ PV_CALLEE_SAVE_REGS_THUNK(xen_save_fl);
+ 
+diff --git a/arch/x86/xen/xen-asm.S b/arch/x86/xen/xen-asm.S
+index 3e45aa0..ba435ff 100644
+--- a/arch/x86/xen/xen-asm.S
++++ b/arch/x86/xen/xen-asm.S
+@@ -65,9 +65,18 @@ ENDPATCH(xen_irq_disable_direct)
+  * x86 use opposite senses (mask vs enable).
+  */
+ ENTRY(xen_save_fl_direct)
+-	testb $0xff, PER_CPU_VAR(xen_vcpu_info) + XEN_vcpu_info_mask
+-	setz %ah
+-	addb %ah, %ah
++	pushf
++	testb   $0xff, PER_CPU_VAR(xen_vcpu_info) + XEN_vcpu_info_mask
++	setnz   %al
++	shl     $1, %al
++	not     %al
++#ifdef CONFIG_X86_64
++	andb    %al, 1(%rsp)
++	pop     %rax
++#else
++	andb    %al, 1(%esp)
++	pop     %eax
++#endif
+ ENDPATCH(xen_save_fl_direct)
+ 	ret
+ 	ENDPROC(xen_save_fl_direct)
