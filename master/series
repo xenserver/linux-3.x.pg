@@ -377,8 +377,8 @@ xenbus_xs_errors.patch
 0001-x86-xen-fix-set_phys_to_machine-when-the-entry-is-id.patch
 0002-x86-xen-replace-p2m_mid_identity-when-allocating-a-n.patch
 0003-mm-memory-hotplug-with-an-existing-resource.patch
-0004-xen-balloon-populate-the-hotplug-memory-before-addin.patch
 0005-x86-xen-discard-RAM-regions-above-the-maximum-reserv.patch
+xen-hotplug-add-new-memory.patch
 
 # Blkback
 blkback-debug-ring.diff
