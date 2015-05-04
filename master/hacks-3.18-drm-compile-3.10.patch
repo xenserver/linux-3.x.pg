@@ -427,7 +427,7 @@ index ecee3bc..ad9ce86 100644
  #else
  static int i915_kick_out_firmware_fb(struct drm_i915_private *dev_priv)
 diff --git a/drivers/gpu/drm/i915/i915_gem.c b/drivers/gpu/drm/i915/i915_gem.c
-index 4a9faea..fade594 100644
+index 4a9faea..39f121a 100644
 --- a/drivers/gpu/drm/i915/i915_gem.c
 +++ b/drivers/gpu/drm/i915/i915_gem.c
 @@ -55,7 +55,7 @@ static void i915_gem_object_update_fence(struct drm_i915_gem_object *obj,
@@ -468,7 +468,7 @@ index 4a9faea..fade594 100644
  	dev_priv->mm.shrinker.seeks = DEFAULT_SEEKS;
  	register_shrinker(&dev_priv->mm.shrinker);
  
-@@ -5292,7 +5292,7 @@ unsigned long i915_gem_obj_size(struct drm_i915_gem_object *o,
+@@ -5292,17 +5292,19 @@ unsigned long i915_gem_obj_size(struct drm_i915_gem_object *o,
  	return 0;
  }
  
@@ -477,7 +477,11 @@ index 4a9faea..fade594 100644
  i915_gem_shrinker_scan(struct shrinker *shrinker, struct shrink_control *sc)
  {
  	struct drm_i915_private *dev_priv =
-@@ -5302,7 +5302,7 @@ i915_gem_shrinker_scan(struct shrinker *shrinker, struct shrink_control *sc)
+ 		container_of(shrinker, struct drm_i915_private, mm.shrinker);
+ 	struct drm_device *dev = dev_priv->dev;
++	struct drm_i915_gem_object *obj;
++	unsigned long count = 0;
+ 	unsigned long freed;
  	bool unlock;
  
  	if (!i915_gem_shrinker_lock(dev, &unlock))
@@ -486,6 +490,28 @@ index 4a9faea..fade594 100644
  
  	freed = i915_gem_shrink(dev_priv,
  				sc->nr_to_scan,
+@@ -5314,10 +5316,20 @@ i915_gem_shrinker_scan(struct shrinker *shrinker, struct shrink_control *sc)
+ 					 sc->nr_to_scan - freed,
+ 					 I915_SHRINK_BOUND |
+ 					 I915_SHRINK_UNBOUND);
++
++	list_for_each_entry(obj, &dev_priv->mm.unbound_list, global_list)
++		if (obj->pages_pin_count == 0)
++			count += obj->base.size >> PAGE_SHIFT;
++
++	list_for_each_entry(obj, &dev_priv->mm.bound_list, global_list) {
++		if (!i915_gem_obj_is_pinned(obj) &&
++		    obj->pages_pin_count == num_vma_bound(obj))
++			count += obj->base.size >> PAGE_SHIFT;
++	}
+ 	if (unlock)
+ 		mutex_unlock(&dev->struct_mutex);
+ 
+-	return freed;
++	return count;
+ }
+ 
+ static int
 diff --git a/drivers/gpu/drm/i915/i915_gem_dmabuf.c b/drivers/gpu/drm/i915/i915_gem_dmabuf.c
 index 82a1f4b..580aa42 100644
 --- a/drivers/gpu/drm/i915/i915_gem_dmabuf.c

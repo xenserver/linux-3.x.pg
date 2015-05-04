@@ -1,9 +1,9 @@
 diff --git a/buildconfigs/linux-defconfig_xen_x86_64 b/buildconfigs/linux-defconfig_xen_x86_64
 new file mode 100644
-index 0000000..e51e4a0
+index 0000000..728e3b2
 --- /dev/null
 +++ b/buildconfigs/linux-defconfig_xen_x86_64
-@@ -0,0 +1,3862 @@
+@@ -0,0 +1,3865 @@
 +#
 +# Automatically generated file; DO NOT EDIT.
 +# Linux/x86_64 3.10.0+0 Kernel Configuration
@@ -518,7 +518,7 @@ index 0000000..e51e4a0
 +CONFIG_ACPI_AC=y
 +CONFIG_ACPI_BATTERY=y
 +CONFIG_ACPI_BUTTON=y
-+CONFIG_ACPI_VIDEO=m
++CONFIG_ACPI_VIDEO=y
 +CONFIG_ACPI_FAN=y
 +CONFIG_ACPI_DOCK=y
 +CONFIG_ACPI_I2C=y
@@ -1210,7 +1210,8 @@ index 0000000..e51e4a0
 +#
 +# Bus devices
 +#
-+# CONFIG_CONNECTOR is not set
++CONFIG_CONNECTOR=y
++CONFIG_PROC_EVENTS=y
 +# CONFIG_MTD is not set
 +# CONFIG_PARPORT is not set
 +CONFIG_PNP=y
@@ -2109,7 +2110,7 @@ index 0000000..e51e4a0
 +#
 +# I2C Algorithms
 +#
-+CONFIG_I2C_ALGOBIT=m
++CONFIG_I2C_ALGOBIT=y
 +CONFIG_I2C_ALGOPCF=m
 +CONFIG_I2C_ALGOPCA=m
 +
@@ -2494,16 +2495,16 @@ index 0000000..e51e4a0
 +#
 +# Graphics support
 +#
-+CONFIG_AGP=m
++CONFIG_AGP=y
 +# CONFIG_AGP_AMD64 is not set
-+CONFIG_AGP_INTEL=m
++CONFIG_AGP_INTEL=y
 +# CONFIG_AGP_SIS is not set
 +# CONFIG_AGP_VIA is not set
 +CONFIG_VGA_ARB=y
 +CONFIG_VGA_ARB_MAX_GPUS=16
 +# CONFIG_VGA_SWITCHEROO is not set
-+CONFIG_DRM=m
-+CONFIG_DRM_KMS_HELPER=m
++CONFIG_DRM=y
++CONFIG_DRM_KMS_HELPER=y
 +CONFIG_DRM_KMS_FB_HELPER=y
 +# CONFIG_DRM_LOAD_EDID_FIRMWARE is not set
 +
@@ -2518,10 +2519,11 @@ index 0000000..e51e4a0
 +# CONFIG_DRM_RADEON is not set
 +# CONFIG_DRM_NOUVEAU is not set
 +# CONFIG_DRM_I810 is not set
-+CONFIG_DRM_I915=m
++CONFIG_DRM_I915=y
 +CONFIG_DRM_I915_KMS=y
 +CONFIG_DRM_I915_FBDEV=y
 +CONFIG_DRM_I915_PRELIMINARY_HW_SUPPORT=y
++CONFIG_I915_VGT=y
 +# CONFIG_DRM_MGA is not set
 +# CONFIG_DRM_SIS is not set
 +# CONFIG_DRM_VIA is not set
@@ -2566,6 +2568,7 @@ index 0000000..e51e4a0
 +# CONFIG_FB_ASILIANT is not set
 +# CONFIG_FB_IMSTT is not set
 +CONFIG_FB_VGA16=m
++# CONFIG_FB_UVESA is not set
 +CONFIG_FB_VESA=y
 +CONFIG_FB_EFI=y
 +# CONFIG_FB_N411 is not set
@@ -2575,7 +2578,6 @@ index 0000000..e51e4a0
 +# CONFIG_FB_RIVA is not set
 +# CONFIG_FB_I740 is not set
 +# CONFIG_FB_LE80578 is not set
-+# CONFIG_FB_INTEL is not set
 +# CONFIG_FB_MATROX is not set
 +# CONFIG_FB_RADEON is not set
 +# CONFIG_FB_ATY128 is not set
@@ -2607,7 +2609,7 @@ index 0000000..e51e4a0
 +# CONFIG_EXYNOS_VIDEO is not set
 +CONFIG_BACKLIGHT_LCD_SUPPORT=y
 +# CONFIG_LCD_CLASS_DEVICE is not set
-+CONFIG_BACKLIGHT_CLASS_DEVICE=m
++CONFIG_BACKLIGHT_CLASS_DEVICE=y
 +# CONFIG_BACKLIGHT_GENERIC is not set
 +# CONFIG_BACKLIGHT_APPLE is not set
 +# CONFIG_BACKLIGHT_SAHARA is not set
@@ -3092,6 +3094,7 @@ index 0000000..e51e4a0
 +CONFIG_XEN_MCE_LOG=y
 +CONFIG_XEN_HAVE_PVMMU=y
 +CONFIG_XEN_EFI=y
++CONFIG_XENGT=y
 +# CONFIG_STAGING is not set
 +CONFIG_X86_PLATFORM_DEVICES=y
 +# CONFIG_ACER_WMI is not set
