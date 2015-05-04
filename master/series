@@ -470,6 +470,28 @@ xen-ioemu-inject-msi.patch
 0001-xen-oprofile-Patch-from-Michael-Petullo.patch
 ca-160001-unbind_from_irqhandler-debug.patch
 
+# i915 kernel backport for GVT-G
+sync-3.18-drm+i915.patch
+
+# Upstream patches to get 3.18 backport to compile
+0001-arch-Make-__mutex_fastpath_lock_retval-return-whethe.patch
+0001-mutex-Add-support-for-wound-wait-style-locks.patch
+0001-mutex-Add-w-w-mutex-slowpath-debugging.patch
+0001-mutex-Move-ww_mutex-definitions-to-ww_mutex.h.patch
+0001-Add-arch_phys_wc_-add-del-to-manipulate-WC-MTRRs-if-.patch
+0001-bitops-Introduce-a-more-generic-BITMASK-macro.patch
+0001-bitops-Fix-shift-overflow-in-GENMASK-macros.patch
+0001-consolidate-the-reassignments-of-f_op-in-open-instan.patch
+0001-take-anon-inode-allocation-to-libfs.c.patch
+0001-drm-i915-Kick-out-vga-console.patch
+0001-lib-Export-interval_tree.patch
+0001-time-Export-nsecs_to_jiffies.patch
+0001-drm-add-pseudo-filesystem-for-shared-inodes.patch
+0001-ACPI-PM-Export-acpi_target_system_state-to-modules.patch
+
+# hacks due to unbackportable upstream fixes
+hacks-3.18-drm-compile-3.10.patch
+
 #
 # Kernel Configuration.
 #

@@ -1,0 +1,29 @@
+From fad16dd9c962229c5965ec6f5cd5f48180f94fd4 Mon Sep 17 00:00:00 2001
+From: Rafael J. Wysocki <rafael.j.wysocki@intel.com>
+Date: Thu, 8 May 2014 23:22:15 +0200
+Subject: [PATCH] ACPI / PM: Export acpi_target_system_state() to modules
+
+Export the acpi_target_system_state() function to modules so that
+modular drivers can use it to check what the target ACPI sleep state
+of the system is (that is needed for i915 mostly at this point).
+
+Signed-off-by: Rafael J. Wysocki <rafael.j.wysocki@intel.com>
+---
+ drivers/acpi/sleep.c |    1 +
+ 1 files changed, 1 insertions(+), 0 deletions(-)
+
+diff --git a/drivers/acpi/sleep.c b/drivers/acpi/sleep.c
+index c40fb2e..2281ca3 100644
+--- a/drivers/acpi/sleep.c
++++ b/drivers/acpi/sleep.c
+@@ -89,6 +89,7 @@ u32 acpi_target_system_state(void)
+ {
+ 	return acpi_target_sleep_state;
+ }
++EXPORT_SYMBOL_GPL(acpi_target_system_state);
+ 
+ static bool pwr_btn_event_pending;
+ 
+-- 
+1.7.1
+

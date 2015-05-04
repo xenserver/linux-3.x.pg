@@ -1,0 +1,238 @@
+From e84f9e57b90ca89664d733a7cef19aa7ccd832f3 Mon Sep 17 00:00:00 2001
+From: Al Viro <viro@zeniv.linux.org.uk>
+Date: Sun, 22 Sep 2013 14:17:15 -0400
+Subject: [PATCH] consolidate the reassignments of ->f_op in ->open() instances
+
+Signed-off-by: Al Viro <viro@zeniv.linux.org.uk>
+diff --git a/drivers/char/misc.c b/drivers/char/misc.c
+index 190d442..fd0f7c4 100644
+--- a/drivers/char/misc.c
++++ b/drivers/char/misc.c
+@@ -114,7 +114,7 @@ static int misc_open(struct inode * inode, struct file * file)
+ 	int minor = iminor(inode);
+ 	struct miscdevice *c;
+ 	int err = -ENODEV;
+-	const struct file_operations *old_fops, *new_fops = NULL;
++	const struct file_operations *new_fops = NULL;
+ 
+ 	mutex_lock(&misc_mtx);
+ 	
+@@ -141,17 +141,11 @@ static int misc_open(struct inode * inode, struct file * file)
+ 	}
+ 
+ 	err = 0;
+-	old_fops = file->f_op;
+-	file->f_op = new_fops;
++	replace_fops(file, new_fops);
+ 	if (file->f_op->open) {
+ 		file->private_data = c;
+-		err=file->f_op->open(inode,file);
+-		if (err) {
+-			fops_put(file->f_op);
+-			file->f_op = fops_get(old_fops);
+-		}
++		err = file->f_op->open(inode,file);
+ 	}
+-	fops_put(old_fops);
+ fail:
+ 	mutex_unlock(&misc_mtx);
+ 	return err;
+diff --git a/drivers/media/dvb-core/dvbdev.c b/drivers/media/dvb-core/dvbdev.c
+index 401ef64..983db75 100644
+--- a/drivers/media/dvb-core/dvbdev.c
++++ b/drivers/media/dvb-core/dvbdev.c
+@@ -74,22 +74,15 @@ static int dvb_device_open(struct inode *inode, struct file *file)
+ 
+ 	if (dvbdev && dvbdev->fops) {
+ 		int err = 0;
+-		const struct file_operations *old_fops;
++		const struct file_operations *new_fops;
+ 
+-		file->private_data = dvbdev;
+-		old_fops = file->f_op;
+-		file->f_op = fops_get(dvbdev->fops);
+-		if (file->f_op == NULL) {
+-			file->f_op = old_fops;
++		new_fops = fops_get(dvbdev->fops);
++		if (!new_fops)
+ 			goto fail;
+-		}
+-		if(file->f_op->open)
++		file->private_data = dvbdev;
++		replace_fops(file, new_fops);
++		if (file->f_op->open)
+ 			err = file->f_op->open(inode,file);
+-		if (err) {
+-			fops_put(file->f_op);
+-			file->f_op = fops_get(old_fops);
+-		}
+-		fops_put(old_fops);
+ 		up_read(&minor_rwsem);
+ 		mutex_unlock(&dvbdev_mutex);
+ 		return err;
+diff --git a/drivers/usb/core/file.c b/drivers/usb/core/file.c
+index e5387a4..89f90f6 100644
+--- a/drivers/usb/core/file.c
++++ b/drivers/usb/core/file.c
+@@ -29,27 +29,19 @@ static DECLARE_RWSEM(minor_rwsem);
+ 
+ static int usb_open(struct inode * inode, struct file * file)
+ {
+-	int minor = iminor(inode);
+-	const struct file_operations *c;
+ 	int err = -ENODEV;
+-	const struct file_operations *old_fops, *new_fops = NULL;
++	const struct file_operations *new_fops;
+ 
+ 	down_read(&minor_rwsem);
+-	c = usb_minors[minor];
++	new_fops = fops_get(usb_minors[iminor(inode)]);
+ 
+-	if (!c || !(new_fops = fops_get(c)))
++	if (!new_fops)
+ 		goto done;
+ 
+-	old_fops = file->f_op;
+-	file->f_op = new_fops;
++	replace_fops(file, new_fops);
+ 	/* Curiouser and curiouser... NULL ->open() as "no device" ? */
+ 	if (file->f_op->open)
+ 		err = file->f_op->open(inode,file);
+-	if (err) {
+-		fops_put(file->f_op);
+-		file->f_op = fops_get(old_fops);
+-	}
+-	fops_put(old_fops);
+  done:
+ 	up_read(&minor_rwsem);
+ 	return err;
+diff --git a/fs/char_dev.c b/fs/char_dev.c
+index afc2bb6..94b5f60 100644
+--- a/fs/char_dev.c
++++ b/fs/char_dev.c
+@@ -368,6 +368,7 @@ void cdev_put(struct cdev *p)
+  */
+ static int chrdev_open(struct inode *inode, struct file *filp)
+ {
++	const struct file_operations *fops;
+ 	struct cdev *p;
+ 	struct cdev *new = NULL;
+ 	int ret = 0;
+@@ -400,10 +401,11 @@ static int chrdev_open(struct inode *inode, struct file *filp)
+ 		return ret;
+ 
+ 	ret = -ENXIO;
+-	filp->f_op = fops_get(p->ops);
+-	if (!filp->f_op)
++	fops = fops_get(p->ops);
++	if (!fops)
+ 		goto out_cdev_put;
+ 
++	replace_fops(filp, fops);
+ 	if (filp->f_op->open) {
+ 		ret = filp->f_op->open(inode, filp);
+ 		if (ret)
+diff --git a/include/linux/fs.h b/include/linux/fs.h
+index d57bc5d..577c9a8 100644
+--- a/include/linux/fs.h
++++ b/include/linux/fs.h
+@@ -1864,6 +1864,17 @@ extern struct dentry *mount_pseudo(struct file_system_type *, char *,
+ 	(((fops) && try_module_get((fops)->owner) ? (fops) : NULL))
+ #define fops_put(fops) \
+ 	do { if (fops) module_put((fops)->owner); } while(0)
++/*
++ * This one is to be used *ONLY* from ->open() instances.
++ * fops must be non-NULL, pinned down *and* module dependencies
++ * should be sufficient to pin the caller down as well.
++ */
++#define replace_fops(f, fops) \
++	do {	\
++		struct file *__file = (f); \
++		fops_put(__file->f_op); \
++		BUG_ON(!(__file->f_op = (fops))); \
++	} while(0)
+ 
+ extern int register_filesystem(struct file_system_type *);
+ extern int unregister_filesystem(struct file_system_type *);
+diff --git a/sound/core/sound.c b/sound/core/sound.c
+index f002bd9..437c25e 100644
+--- a/sound/core/sound.c
++++ b/sound/core/sound.c
+@@ -153,7 +153,7 @@ static int snd_open(struct inode *inode, struct file *file)
+ {
+ 	unsigned int minor = iminor(inode);
+ 	struct snd_minor *mptr = NULL;
+-	const struct file_operations *old_fops;
++	const struct file_operations *new_fops;
+ 	int err = 0;
+ 
+ 	if (minor >= ARRAY_SIZE(snd_minors))
+@@ -167,24 +167,14 @@ static int snd_open(struct inode *inode, struct file *file)
+ 			return -ENODEV;
+ 		}
+ 	}
+-	old_fops = file->f_op;
+-	file->f_op = fops_get(mptr->f_ops);
+-	if (file->f_op == NULL) {
+-		file->f_op = old_fops;
+-		err = -ENODEV;
+-	}
++	new_fops = fops_get(mptr->f_ops);
+ 	mutex_unlock(&sound_mutex);
+-	if (err < 0)
+-		return err;
++	if (!new_fops)
++		return -ENODEV;
++	replace_fops(file, new_fops);
+ 
+-	if (file->f_op->open) {
++	if (file->f_op->open)
+ 		err = file->f_op->open(inode, file);
+-		if (err) {
+-			fops_put(file->f_op);
+-			file->f_op = fops_get(old_fops);
+-		}
+-	}
+-	fops_put(old_fops);
+ 	return err;
+ }
+ 
+diff --git a/sound/sound_core.c b/sound/sound_core.c
+index 359753f..3870a0c 100644
+--- a/sound/sound_core.c
++++ b/sound/sound_core.c
+@@ -626,31 +626,20 @@ static int soundcore_open(struct inode *inode, struct file *file)
+ 		if (s)
+ 			new_fops = fops_get(s->unit_fops);
+ 	}
++	spin_unlock(&sound_loader_lock);
+ 	if (new_fops) {
+ 		/*
+ 		 * We rely upon the fact that we can't be unloaded while the
+-		 * subdriver is there, so if ->open() is successful we can
+-		 * safely drop the reference counter and if it is not we can
+-		 * revert to old ->f_op. Ugly, indeed, but that's the cost of
+-		 * switching ->f_op in the first place.
++		 * subdriver is there.
+ 		 */
+ 		int err = 0;
+-		const struct file_operations *old_fops = file->f_op;
+-		file->f_op = new_fops;
+-		spin_unlock(&sound_loader_lock);
++		replace_fops(file, new_fops);
+ 
+ 		if (file->f_op->open)
+ 			err = file->f_op->open(inode,file);
+ 
+-		if (err) {
+-			fops_put(file->f_op);
+-			file->f_op = fops_get(old_fops);
+-		}
+-
+-		fops_put(old_fops);
+ 		return err;
+ 	}
+-	spin_unlock(&sound_loader_lock);
+ 	return -ENODEV;
+ }
+ 

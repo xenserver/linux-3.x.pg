@@ -1,0 +1,51 @@
+From a4de05268e674e8ed31df6348269e22d6c6a1803 Mon Sep 17 00:00:00 2001
+From: Daniel Vetter <daniel.vetter@ffwll.ch>
+Date: Thu, 5 Jun 2014 16:20:46 +0200
+Subject: [PATCH] drm/i915: Kick out vga console
+
+Touching the VGA resources on an IVB EFI machine causes hard hangs when
+we then kick out the efifb. Ouch.
+
+Apparently this also prevents unclaimed register errors on hsw and
+hard machine hangs on my i855gm when trying to unbind fbcon.
+
+Also, we want this to make I915_FBDEV=n safe.
+
+v2: Rebase and pimp commit message.
+
+v3: We also need to unregister the vga console, otherwise the unbind
+of the fb console before module unload might resurrect it again.
+
+v4: Ignore errors when the vga console is already unregistered - this
+can happen when e.g. reloading i915.ko.
+
+Bugzilla: https://bugs.freedesktop.org/show_bug.cgi?id=67813
+Cc: David Herrmann <dh.herrmann@gmail.com>
+Cc: Jean-Christophe Plagniol-Villard <plagnioj@jcrosoft.com>
+Cc: Tomi Valkeinen <tomi.valkeinen@ti.com>
+Cc: linux-fbdev@vger.kernel.org
+Cc: Jani Nikula <jani.nikula@linux.intel.com>
+Signed-off-by: Chris Wilson <chris@chris-wilson.co.uk> (v1)
+Reviewed-by: David Herrmann <dh.herrmann@gmail.com>
+Acked-by: Tomi Valkeinen <tomi.valkeinen@ti.com>
+Signed-off-by: Daniel Vetter <daniel.vetter@ffwll.ch>
+diff --git a/drivers/video/console/dummycon.c b/drivers/video/console/dummycon.c
+index b63860f..40bec8d 100644
+--- a/drivers/video/console/dummycon.c
++++ b/drivers/video/console/dummycon.c
+@@ -77,3 +77,4 @@ const struct consw dummy_con = {
+     .con_set_palette =	DUMMY,
+     .con_scrolldelta =	DUMMY,
+ };
++EXPORT_SYMBOL_GPL(dummy_con);
+diff --git a/drivers/video/console/vgacon.c b/drivers/video/console/vgacon.c
+index 5855d17..3a21b30 100644
+--- a/drivers/video/console/vgacon.c
++++ b/drivers/video/console/vgacon.c
+@@ -1431,5 +1431,6 @@ const struct consw vga_con = {
+ 	.con_build_attr = vgacon_build_attr,
+ 	.con_invert_region = vgacon_invert_region,
+ };
++EXPORT_SYMBOL(vga_con);
+ 
+ MODULE_LICENSE("GPL");
