@@ -1,0 +1,22 @@
+diff --git a/drivers/gpu/drm/i915/vgt/vgt.c b/drivers/gpu/drm/i915/vgt/vgt.c
+index 2625e59..2c5b88a 100644
+--- a/drivers/gpu/drm/i915/vgt/vgt.c
++++ b/drivers/gpu/drm/i915/vgt/vgt.c
+@@ -55,7 +55,7 @@ bool hvm_boot_foreground = false;
+ module_param_named(hvm_boot_foreground, hvm_boot_foreground, bool, 0600);
+ MODULE_PARM_DESC(hvm_boot_foreground, "Make HVM to be foreground after create and visible on screen from booting (default: false)");
+ 
+-bool vgt_primary = false;
++bool vgt_primary = true;
+ module_param_named(vgt_primary, vgt_primary, bool, 0600);
+ 
+ bool vgt_track_nest = true;
+@@ -85,7 +85,7 @@ bool render_engine_reset = true;
+ module_param_named(render_engine_reset, render_engine_reset, bool, 0600);
+ MODULE_PARM_DESC(render_engine_reset, "Reset rendering engines before loading another VM's context");
+ 
+-bool propagate_monitor_to_guest = true;
++bool propagate_monitor_to_guest = false;
+ module_param_named(propagate_monitor_to_guest, propagate_monitor_to_guest, bool, 0600);
+ MODULE_PARM_DESC(propagate_monitor_to_guest, "Propagate monitor information to guest by XenGT, other than dom0 services to do so");
+ 

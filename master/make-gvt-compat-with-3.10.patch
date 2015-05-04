@@ -1,0 +1,304 @@
+diff --git a/drivers/gpu/drm/i915/i915_drv.c b/drivers/gpu/drm/i915/i915_drv.c
+index e20c94c..749192c 100644
+--- a/drivers/gpu/drm/i915/i915_drv.c
++++ b/drivers/gpu/drm/i915/i915_drv.c
+@@ -34,7 +34,7 @@
+ #include "i915_drv.h"
+ #include "i915_trace.h"
+ #include "intel_drv.h"
+-#include "vgt-if.h"
++#include "vgt/vgt-if.h"
+ 
+ #include <linux/console.h>
+ #include <linux/module.h>
+@@ -946,7 +946,7 @@ static int i915_pm_suspend(struct device *dev)
+ 	if (error)
+ 		return error;
+ 
+-#ifdef CONFIG_I915_VGT
++#if IS_ENABLED(CONFIG_I915_VGT)
+ 	if (i915_host_mediate) {
+ 		error = vgt_suspend(pdev);
+ 		if (error)
+diff --git a/drivers/gpu/drm/i915/i915_drv.h b/drivers/gpu/drm/i915/i915_drv.h
+index ebd2789..630291f 100644
+--- a/drivers/gpu/drm/i915/i915_drv.h
++++ b/drivers/gpu/drm/i915/i915_drv.h
+@@ -51,14 +51,14 @@
+ #include <linux/kref.h>
+ #include <linux/pm_qos.h>
+ 
+-#ifdef CONFIG_I915_VGT
++#if IS_ENABLED(CONFIG_I915_VGT)
+ #include <linux/irq_work.h>
+ #define DRM_I915_VGT_SUPPORT	1
+ #endif
+ 
+ #ifdef DRM_I915_VGT_SUPPORT
+-#include "vgt-if.h"
+-#include "fb_decoder.h"
++#include "vgt/vgt-if.h"
++#include "vgt/fb_decoder.h"
+ #endif
+ 
+ /* General customization:
+@@ -1783,7 +1783,7 @@ struct drm_i915_private {
+ 
+ 	uint32_t bios_vgacntr;
+ 
+-#ifdef CONFIG_I915_VGT
++#if IS_ENABLED(CONFIG_I915_VGT)
+ 	/* vgt host-side mediation */
+ 	void *pgt;
+ 	struct irq_work irq_work;
+@@ -2986,7 +2986,7 @@ void gen6_gt_force_wake_get(struct drm_i915_private *dev_priv, int fw_engine);
+ void gen6_gt_force_wake_put(struct drm_i915_private *dev_priv, int fw_engine);
+ void assert_force_wake_inactive(struct drm_i915_private *dev_priv);
+ 
+-#ifdef CONFIG_I915_VGT
++#if IS_ENABLED(CONFIG_I915_VGT)
+ 
+ extern bool vgt_can_process_irq(void);
+ extern bool vgt_can_process_timer(void *timer);
+diff --git a/drivers/gpu/drm/i915/i915_gem_vgtbuffer.c b/drivers/gpu/drm/i915/i915_gem_vgtbuffer.c
+index 789fb5c..813d917 100644
+--- a/drivers/gpu/drm/i915/i915_gem_vgtbuffer.c
++++ b/drivers/gpu/drm/i915/i915_gem_vgtbuffer.c
+@@ -28,7 +28,7 @@
+ #include "i915_trace.h"
+ #include "intel_drv.h"
+ #include <linux/swap.h>
+-#include "fb_decoder.h"
++#include "vgt/fb_decoder.h"
+ 
+ static int i915_gem_vgtbuffer_get_pages(struct drm_i915_gem_object *obj)
+ {
+diff --git a/drivers/gpu/drm/i915/i915_irq.c b/drivers/gpu/drm/i915/i915_irq.c
+index fcb0055..344cd90 100644
+--- a/drivers/gpu/drm/i915/i915_irq.c
++++ b/drivers/gpu/drm/i915/i915_irq.c
+@@ -45,8 +45,8 @@
+  * and related files, but that will be described in separate chapters.
+  */
+ 
+-#ifdef DRM_I915_VGT_SUPPORT
+-#include "vgt-if.h"
++#if IS_ENABLED(DRM_I915_VGT_SUPPORT)
++#include "vgt/vgt-if.h"
+ void i915_isr_wrapper(struct irq_work *work)
+ {
+ 	struct drm_i915_private *dev_priv = container_of(work,
+@@ -61,7 +61,7 @@ void i915_isr_wrapper(struct irq_work *work)
+ void vgt_schedule_host_isr(struct drm_device *dev)
+ {
+ 	struct drm_i915_private *dev_priv = dev->dev_private;
+-	irq_work_queue_on(&dev_priv->irq_work, 0);
++	irq_work_queue(&dev_priv->irq_work);
+ }
+ #endif
+ 
+@@ -4353,7 +4353,7 @@ static void intel_hpd_irq_reenable_work(struct work_struct *work)
+ 	intel_runtime_pm_put(dev_priv);
+ }
+ 
+-#ifdef CONFIG_I915_VGT
++#if IS_ENABLED(CONFIG_I915_VGT)
+ void *i915_drm_to_pgt(struct drm_device *dev)
+ {
+ 	struct drm_i915_private *dev_priv = dev->dev_private;
+@@ -4429,7 +4429,7 @@ void intel_irq_init(struct drm_i915_private *dev_priv)
+ 		    i915_hangcheck_elapsed,
+ 		    (unsigned long) dev);
+ 
+-#ifdef CONFIG_I915_VGT
++#if IS_ENABLED(CONFIG_I915_VGT)
+ 	vgt_new_delay_event_timer(&dev_priv->gpu_error.hangcheck_timer);
+ #endif
+ 
+@@ -4517,7 +4517,7 @@ void intel_irq_init(struct drm_i915_private *dev_priv)
+ 		dev->driver->disable_vblank = i915_disable_vblank;
+ 	}
+ 
+-#ifdef CONFIG_I915_VGT
++#if IS_ENABLED(CONFIG_I915_VGT)
+ 	if (i915_host_mediate) {
+ 		/* save the original irq ops */
+ 		dev_priv->irq_ops.irq_handler = dev->driver->irq_handler;
+diff --git a/drivers/gpu/drm/i915/i915_vgt.h b/drivers/gpu/drm/i915/i915_vgt.h
+index 5dc3ae3..e896266 100644
+--- a/drivers/gpu/drm/i915/i915_vgt.h
++++ b/drivers/gpu/drm/i915/i915_vgt.h
+@@ -6,7 +6,7 @@
+ struct drm_device;
+ struct drm_i915_private;
+ 
+-#ifdef CONFIG_I915_VGT
++#if IS_ENABLED(CONFIG_I915_VGT)
+ 
+ bool i915_start_vgt(struct pci_dev *);
+ void i915_vgt_record_priv(struct drm_i915_private *priv);
+diff --git a/drivers/gpu/drm/i915/vgt/Makefile b/drivers/gpu/drm/i915/vgt/Makefile
+index d5ec8bb..51327eb 100644
+--- a/drivers/gpu/drm/i915/vgt/Makefile
++++ b/drivers/gpu/drm/i915/vgt/Makefile
+@@ -3,6 +3,6 @@ VGT_SOURCE := vgt.o render.o mmio.o handlers.o interrupt.o  \
+ 	klog.o dev.o cmd_parser.o sched.o instance.o cfg_space.o \
+ 	fb_decoder.o vbios.o host.o execlists.o
+ 
+-ccflags-y				+= -I$(src) -I$(src)/.. -Wall -Werror
++ccflags-y				+= -I$(src) -I$(src)/.. -Wall
+ xen_vgt-y				:= $(VGT_SOURCE)
+ obj-$(CONFIG_I915_VGT)			+= xen_vgt.o
+diff --git a/drivers/gpu/drm/i915/vgt/fb_decoder.c b/drivers/gpu/drm/i915/vgt/fb_decoder.c
+index b3f305a..cbb4cd2 100644
+--- a/drivers/gpu/drm/i915/vgt/fb_decoder.c
++++ b/drivers/gpu/drm/i915/vgt/fb_decoder.c
+@@ -40,12 +40,12 @@ struct pixel_format {
+ 
+ /* non-supported format has bpp default to 0 */
+ static struct pixel_format hsw_pixel_formats[FORMAT_NUM] = {
+-	[0b0010]  = {DRM_FORMAT_C8, 8, "8-bit Indexed"},
+-	[0b0101]  = {DRM_FORMAT_RGB565, 16, "16-bit BGRX (5:6:5 MSB-R:G:B)"},
+-	[0b0110]  = {DRM_FORMAT_XRGB8888, 32, "32-bit BGRX (8:8:8:8 MSB-X:R:G:B)"},
+-	[0b1000]  = {DRM_FORMAT_XBGR2101010, 32, "32-bit RGBX (2:10:10:10 MSB-X:B:G:R)"},
+-	[0b1010] = {DRM_FORMAT_XRGB2101010, 32, "32-bit BGRX (2:10:10:10 MSB-X:R:G:B)"},
+-	[0b1110] = {DRM_FORMAT_XBGR8888, 32, "32-bit RGBX (8:8:8:8 MSB-X:B:G:R)"},
++	[0x2]  = {DRM_FORMAT_C8, 8, "8-bit Indexed"},
++	[0x5]  = {DRM_FORMAT_RGB565, 16, "16-bit BGRX (5:6:5 MSB-R:G:B)"},
++	[0x6]  = {DRM_FORMAT_XRGB8888, 32, "32-bit BGRX (8:8:8:8 MSB-X:R:G:B)"},
++	[0x8]  = {DRM_FORMAT_XBGR2101010, 32, "32-bit RGBX (2:10:10:10 MSB-X:B:G:R)"},
++	[0xa] = {DRM_FORMAT_XRGB2101010, 32, "32-bit BGRX (2:10:10:10 MSB-X:R:G:B)"},
++	[0xe] = {DRM_FORMAT_XBGR8888, 32, "32-bit RGBX (8:8:8:8 MSB-X:B:G:R)"},
+ };
+ 
+ int vgt_decode_primary_plane_format(struct vgt_device *vgt,
+@@ -98,10 +98,10 @@ struct cursor_mode_format {
+ 
+ /* non-supported format has bpp default to 0 */
+ static struct cursor_mode_format hsw_cursor_mode_formats[CURSOR_MODE_NUM] = {
+-	[0b100010]  = {DRM_FORMAT_ARGB8888, 32, 128, 128,"128x128 32bpp ARGB"},
+-	[0b100011]  = {DRM_FORMAT_ARGB8888, 32, 256, 256, "256x256 32bpp ARGB"},
+-	[0b100111]  = {DRM_FORMAT_ARGB8888, 32, 64, 64, "64x64 32bpp ARGB"},
+-	[0b000111]  = {DRM_FORMAT_ARGB8888, 32, 64, 64, "64x64 32bpp ARGB"},//actually inverted... figure this out later
++	[0x22]  = {DRM_FORMAT_ARGB8888, 32, 128, 128,"128x128 32bpp ARGB"},
++	[0x23]  = {DRM_FORMAT_ARGB8888, 32, 256, 256, "256x256 32bpp ARGB"},
++	[0x27]  = {DRM_FORMAT_ARGB8888, 32, 64, 64, "64x64 32bpp ARGB"},
++	[0x7]  = {DRM_FORMAT_ARGB8888, 32, 64, 64, "64x64 32bpp ARGB"},//actually inverted... figure this out later
+ };
+ int vgt_decode_cursor_plane_format(struct vgt_device *vgt,
+ 	int pipe, struct vgt_cursor_plane_format *plane)
+@@ -154,10 +154,10 @@ int vgt_decode_cursor_plane_format(struct vgt_device *vgt,
+  */
+ 
+ static struct pixel_format hsw_pixel_formats_sprite[FORMAT_NUM_SRRITE] = {
+-	[0b000]  = {DRM_FORMAT_YUV422, 16, "YUV 16-bit 4:2:2 packed"},
+-	[0b001]  = {DRM_FORMAT_XRGB2101010, 32, "RGB 32-bit 2:10:10:10"},
+-	[0b010]  = {DRM_FORMAT_XRGB8888, 32, "RGB 32-bit 8:8:8:8"},
+-	[0b100] = {DRM_FORMAT_AYUV, 32, "YUV 32-bit 4:4:4 packed (8:8:8:8 MSB-X:Y:U:V)"},
++	[0x0]  = {DRM_FORMAT_YUV422, 16, "YUV 16-bit 4:2:2 packed"},
++	[0x1]  = {DRM_FORMAT_XRGB2101010, 32, "RGB 32-bit 2:10:10:10"},
++	[0x2]  = {DRM_FORMAT_XRGB8888, 32, "RGB 32-bit 8:8:8:8"},
++	[0x4] = {DRM_FORMAT_AYUV, 32, "YUV 32-bit 4:4:4 packed (8:8:8:8 MSB-X:Y:U:V)"},
+ };
+ 
+ /* Non-supported format has bpp default to 0 */
+@@ -423,7 +423,7 @@ int vgt_decode_fb_format(int vmid, struct vgt_fb_format *fb)
+ 		} else {
+ 			vgt_reg_t port = (ddi_func_ctl & _REGBIT_TRANS_DDI_PORT_MASK) >>
+ 						_TRANS_DDI_PORT_SHIFT;
+-			if (port <= DDI_PORT_E)
++			if ((port >= DDI_PORT_NONE) || (port <= DDI_PORT_E))
+ 				pipe->ddi_port = port;
+ 			else
+ 				pipe->ddi_port = DDI_PORT_NONE;
+@@ -526,13 +526,18 @@ static int vgt_fb_event(struct notifier_block *nb,
+ 	 * drop it.
+ 	 */
+ 	msg->plane_id = vgt_plane_to_i915_plane(msg->plane_id);
++	if (msg->plane_id < 0) {
++		ret = -EINVAL;
++		goto out;
++	}
+ 
+ 	m->seq = seq++;
+ 	m->len = data_sz;
+ 	memcpy(m + 1, msg, data_sz);
+ 
+-	ret = cn_netlink_send(m, 0, CN_IDX_VGT, GFP_ATOMIC);
++	ret = cn_netlink_send(m, CN_IDX_VGT, GFP_ATOMIC);
+ 
++out:
+ 	kfree(m);
+ 	return (ret);
+ }
+diff --git a/drivers/gpu/drm/i915/vgt/host.c b/drivers/gpu/drm/i915/vgt/host.c
+index a049cb6..f69c35b 100644
+--- a/drivers/gpu/drm/i915/vgt/host.c
++++ b/drivers/gpu/drm/i915/vgt/host.c
+@@ -1,7 +1,7 @@
+ #include <linux/io.h>
+ #include <drm/drmP.h>
+ 
+-#include "i915_drv.h"
++#include "../i915_drv.h"
+ #include "host.h"
+ 
+ static struct drm_i915_private *dev_priv = NULL;
+diff --git a/drivers/gpu/drm/i915/vgt/interrupt.c b/drivers/gpu/drm/i915/vgt/interrupt.c
+index ba1625c..b8658fa 100644
+--- a/drivers/gpu/drm/i915/vgt/interrupt.c
++++ b/drivers/gpu/drm/i915/vgt/interrupt.c
+@@ -822,11 +822,13 @@ bool vgt_can_process_irq(void)
+ {
+ 	return vgt_check_delay_event(NULL);
+ }
++EXPORT_SYMBOL(vgt_can_process_irq);
+ 
+ bool vgt_can_process_timer(void *timer)
+ {
+ 	return vgt_check_delay_event(timer);
+ }
++EXPORT_SYMBOL(vgt_can_process_timer);
+ 
+ void vgt_new_delay_event_timer(void *timer)
+ {
+diff --git a/drivers/gpu/drm/i915/vgt/mmio.c b/drivers/gpu/drm/i915/vgt/mmio.c
+index 61676ef..a3edd9b 100644
+--- a/drivers/gpu/drm/i915/vgt/mmio.c
++++ b/drivers/gpu/drm/i915/vgt/mmio.c
+@@ -24,6 +24,7 @@
+  */
+ 
+ #include <linux/acpi.h>
++#include <linux/acpi_io.h>
+ #include <linux/kthread.h>
+ #include <linux/freezer.h>
+ 
+diff --git a/drivers/gpu/drm/i915/vgt/vgt-if.h b/drivers/gpu/drm/i915/vgt/vgt-if.h
+index 9c9679d..35e8d58 100644
+--- a/drivers/gpu/drm/i915/vgt/vgt-if.h
++++ b/drivers/gpu/drm/i915/vgt/vgt-if.h
+@@ -225,5 +225,6 @@ static inline void vgt_exit(int cpu)
+ 
+ 	put_cpu();
+ }
+-
++extern bool vgt_can_process_irq(void);
++extern bool vgt_can_process_timer(void *timer);
+ #endif /* _VGT_IF_H */
+diff --git a/drivers/gpu/drm/i915/vgt/vgt.h b/drivers/gpu/drm/i915/vgt/vgt.h
+index 0b688c7..b4919f8 100644
+--- a/drivers/gpu/drm/i915/vgt/vgt.h
++++ b/drivers/gpu/drm/i915/vgt/vgt.h
+@@ -1338,9 +1338,9 @@ extern void do_vgt_fast_display_switch(struct pgt_device *pdev);
+  */
+ static inline void vgt_panic(void)
+ {
+-	struct pgt_device *pdev = &default_device;
++	//struct pgt_device *pdev = &default_device;
+ 
+-	show_debug(pdev);
++	//show_debug(pdev);
+ 
+ 	dump_stack();
+ 	printk("________end of stack dump_________\n");

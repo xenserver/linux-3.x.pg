@@ -489,8 +489,19 @@ sync-3.18-drm+i915.patch
 0001-drm-add-pseudo-filesystem-for-shared-inodes.patch
 0001-ACPI-PM-Export-acpi_target_system_state-to-modules.patch
 
+# sync drm + i915 tree from Intel 2015Q1 drop
+sync-2015q1-gvt-g-drm+i915.patch
 # hacks due to unbackportable upstream fixes
 hacks-3.18-drm-compile-3.10.patch
+# upstream patch for Intel 2015Q1 drm +i915 driver to compile
+0001-drm-i915-compute-wait_ioctl-timeout-correctly.patch
+# Intel GVT-g patch itself
+import-gvt-g-2015q1-drop.patch
+# Fixes to GVT-g patch to compile on 3.10
+make-gvt-compat-with-3.10.patch
+# Local changes to GVT-g code
+change-gvt-g-defaults.patch
+increase-opregion-size.patch
 
 #
 # Kernel Configuration.

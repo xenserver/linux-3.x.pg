@@ -194,7 +194,7 @@ index 41fc93a..fc7d112 100644
  
  
 diff --git a/drivers/gpu/drm/Kconfig b/drivers/gpu/drm/Kconfig
-index e3b4b0f..b2bb68d 100644
+index 24c2d7c..7b270b7 100644
 --- a/drivers/gpu/drm/Kconfig
 +++ b/drivers/gpu/drm/Kconfig
 @@ -78,8 +78,6 @@ config DRM_KMS_CMA_HELPER
@@ -217,7 +217,7 @@ index e3b4b0f..b2bb68d 100644
  source "drivers/gpu/drm/shmobile/Kconfig"
  
  source "drivers/gpu/drm/omapdrm/Kconfig"
-@@ -191,12 +185,4 @@ source "drivers/gpu/drm/tilcdc/Kconfig"
+@@ -191,16 +185,5 @@ source "drivers/gpu/drm/tilcdc/Kconfig"
  
  source "drivers/gpu/drm/qxl/Kconfig"
  
@@ -228,13 +228,17 @@ index e3b4b0f..b2bb68d 100644
 -source "drivers/gpu/drm/tegra/Kconfig"
 -
  source "drivers/gpu/drm/panel/Kconfig"
--
+ 
 -source "drivers/gpu/drm/sti/Kconfig"
+-
+-source "drivers/gpu/drm/amd/amdkfd/Kconfig"
+-
+-source "drivers/gpu/drm/imx/Kconfig"
 diff --git a/drivers/gpu/drm/Makefile b/drivers/gpu/drm/Makefile
-index 9292a76..addc0eb 100644
+index 47d8986..ef16204 100644
 --- a/drivers/gpu/drm/Makefile
 +++ b/drivers/gpu/drm/Makefile
-@@ -52,16 +52,6 @@ obj-$(CONFIG_DRM_EXYNOS) +=exynos/
+@@ -52,18 +52,6 @@ obj-$(CONFIG_DRM_EXYNOS) +=exynos/
  obj-$(CONFIG_DRM_GMA500) += gma500/
  obj-$(CONFIG_DRM_UDL) += udl/
  obj-$(CONFIG_DRM_AST) += ast/
@@ -248,9 +252,51 @@ index 9292a76..addc0eb 100644
 -obj-$(CONFIG_DRM_MSM) += msm/
 -obj-$(CONFIG_DRM_TEGRA) += tegra/
 -obj-$(CONFIG_DRM_STI) += sti/
+-obj-$(CONFIG_DRM_IMX) += imx/
  obj-y			+= i2c/
  obj-y			+= panel/
  obj-y			+= bridge/
+-obj-$(CONFIG_HSA_AMD) += amd/amdkfd/
+diff --git a/drivers/gpu/drm/drm_atomic_helper.c b/drivers/gpu/drm/drm_atomic_helper.c
+index 4a78a77..cb26fe0 100644
+--- a/drivers/gpu/drm/drm_atomic_helper.c
++++ b/drivers/gpu/drm/drm_atomic_helper.c
+@@ -30,7 +30,7 @@
+ #include <drm/drm_plane_helper.h>
+ #include <drm/drm_crtc_helper.h>
+ #include <drm/drm_atomic_helper.h>
+-#include <linux/fence.h>
++//#include <linux/fence.h>
+ 
+ /**
+  * DOC: overview
+@@ -731,7 +731,7 @@ void drm_atomic_helper_commit_post_planes(struct drm_device *dev,
+ }
+ EXPORT_SYMBOL(drm_atomic_helper_commit_post_planes);
+ 
+-static void wait_for_fences(struct drm_device *dev,
++/*static void wait_for_fences(struct drm_device *dev,
+ 			    struct drm_atomic_state *state)
+ {
+ 	int nplanes = dev->mode_config.num_total_plane;
+@@ -749,7 +749,7 @@ static void wait_for_fences(struct drm_device *dev,
+ 		fence_put(plane->state->fence);
+ 		plane->state->fence = NULL;
+ 	}
+-}
++}*/
+ 
+ static bool framebuffer_changed(struct drm_device *dev,
+ 				struct drm_atomic_state *old_state,
+@@ -891,7 +891,7 @@ int drm_atomic_helper_commit(struct drm_device *dev,
+ 	 * current layout.
+ 	 */
+ 
+-	wait_for_fences(dev, state);
++	//wait_for_fences(dev, state);
+ 
+ 	drm_atomic_helper_commit_pre_planes(dev, state);
+ 
 diff --git a/drivers/gpu/drm/drm_hashtab.c b/drivers/gpu/drm/drm_hashtab.c
 index c3b80fd..7e4bae7 100644
 --- a/drivers/gpu/drm/drm_hashtab.c
@@ -265,7 +311,7 @@ index c3b80fd..7e4bae7 100644
  		hlist_add_head_rcu(&item->head, h_list);
  	}
 diff --git a/drivers/gpu/drm/drm_irq.c b/drivers/gpu/drm/drm_irq.c
-index 5ef03c2..fc07884 100644
+index 0e47df4..74ada28 100644
 --- a/drivers/gpu/drm/drm_irq.c
 +++ b/drivers/gpu/drm/drm_irq.c
 @@ -138,9 +138,9 @@ static void drm_update_vblank_count(struct drm_device *dev, int crtc)
@@ -337,7 +383,7 @@ index 5ef03c2..fc07884 100644
  	return ktime_to_timeval(now);
  }
  
-@@ -1651,9 +1661,9 @@ bool drm_handle_vblank(struct drm_device *dev, int crtc)
+@@ -1652,9 +1662,9 @@ bool drm_handle_vblank(struct drm_device *dev, int crtc)
  		/* Increment cooked vblank count. This also atomically commits
  		 * the timestamp computed above.
  		 */
@@ -350,7 +396,7 @@ index 5ef03c2..fc07884 100644
  		DRM_DEBUG("crtc %d: Redundant vblirq ignored. diff_ns = %d\n",
  			  crtc, (int) diff_ns);
 diff --git a/drivers/gpu/drm/drm_prime.c b/drivers/gpu/drm/drm_prime.c
-index 78ca308..6a8160a 100644
+index 7482b06..bb60b47 100644
 --- a/drivers/gpu/drm/drm_prime.c
 +++ b/drivers/gpu/drm/drm_prime.c
 @@ -345,7 +345,7 @@ struct dma_buf *drm_gem_prime_export(struct drm_device *dev,
@@ -363,10 +409,10 @@ index 78ca308..6a8160a 100644
  EXPORT_SYMBOL(drm_gem_prime_export);
  
 diff --git a/drivers/gpu/drm/i915/i915_dma.c b/drivers/gpu/drm/i915/i915_dma.c
-index 318ade9..c2bdbe9 100644
+index ecee3bc..ad9ce86 100644
 --- a/drivers/gpu/drm/i915/i915_dma.c
 +++ b/drivers/gpu/drm/i915/i915_dma.c
-@@ -1447,11 +1447,11 @@ static int i915_kick_out_firmware_fb(struct drm_i915_private *dev_priv)
+@@ -478,11 +478,11 @@ static int i915_kick_out_firmware_fb(struct drm_i915_private *dev_priv)
  	primary =
  		pdev->resource[PCI_ROM_RESOURCE].flags & IORESOURCE_ROM_SHADOW;
  
@@ -381,7 +427,7 @@ index 318ade9..c2bdbe9 100644
  #else
  static int i915_kick_out_firmware_fb(struct drm_i915_private *dev_priv)
 diff --git a/drivers/gpu/drm/i915/i915_gem.c b/drivers/gpu/drm/i915/i915_gem.c
-index 28f91df..6346fab 100644
+index 4a9faea..fade594 100644
 --- a/drivers/gpu/drm/i915/i915_gem.c
 +++ b/drivers/gpu/drm/i915/i915_gem.c
 @@ -55,7 +55,7 @@ static void i915_gem_object_update_fence(struct drm_i915_gem_object *obj,
@@ -393,7 +439,7 @@ index 28f91df..6346fab 100644
  					    struct shrink_control *sc);
  static int i915_gem_shrinker_oom(struct notifier_block *nb,
  				 unsigned long event,
-@@ -1186,7 +1186,7 @@ static int __wait_seqno(struct intel_engine_cs *ring, u32 seqno,
+@@ -1243,7 +1243,7 @@ int __i915_wait_seqno(struct intel_engine_cs *ring, u32 seqno,
  
  	/* Record current time in case interrupted by signal, or wedged */
  	trace_i915_gem_request_wait_begin(ring, seqno);
@@ -402,7 +448,7 @@ index 28f91df..6346fab 100644
  	for (;;) {
  		struct timer_list timer;
  
-@@ -1235,7 +1235,7 @@ static int __wait_seqno(struct intel_engine_cs *ring, u32 seqno,
+@@ -1292,7 +1292,7 @@ int __i915_wait_seqno(struct intel_engine_cs *ring, u32 seqno,
  			destroy_timer_on_stack(&timer);
  		}
  	}
@@ -411,7 +457,7 @@ index 28f91df..6346fab 100644
  	trace_i915_gem_request_wait_end(ring, seqno);
  
  	if (!irq_test_in_progress)
-@@ -5049,8 +5049,8 @@ i915_gem_load(struct drm_device *dev)
+@@ -5066,8 +5066,8 @@ i915_gem_load(struct drm_device *dev)
  
  	dev_priv->mm.interruptible = true;
  
@@ -422,7 +468,7 @@ index 28f91df..6346fab 100644
  	dev_priv->mm.shrinker.seeks = DEFAULT_SEEKS;
  	register_shrinker(&dev_priv->mm.shrinker);
  
-@@ -5266,7 +5266,7 @@ unsigned long i915_gem_obj_size(struct drm_i915_gem_object *o,
+@@ -5292,7 +5292,7 @@ unsigned long i915_gem_obj_size(struct drm_i915_gem_object *o,
  	return 0;
  }
  
@@ -431,7 +477,7 @@ index 28f91df..6346fab 100644
  i915_gem_shrinker_scan(struct shrinker *shrinker, struct shrink_control *sc)
  {
  	struct drm_i915_private *dev_priv =
-@@ -5276,7 +5276,7 @@ i915_gem_shrinker_scan(struct shrinker *shrinker, struct shrink_control *sc)
+@@ -5302,7 +5302,7 @@ i915_gem_shrinker_scan(struct shrinker *shrinker, struct shrink_control *sc)
  	bool unlock;
  
  	if (!i915_gem_shrinker_lock(dev, &unlock))
@@ -455,10 +501,10 @@ index 82a1f4b..580aa42 100644
  
  static int i915_gem_object_get_pages_dmabuf(struct drm_i915_gem_object *obj)
 diff --git a/drivers/gpu/drm/i915/i915_irq.c b/drivers/gpu/drm/i915/i915_irq.c
-index f66392b..ffcb1df 100644
+index 996c293..cd8232d 100644
 --- a/drivers/gpu/drm/i915/i915_irq.c
 +++ b/drivers/gpu/drm/i915/i915_irq.c
-@@ -2720,7 +2720,7 @@ static void i915_error_work_func(struct work_struct *work)
+@@ -2466,7 +2466,7 @@ static void i915_error_work_func(struct work_struct *work)
  			 * updates before
  			 * the counter increment.
  			 */
@@ -531,10 +577,10 @@ index d96eee1..390a0f8 100644
  }
  
 diff --git a/drivers/gpu/drm/i915/intel_lrc.c b/drivers/gpu/drm/i915/intel_lrc.c
-index bafd38b..b273d79 100644
+index e588376..dd39f7c 100644
 --- a/drivers/gpu/drm/i915/intel_lrc.c
 +++ b/drivers/gpu/drm/i915/intel_lrc.c
-@@ -557,7 +557,7 @@ static int execlists_context_queue(struct intel_engine_cs *ring,
+@@ -565,7 +565,7 @@ static int execlists_context_queue(struct intel_engine_cs *ring,
  	if (num_elements > 2) {
  		struct intel_ctx_submit_request *tail_req;
  
@@ -567,10 +613,10 @@ index d8de1d5..3e4cfee 100644
  
  static u32 asle_set_backlight(struct drm_device *dev, u32 bclp)
 diff --git a/drivers/gpu/drm/i915/intel_pm.c b/drivers/gpu/drm/i915/intel_pm.c
-index ad2fd60..b45859f 100644
+index 964b28e..3242f3c 100644
 --- a/drivers/gpu/drm/i915/intel_pm.c
 +++ b/drivers/gpu/drm/i915/intel_pm.c
-@@ -3197,7 +3197,7 @@ static void ironlake_enable_drps(struct drm_device *dev)
+@@ -4206,7 +4206,7 @@ static void ironlake_enable_drps(struct drm_device *dev)
  		I915_READ(0x112e0);
  	dev_priv->ips.last_time1 = jiffies_to_msecs(jiffies);
  	dev_priv->ips.last_count2 = I915_READ(0x112f4);
@@ -579,7 +625,7 @@ index ad2fd60..b45859f 100644
  
  	spin_unlock_irq(&mchdev_lock);
  }
-@@ -4821,7 +4821,7 @@ static void __i915_update_gfx_val(struct drm_i915_private *dev_priv)
+@@ -5830,7 +5830,7 @@ static void __i915_update_gfx_val(struct drm_i915_private *dev_priv)
  
  	assert_spin_locked(&mchdev_lock);
  
