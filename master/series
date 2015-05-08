@@ -499,6 +499,7 @@ hacks-3.18-drm-compile-3.10.patch
 import-gvt-g-2015q1-drop.patch
 # Fixes to GVT-g patch to compile on 3.10
 make-gvt-compat-with-3.10.patch
+Q2-diff.patch
 # Local changes to GVT-g code
 change-gvt-g-defaults.patch
 increase-opregion-size.patch
