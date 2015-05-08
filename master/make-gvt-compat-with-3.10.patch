@@ -1,3 +1,33 @@
+diff --git a/arch/x86/xen/mmu.c b/arch/x86/xen/mmu.c
+index 3ff2d89..e304349 100644
+--- a/arch/x86/xen/mmu.c
++++ b/arch/x86/xen/mmu.c
+@@ -2630,8 +2630,9 @@ struct vm_struct * xen_remap_domain_mfn_range_in_kernel(unsigned long mfn,
+ 
+ 	prot = __pgprot(pgprot_val(PAGE_KERNEL));
+ 
+-	rmd.mfn = mfn;
++	rmd.mfn = &mfn;
+ 	rmd.prot = prot;
++	rmd.contiguous = 0;
+ 
+ 	while (nr) {
+ 		batch = min(REMAP_BATCH_SIZE, nr);
+@@ -2664,11 +2665,13 @@ void xen_unmap_domain_mfn_range_in_kernel(struct vm_struct *area, int nr,
+ 	int batch;
+ 	unsigned long range, addr = (unsigned long)area->addr;
+ 	int err;
++	unsigned long mfn;
+ 
+ 	WARN_ON(in_interrupt() || irqs_disabled());
+ 
+ #define INVALID_MFN (~0UL)
+-	rmd.mfn = INVALID_MFN;
++	mfn = INVALID_MFN;
++	rmd.mfn = &mfn;
+ 	rmd.prot = PAGE_NONE;
+ 
+ 	while (nr) {
 diff --git a/drivers/gpu/drm/i915/i915_drv.c b/drivers/gpu/drm/i915/i915_drv.c
 index e20c94c..749192c 100644
 --- a/drivers/gpu/drm/i915/i915_drv.c
@@ -302,3 +332,16 @@ index 0b688c7..b4919f8 100644
  
  	dump_stack();
  	printk("________end of stack dump_________\n");
+diff --git a/include/xen/interface/memory.h b/include/xen/interface/memory.h
+index 7e093ea..0e58bd5 100644
+--- a/include/xen/interface/memory.h
++++ b/include/xen/interface/memory.h
+@@ -249,7 +249,7 @@ DEFINE_GUEST_HANDLE_STRUCT(xen_memory_map);
+ /*
+  * Translate the given guest PFNs to MFNs
+  */
+-#define XENMEM_get_mfn_from_pfn    25
++#define XENMEM_get_mfn_from_pfn    27
+ struct xen_get_mfn_from_pfn {
+     /*
+      * Pointer to buffer to fill with list of pfn.
