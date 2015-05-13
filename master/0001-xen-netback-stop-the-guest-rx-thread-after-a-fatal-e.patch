@@ -1,0 +1,64 @@
+From 42b5212fee4f57907e9415b18fe19c13e65574bc Mon Sep 17 00:00:00 2001
+From: David Vrabel <david.vrabel@citrix.com>
+Date: Mon, 2 Feb 2015 16:57:51 +0000
+Subject: [PATCH 1/1] xen-netback: stop the guest rx thread after a fatal
+ error
+
+After commit e9d8b2c2968499c1f96563e6522c56958d5a1d0d (xen-netback:
+disable rogue vif in kthread context), a fatal (protocol) error would
+leave the guest Rx thread spinning, wasting CPU time.  Commit
+ecf08d2dbb96d5a4b4bcc53a39e8d29cc8fef02e (xen-netback: reintroduce
+guest Rx stall detection) made this even worse by removing a
+cond_resched() from this path.
+
+Since a fatal error is non-recoverable, just allow the guest Rx thread
+to exit.  This requires taking additional refs to the task so the
+thread exiting early is handled safely.
+
+Signed-off-by: David Vrabel <david.vrabel@citrix.com>
+Reported-by: Julien Grall <julien.grall@linaro.org>
+Tested-by: Julien Grall <julien.grall@linaro.org>
+Acked-by: Wei Liu <wei.liu2@citrix.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ drivers/net/xen-netback/interface.c |    2 ++
+ drivers/net/xen-netback/netback.c   |    3 +--
+ 2 files changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/net/xen-netback/interface.c b/drivers/net/xen-netback/interface.c
+index 9259a73..037f74f 100644
+--- a/drivers/net/xen-netback/interface.c
++++ b/drivers/net/xen-netback/interface.c
+@@ -578,6 +578,7 @@ int xenvif_connect(struct xenvif_queue *queue, unsigned long tx_ring_ref,
+ 		goto err_rx_unbind;
+ 	}
+ 	queue->task = task;
++	get_task_struct(task);
+ 
+ 	task = kthread_create(xenvif_dealloc_kthread,
+ 			      (void *)queue, "%s-dealloc", queue->name);
+@@ -634,6 +635,7 @@ void xenvif_disconnect(struct xenvif *vif)
+ 
+ 		if (queue->task) {
+ 			kthread_stop(queue->task);
++			put_task_struct(queue->task);
+ 			queue->task = NULL;
+ 		}
+ 
+diff --git a/drivers/net/xen-netback/netback.c b/drivers/net/xen-netback/netback.c
+index 908e65e..c8ce701 100644
+--- a/drivers/net/xen-netback/netback.c
++++ b/drivers/net/xen-netback/netback.c
+@@ -2109,8 +2109,7 @@ int xenvif_kthread_guest_rx(void *data)
+ 		 */
+ 		if (unlikely(vif->disabled && queue->id == 0)) {
+ 			xenvif_carrier_off(vif);
+-			xenvif_rx_queue_purge(queue);
+-			continue;
++			break;
+ 		}
+ 
+ 		if (!skb_queue_empty(&queue->rx_queue))
+-- 
+1.7.10.4
+
