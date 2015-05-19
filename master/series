@@ -475,7 +475,6 @@ xen-ioemu-inject-msi.patch
 # Debugging/hacks
 #
 0001-xen-oprofile-Patch-from-Michael-Petullo.patch
-ca-160001-unbind_from_irqhandler-debug.patch
 
 #
 # Kernel Configuration.
