@@ -406,6 +406,9 @@ blkback-debug-ring.diff
 0016-xen-events-use-the-FIFO-based-ABI-if-available.patch
 fifo_page_fix.patch
 
+# Event channels
+0001-xen-events-don-t-bind-non-percpu-VIRQs-with-percpu-c.patch
+
 # pciback
 0001-pci-export-pci_probe_reset_function.patch
 0002-xen-pciback-provide-a-reset-sysfs-file-to-try-harder.patch
