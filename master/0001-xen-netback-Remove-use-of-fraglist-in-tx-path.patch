@@ -1,0 +1,108 @@
+From c51b50df2fb69c41a779cff7db25370eb18edb07 Mon Sep 17 00:00:00 2001
+From: Ross Lagerwall <ross.lagerwall@citrix.com>
+Date: Fri, 29 May 2015 17:19:45 +0100
+Subject: [PATCH] xen-netback: Remove use of fraglist in tx path
+
+If the number of slots used by the packet is XEN_NETBK_LEGACY_SLOTS_MAX,
+copy the entire first slot instead of copying part of it and mapping the
+rest. This removes the need handle a frag overflow in a separate
+fraglist.
+
+This fixes a use-after-free in the OOM error path for the fraglist.
+
+Signed-off-by: Ross Lagerwall <ross.lagerwall@citrix.com>
+diff --git a/drivers/net/xen-netback/netback.c b/drivers/net/xen-netback/netback.c
+index 8d637c8..c860b9c 100644
+--- a/drivers/net/xen-netback/netback.c
++++ b/drivers/net/xen-netback/netback.c
+@@ -858,16 +858,8 @@ static struct gnttab_map_grant_ref *xenvif_get_requests(struct xenvif_queue *que
+ 	u16 pending_idx = XENVIF_TX_CB(skb)->pending_idx;
+ 	int start;
+ 	pending_ring_idx_t index;
+-	unsigned int nr_slots, frag_overflow = 0;
++	unsigned int nr_slots;
+ 
+-	/* At this point shinfo->nr_frags is in fact the number of
+-	 * slots, which can be as large as XEN_NETBK_LEGACY_SLOTS_MAX.
+-	 */
+-	if (shinfo->nr_frags > MAX_SKB_FRAGS) {
+-		frag_overflow = shinfo->nr_frags - MAX_SKB_FRAGS;
+-		BUG_ON(frag_overflow > MAX_SKB_FRAGS);
+-		shinfo->nr_frags = MAX_SKB_FRAGS;
+-	}
+ 	nr_slots = shinfo->nr_frags;
+ 
+ 	/* Skip first skb fragment if it is on same page as header fragment. */
+@@ -881,30 +873,6 @@ static struct gnttab_map_grant_ref *xenvif_get_requests(struct xenvif_queue *que
+ 		frag_set_pending_idx(&frags[shinfo->nr_frags], pending_idx);
+ 	}
+ 
+-	if (frag_overflow) {
+-		struct sk_buff *nskb = xenvif_alloc_skb(0);
+-		if (unlikely(nskb == NULL)) {
+-			if (net_ratelimit())
+-				netdev_err(queue->vif->dev,
+-					   "Can't allocate the frag_list skb.\n");
+-			return NULL;
+-		}
+-
+-		shinfo = skb_shinfo(nskb);
+-		frags = shinfo->frags;
+-
+-		for (shinfo->nr_frags = 0; shinfo->nr_frags < frag_overflow;
+-		     shinfo->nr_frags++, txp++, gop++) {
+-			index = pending_index(queue->pending_cons++);
+-			pending_idx = queue->pending_ring[index];
+-			xenvif_tx_create_map_op(queue, pending_idx, txp, gop);
+-			frag_set_pending_idx(&frags[shinfo->nr_frags],
+-					     pending_idx);
+-		}
+-
+-		skb_shinfo(skb)->frag_list = nskb;
+-	}
+-
+ 	return gop;
+ }
+ 
+@@ -1218,7 +1186,7 @@ static void xenvif_tx_build_gops(struct xenvif_queue *queue,
+ 				     unsigned *copy_ops,
+ 				     unsigned *map_ops)
+ {
+-	struct gnttab_map_grant_ref *gop = queue->tx_map_ops, *request_gop;
++	struct gnttab_map_grant_ref *gop = queue->tx_map_ops;
+ 	struct sk_buff *skb;
+ 	int ret;
+ 
+@@ -1296,9 +1264,14 @@ static void xenvif_tx_build_gops(struct xenvif_queue *queue,
+ 		index = pending_index(queue->pending_cons);
+ 		pending_idx = queue->pending_ring[index];
+ 
+-		data_len = (txreq.size > XEN_NETBACK_TX_COPY_LEN &&
+-			    ret < XEN_NETBK_LEGACY_SLOTS_MAX) ?
+-			XEN_NETBACK_TX_COPY_LEN : txreq.size;
++		/* Copy the start of the first slot and map the rest if there
++		 * are enough spare frags, otherwise copy the entire first
++		 * slot.
++		 */
++		if (ret < MAX_SKB_FRAGS)
++			data_len = min(XEN_NETBACK_TX_COPY_LEN, txreq.size);
++		else
++			data_len = txreq.size;
+ 
+ 		skb = xenvif_alloc_skb(data_len);
+ 		if (unlikely(skb == NULL)) {
+@@ -1353,13 +1326,7 @@ static void xenvif_tx_build_gops(struct xenvif_queue *queue,
+ 
+ 		queue->pending_cons++;
+ 
+-		request_gop = xenvif_get_requests(queue, skb, txfrags, gop);
+-		if (request_gop == NULL) {
+-			kfree_skb(skb);
+-			xenvif_tx_err(queue, &txreq, idx);
+-			break;
+-		}
+-		gop = request_gop;
++		gop = xenvif_get_requests(queue, skb, txfrags, gop);
+ 
+ 		__skb_queue_tail(&queue->tx_queue, skb);
+ 
