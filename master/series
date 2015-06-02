@@ -433,6 +433,7 @@ netback-xenvif_idx_release-race-fix.patch
 0002-xen-netback-unref-frags-when-handling-a-from-guest-s.patch
 netback-avoid-meta-overflow.patch
 0001-xen-netback-Properly-initialize-credit_bytes.patch
+0001-xen-netback-Allocate-fraglist-early-to-avoid-complex.patch
 
 # nvme driver backport
 backport-nvme-driver-from-3.17.patch
