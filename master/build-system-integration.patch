@@ -360,10 +360,10 @@ index 0000000..da884e2
 +
 diff --git a/mk/kernel.spec.in b/mk/kernel.spec.in
 new file mode 100644
-index 0000000..4a3157d
+index 0000000..e4a7e4e
 --- /dev/null
 +++ b/mk/kernel.spec.in
-@@ -0,0 +1,303 @@
+@@ -0,0 +1,298 @@
 +# -*- rpm-spec -*-
 +
 +# The full kernel uname version
@@ -610,24 +610,19 @@ index 0000000..4a3157d
 +rm -rf $RPM_BUILD_ROOT
 +
 +%post
-+args=--make-default
-+exe=/sbin/new-kernel-pkg
-+if [ -x /sbin/new-kernel-pkg.py ] ; then
-+  exe=/sbin/new-kernel-pkg.py
-+fi
++short_uname=$(echo %{uname} | awk -F '[.]' '{print $1 "." $2}')
++
 +if grep -qs control_d /proc/xen/capabilities ; then
-+  args="$args --multiboot=/boot/xen.gz"
++  ln -sf vmlinuz-%{uname} vmlinuz-$short_uname-xen
++else
++  args="--install --make-default"
 +fi
 +
-+$exe --install --mkinitrd --depmod $args %{uname}
++/sbin/new-kernel-pkg $args --mkinitrd --depmod %{uname}
 +
 +%preun
 +if [ "$1" = "0" ]; then
-+  exe=/sbin/new-kernel-pkg
-+  if [ -x /sbin/new-kernel-pkg.py ] ; then
-+    exe=/sbin/new-kernel-pkg.py
-+  fi
-+  $exe --remove --rminitrd --rmmoddep %{uname}
++  /sbin/new-kernel-pkg --remove --rminitrd --rmmoddep %{uname}
 +fi
 +
 +%triggerin -- xen-hypervisor
