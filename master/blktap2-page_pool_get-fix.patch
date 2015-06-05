@@ -94,7 +94,7 @@ index 3a81d82..63480d4 100644
  	}
  
 diff --git a/drivers/block/blktap2/request.c b/drivers/block/blktap2/request.c
-index f17c673..3a568f6 100644
+index f17c673..0b37254 100644
 --- a/drivers/block/blktap2/request.c
 +++ b/drivers/block/blktap2/request.c
 @@ -362,6 +362,7 @@ blktap_page_pool_create(const char *name, int nr_pages)
@@ -105,7 +105,7 @@ index f17c673..3a568f6 100644
  	spin_lock_init(&pool->lock);
  	INIT_LIST_HEAD(&pool->waiters);
  
-@@ -388,8 +389,20 @@ fail:
+@@ -388,8 +389,22 @@ fail:
  	return NULL;
  }
  
@@ -119,8 +119,10 @@ index f17c673..3a568f6 100644
 +void blktap_page_pool_put(struct blktap_page_pool *pool)
 +{
 +	mutex_lock(&pool_set_mutex);
-+	if (atomic_dec_and_test(&pool->users))
++	if (atomic_dec_and_test(&pool->users)) {
 +		kobject_del(&pool->kobj);
++		kobject_put(&pool->kobj);
++	}
 +	mutex_unlock(&pool_set_mutex);
 +}
 +
@@ -128,7 +130,7 @@ index f17c673..3a568f6 100644
  {
  	struct kobject *kobj;
  
-@@ -399,6 +412,12 @@ blktap_page_pool_get(const char *name)
+@@ -399,6 +414,12 @@ blktap_page_pool_get(const char *name)
  	if (!kobj)
  		kobj = blktap_page_pool_create(name,
  					       POOL_DEFAULT_PAGES);
