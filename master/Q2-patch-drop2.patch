@@ -1,7 +1,8 @@
-diff -aur XenGT-Server-kernel-old/drivers/gpu/drm/i915/i915_dma.c XenGT-Server-kernel/drivers/gpu/drm/i915/i915_dma.c
---- XenGT-Server-kernel-old/drivers/gpu/drm/i915/i915_dma.c	2015-06-05 11:58:39.047189694 +0100
-+++ XenGT-Server-kernel/drivers/gpu/drm/i915/i915_dma.c	2015-06-05 09:28:44.723453671 +0100
-@@ -92,6 +92,9 @@
+diff --git a/drivers/gpu/drm/i915/i915_dma.c b/drivers/gpu/drm/i915/i915_dma.c
+index f8c6f9b..53a55f5 100644
+--- a/drivers/gpu/drm/i915/i915_dma.c
++++ b/drivers/gpu/drm/i915/i915_dma.c
+@@ -92,6 +92,9 @@ static int i915_getparam(struct drm_device *dev, void *data,
  	case I915_PARAM_HAS_VEBOX:
  		value = intel_ring_initialized(&dev_priv->ring[VECS]);
  		break;
@@ -11,10 +12,11 @@ diff -aur XenGT-Server-kernel-old/drivers/gpu/drm/i915/i915_dma.c XenGT-Server-k
  	case I915_PARAM_HAS_RELAXED_FENCING:
  		value = 1;
  		break;
-diff -aur XenGT-Server-kernel-old/drivers/gpu/drm/i915/i915_gem.c XenGT-Server-kernel/drivers/gpu/drm/i915/i915_gem.c
---- XenGT-Server-kernel-old/drivers/gpu/drm/i915/i915_gem.c	2015-06-05 11:58:39.049189728 +0100
-+++ XenGT-Server-kernel/drivers/gpu/drm/i915/i915_gem.c	2015-06-05 09:28:44.733453826 +0100
-@@ -3119,9 +3119,8 @@
+diff --git a/drivers/gpu/drm/i915/i915_gem.c b/drivers/gpu/drm/i915/i915_gem.c
+index 9ef2aed..b57fc33 100644
+--- a/drivers/gpu/drm/i915/i915_gem.c
++++ b/drivers/gpu/drm/i915/i915_gem.c
+@@ -3119,9 +3119,8 @@ int i915_vma_unbind(struct i915_vma *vma)
  
  	/* Since the unbound list is global, only move to that list if
  	 * no more VMAs exist. */
@@ -26,7 +28,7 @@ diff -aur XenGT-Server-kernel-old/drivers/gpu/drm/i915/i915_gem.c XenGT-Server-k
  		list_move_tail(&obj->global_list, &dev_priv->mm.unbound_list);
  	}
  
-@@ -4684,6 +4683,10 @@
+@@ -4684,6 +4683,10 @@ struct i915_vma *i915_gem_obj_to_vma(struct drm_i915_gem_object *obj,
  void i915_gem_vma_destroy(struct i915_vma *vma)
  {
  	struct i915_address_space *vm = NULL;
@@ -37,10 +39,11 @@ diff -aur XenGT-Server-kernel-old/drivers/gpu/drm/i915/i915_gem.c XenGT-Server-k
  	WARN_ON(vma->node.allocated);
  
  	/* Keep the vma as a placeholder in the execbuffer reservation lists */
-diff -aur XenGT-Server-kernel-old/drivers/gpu/drm/i915/i915_gem_execbuffer.c XenGT-Server-kernel/drivers/gpu/drm/i915/i915_gem_execbuffer.c
---- XenGT-Server-kernel-old/drivers/gpu/drm/i915/i915_gem_execbuffer.c	2015-06-05 11:58:39.049189728 +0100
-+++ XenGT-Server-kernel/drivers/gpu/drm/i915/i915_gem_execbuffer.c	2015-06-05 09:28:44.734453841 +0100
-@@ -1352,13 +1352,34 @@
+diff --git a/drivers/gpu/drm/i915/i915_gem_execbuffer.c b/drivers/gpu/drm/i915/i915_gem_execbuffer.c
+index e7e6c83..7de2815 100644
+--- a/drivers/gpu/drm/i915/i915_gem_execbuffer.c
++++ b/drivers/gpu/drm/i915/i915_gem_execbuffer.c
+@@ -1352,13 +1352,34 @@ i915_gem_do_execbuffer(struct drm_device *dev, void *data,
  		return -EINVAL;
  	}
  
@@ -77,19 +80,11 @@ diff -aur XenGT-Server-kernel-old/drivers/gpu/drm/i915/i915_gem_execbuffer.c Xen
  		} else
  			ring = &dev_priv->ring[VCS];
  	} else
-diff -aur XenGT-Server-kernel-old/drivers/gpu/drm/i915/i915_gem_gtt.c XenGT-Server-kernel/drivers/gpu/drm/i915/i915_gem_gtt.c
---- XenGT-Server-kernel-old/drivers/gpu/drm/i915/i915_gem_gtt.c	2015-06-05 11:58:39.049189728 +0100
-+++ XenGT-Server-kernel/drivers/gpu/drm/i915/i915_gem_gtt.c	2015-06-05 09:28:44.746454027 +0100
-@@ -32,8 +32,6 @@
- 
- #define GEN6_PPGTT_PD_ENTRIES 512
- #define I915_PPGTT_PT_ENTRIES (PAGE_SIZE / sizeof(gen6_gtt_pte_t))
--typedef uint64_t gen8_gtt_pte_t;
--typedef gen8_gtt_pte_t gen8_ppgtt_pde_t;
- 
- /* PPGTT stuff */
- #define GEN6_GTT_ADDR_ENCODE(addr)	((addr) | (((addr) >> 28) & 0xff0))
-@@ -84,6 +82,10 @@
+diff --git a/drivers/gpu/drm/i915/i915_gem_gtt.c b/drivers/gpu/drm/i915/i915_gem_gtt.c
+index 997ec8a..e84685b 100644
+--- a/drivers/gpu/drm/i915/i915_gem_gtt.c
++++ b/drivers/gpu/drm/i915/i915_gem_gtt.c
+@@ -82,6 +82,10 @@ struct _balloon_info_ {
  	struct drm_mm_node space[4];
  } bl_info;
  
@@ -100,7 +95,7 @@ diff -aur XenGT-Server-kernel-old/drivers/gpu/drm/i915/i915_gem_gtt.c XenGT-Serv
  static int i915_balloon_space(
  			struct drm_mm *mm,
  			struct drm_mm_node *node,
-@@ -560,6 +562,51 @@
+@@ -558,6 +562,51 @@ static void gen8_ppgtt_clear_range(struct i915_address_space *vm,
  	}
  }
  
@@ -152,7 +147,7 @@ diff -aur XenGT-Server-kernel-old/drivers/gpu/drm/i915/i915_gem_gtt.c XenGT-Serv
  static void gen8_ppgtt_insert_entries(struct i915_address_space *vm,
  				      struct sg_table *pages,
  				      uint64_t start,
-@@ -1176,8 +1223,7 @@
+@@ -1174,8 +1223,7 @@ static void gen6_ppgtt_clear_range(struct i915_address_space *vm,
  
  static void gen6_ppgtt_insert_vmfb_entries(struct i915_address_space *vm,
  					   uint32_t num_pages,
@@ -162,7 +157,7 @@ diff -aur XenGT-Server-kernel-old/drivers/gpu/drm/i915/i915_gem_gtt.c XenGT-Serv
  {
  	struct i915_hw_ppgtt *ppgtt =
  		container_of(vm, struct i915_hw_ppgtt, base);
-@@ -1190,7 +1236,7 @@
+@@ -1188,7 +1236,7 @@ static void gen6_ppgtt_insert_vmfb_entries(struct i915_address_space *vm,
  
  	struct drm_i915_private *dev_priv = ppgtt->base.dev->dev_private;
  	uint32_t __iomem *vmfb_start = dev_priv->gtt.gsm;
@@ -171,7 +166,7 @@ diff -aur XenGT-Server-kernel-old/drivers/gpu/drm/i915/i915_gem_gtt.c XenGT-Serv
  
  	int i;
  	for (i = 0; i < num_pages; i++) {
-@@ -1548,10 +1594,9 @@
+@@ -1546,10 +1594,9 @@ ppgtt_bind_vma(struct i915_vma *vma,
  		flags |= PTE_READ_ONLY;
  
  	if (vma->obj->has_vmfb_mapping)
@@ -185,7 +180,7 @@ diff -aur XenGT-Server-kernel-old/drivers/gpu/drm/i915/i915_gem_gtt.c XenGT-Serv
  	else
  		vma->vm->insert_entries(vma->vm, vma->obj->pages, vma->node.start,
  					cache_level, flags);
-@@ -1948,10 +1993,9 @@
+@@ -1946,10 +1993,9 @@ static void ggtt_bind_vma(struct i915_vma *vma,
  	     (cache_level != obj->cache_level))) {
  		struct i915_hw_ppgtt *appgtt = dev_priv->mm.aliasing_ppgtt;
  		if (obj->has_vmfb_mapping)
@@ -199,7 +194,7 @@ diff -aur XenGT-Server-kernel-old/drivers/gpu/drm/i915/i915_gem_gtt.c XenGT-Serv
  		else
  			appgtt->base.insert_entries(&appgtt->base,
  							    vma->obj->pages,
-@@ -2551,8 +2595,13 @@
+@@ -2549,8 +2595,13 @@ static struct i915_vma *__i915_gem_vma_create(struct drm_i915_gem_object *obj,
  	switch (INTEL_INFO(vm->dev)->gen) {
  	case 9:
  	case 8:
@@ -213,10 +208,11 @@ diff -aur XenGT-Server-kernel-old/drivers/gpu/drm/i915/i915_gem_gtt.c XenGT-Serv
  		if (i915_is_ggtt(vm)) {
  			vma->unbind_vma = ggtt_unbind_vma;
  			vma->bind_vma = ggtt_bind_vma;
-diff -aur XenGT-Server-kernel-old/drivers/gpu/drm/i915/i915_gem_vgtbuffer.c XenGT-Server-kernel/drivers/gpu/drm/i915/i915_gem_vgtbuffer.c
---- XenGT-Server-kernel-old/drivers/gpu/drm/i915/i915_gem_vgtbuffer.c	2015-06-05 11:58:39.050189745 +0100
-+++ XenGT-Server-kernel/drivers/gpu/drm/i915/i915_gem_vgtbuffer.c	2015-06-05 09:28:44.746454027 +0100
-@@ -201,14 +201,13 @@
+diff --git a/drivers/gpu/drm/i915/i915_gem_vgtbuffer.c b/drivers/gpu/drm/i915/i915_gem_vgtbuffer.c
+index 813d917..47696b2 100644
+--- a/drivers/gpu/drm/i915/i915_gem_vgtbuffer.c
++++ b/drivers/gpu/drm/i915/i915_gem_vgtbuffer.c
+@@ -201,14 +201,13 @@ i915_gem_vgtbuffer_ioctl(struct drm_device *dev, void *data,
  
  	i915_gem_object_init(obj, &i915_gem_vgtbuffer_ops);
  	obj->cache_level = I915_CACHE_L3_LLC;
@@ -233,10 +229,11 @@ diff -aur XenGT-Server-kernel-old/drivers/gpu/drm/i915/i915_gem_vgtbuffer.c XenG
  	ret = drm_gem_handle_create(file, &obj->base, &handle);
  	/* drop reference from allocate - handle holds it now */
  	drm_gem_object_unreference(&obj->base);
-diff -aur XenGT-Server-kernel-old/drivers/gpu/drm/i915/intel_lrc.c XenGT-Server-kernel/drivers/gpu/drm/i915/intel_lrc.c
---- XenGT-Server-kernel-old/drivers/gpu/drm/i915/intel_lrc.c	2015-06-05 11:58:39.052189779 +0100
-+++ XenGT-Server-kernel/drivers/gpu/drm/i915/intel_lrc.c	2015-06-05 09:28:44.747454042 +0100
-@@ -285,6 +285,7 @@
+diff --git a/drivers/gpu/drm/i915/intel_lrc.c b/drivers/gpu/drm/i915/intel_lrc.c
+index f97458c..dff1491 100644
+--- a/drivers/gpu/drm/i915/intel_lrc.c
++++ b/drivers/gpu/drm/i915/intel_lrc.c
+@@ -285,6 +285,7 @@ static void execlists_elsp_write(struct intel_engine_cs *ring,
  	uint64_t temp = 0;
  	uint32_t desc[4];
  	unsigned long flags;
@@ -244,7 +241,7 @@ diff -aur XenGT-Server-kernel-old/drivers/gpu/drm/i915/intel_lrc.c XenGT-Server-
  
  	/* XXX: You must always write both descriptors in the order below. */
  	if (ctx_obj1)
-@@ -305,25 +306,27 @@
+@@ -305,25 +306,27 @@ static void execlists_elsp_write(struct intel_engine_cs *ring,
  	 * because that function calls intel_runtime_pm_get(), which might sleep.
  	 * Instead, we do the runtime_pm_get/put when creating/destroying requests.
  	 */
@@ -287,7 +284,7 @@ diff -aur XenGT-Server-kernel-old/drivers/gpu/drm/i915/intel_lrc.c XenGT-Server-
  
  	I915_WRITE(RING_ELSP(ring), desc[1]);
  	I915_WRITE(RING_ELSP(ring), desc[0]);
-@@ -334,27 +337,28 @@
+@@ -334,27 +337,28 @@ static void execlists_elsp_write(struct intel_engine_cs *ring,
  	/* ELSP is a wo register, so use another nearby reg for posting instead */
  	POSTING_READ(RING_EXECLIST_STATUS(ring));
  
@@ -333,10 +330,11 @@ diff -aur XenGT-Server-kernel-old/drivers/gpu/drm/i915/intel_lrc.c XenGT-Server-
  }
  
  static int execlists_update_context(struct drm_i915_gem_object *ctx_obj,
-diff -aur XenGT-Server-kernel-old/drivers/gpu/drm/i915/vgt/cmd_parser.c XenGT-Server-kernel/drivers/gpu/drm/i915/vgt/cmd_parser.c
---- XenGT-Server-kernel-old/drivers/gpu/drm/i915/vgt/cmd_parser.c	2015-06-05 11:58:39.053189796 +0100
-+++ XenGT-Server-kernel/drivers/gpu/drm/i915/vgt/cmd_parser.c	2015-06-05 09:28:44.755454165 +0100
-@@ -51,7 +51,7 @@
+diff --git a/drivers/gpu/drm/i915/vgt/cmd_parser.c b/drivers/gpu/drm/i915/vgt/cmd_parser.c
+index 41c2465..5a4287a 100644
+--- a/drivers/gpu/drm/i915/vgt/cmd_parser.c
++++ b/drivers/gpu/drm/i915/vgt/cmd_parser.c
+@@ -51,7 +51,7 @@ static void vgt_add_cmd_entry(struct vgt_cmd_entry *e)
  	hash_add(vgt_cmd_table, &e->hlist, e->info->opcode);
  }
  
@@ -345,7 +343,7 @@ diff -aur XenGT-Server-kernel-old/drivers/gpu/drm/i915/vgt/cmd_parser.c XenGT-Se
  {
  	struct vgt_cmd_entry *e;
  
-@@ -117,7 +117,7 @@
+@@ -117,7 +117,7 @@ static int get_next_entry(struct cmd_general_info *list)
  }
  
  /* TODO: support incremental patching */
@@ -354,7 +352,7 @@ diff -aur XenGT-Server-kernel-old/drivers/gpu/drm/i915/vgt/cmd_parser.c XenGT-Se
  	void *addr, uint32_t val)
  {
  	vgt_state_ring_t *rs = &s->vgt->rb[s->ring_id];
-@@ -139,8 +139,10 @@
+@@ -139,8 +139,10 @@ static int add_patch_entry(struct parser_exec_state *s,
  	patch->addr = addr;
  	patch->new_val = val;
  
@@ -366,7 +364,7 @@ diff -aur XenGT-Server-kernel-old/drivers/gpu/drm/i915/vgt/cmd_parser.c XenGT-Se
  
  	patch->request_id = s->request_id;
  
-@@ -148,7 +150,7 @@
+@@ -148,7 +150,7 @@ static int add_patch_entry(struct parser_exec_state *s,
  	return 0;
  }
  
@@ -375,7 +373,7 @@ diff -aur XenGT-Server-kernel-old/drivers/gpu/drm/i915/vgt/cmd_parser.c XenGT-Se
  	parser_cmd_handler handler)
  {
  	vgt_state_ring_t* rs = &s->vgt->rb[s->ring_id];
-@@ -163,6 +165,12 @@
+@@ -163,6 +165,12 @@ static int add_post_handle_entry(struct parser_exec_state *s,
  	}
  
  	entry = &list->handler[next];
@@ -388,7 +386,7 @@ diff -aur XenGT-Server-kernel-old/drivers/gpu/drm/i915/vgt/cmd_parser.c XenGT-Se
  	/* two pages mapping are always valid */
  	memcpy(&entry->exec_state, s, sizeof(struct parser_exec_state));
  	entry->handler = handler;
-@@ -300,6 +308,7 @@
+@@ -300,6 +308,7 @@ void apply_tail_list(struct vgt_device *vgt, int ring_id,
  				rs->uhptr &= ~_REGBIT_UHPTR_VALID;
  				VGT_MMIO_WRITE(pdev, VGT_UHPTR(ring_id), rs->uhptr);
  			}
@@ -396,7 +394,7 @@ diff -aur XenGT-Server-kernel-old/drivers/gpu/drm/i915/vgt/cmd_parser.c XenGT-Se
  			VGT_WRITE_TAIL(pdev, ring_id, entry->tail);
  		}
  		list->head = next;
-@@ -523,12 +532,24 @@
+@@ -523,12 +532,24 @@ static inline uint32_t *cmd_ptr(struct parser_exec_state *s, int index)
  		return s->ip_va_next_page + (index - s->ip_buf_len);
  }
  
@@ -423,7 +421,7 @@ diff -aur XenGT-Server-kernel-old/drivers/gpu/drm/i915/vgt/cmd_parser.c XenGT-Se
  
  	return ret;
  }
-@@ -601,6 +622,14 @@
+@@ -601,6 +622,14 @@ static int ip_gma_set(struct parser_exec_state *s, unsigned long ip_gma)
  		return -EFAULT;
  	}
  
@@ -438,7 +436,7 @@ diff -aur XenGT-Server-kernel-old/drivers/gpu/drm/i915/vgt/cmd_parser.c XenGT-Se
  	return 0;
  }
  
-@@ -611,6 +640,8 @@
+@@ -611,6 +640,8 @@ static inline int ip_gma_advance(struct parser_exec_state *s, unsigned int len)
  		/* not cross page, advance ip inside page */
  		s->ip_gma += len*sizeof(uint32_t);
  		s->ip_va += len;
@@ -447,7 +445,7 @@ diff -aur XenGT-Server-kernel-old/drivers/gpu/drm/i915/vgt/cmd_parser.c XenGT-Se
  		s->ip_buf_len -= len;
  	} else {
  		/* cross page, reset ip_va */
-@@ -1262,7 +1293,7 @@
+@@ -1262,7 +1293,7 @@ static unsigned long get_gma_bb_from_cmd(struct parser_exec_state *s, int index)
  	return addr;
  }
  
@@ -456,7 +454,7 @@ diff -aur XenGT-Server-kernel-old/drivers/gpu/drm/i915/vgt/cmd_parser.c XenGT-Se
  {
  	int gmadr_bytes = s->vgt->pdev->device_info.gmadr_bytes_in_cmd;
  
-@@ -1274,13 +1305,16 @@
+@@ -1274,13 +1305,16 @@ static bool address_audit(struct parser_exec_state *s, int index)
  	return true;
  }
  
@@ -474,7 +472,7 @@ diff -aur XenGT-Server-kernel-old/drivers/gpu/drm/i915/vgt/cmd_parser.c XenGT-Se
  	for_each_set_bit(bit, &addr_bitmap, sizeof(addr_bitmap)*8) {
  		if (bit + delta >= cmd_len)
  			return false;
-@@ -2341,7 +2375,7 @@
+@@ -2341,7 +2375,7 @@ static int cmd_hash_init(struct pgt_device *pdev)
  	return 0;
  }
  
@@ -483,7 +481,7 @@ diff -aur XenGT-Server-kernel-old/drivers/gpu/drm/i915/vgt/cmd_parser.c XenGT-Se
  {
  	/* This buffer is used by ftrace to store all commands copied from guest gma
  	* space. Sometimes commands can cross pages, this should not be handled in
-@@ -2368,7 +2402,7 @@
+@@ -2368,7 +2402,7 @@ static void trace_cs_command(struct parser_exec_state *s)
  		cmd_trace_buf[i] = cmd_val(s, i);
  
  	trace_vgt_command(s->vgt->vm_id, s->ring_id, s->ip_gma, cmd_trace_buf,
@@ -492,7 +490,7 @@ diff -aur XenGT-Server-kernel-old/drivers/gpu/drm/i915/vgt/cmd_parser.c XenGT-Se
  
  }
  
-@@ -2378,8 +2412,11 @@
+@@ -2378,8 +2412,11 @@ static int vgt_cmd_parser_exec(struct parser_exec_state *s)
  	struct cmd_info *info;
  	uint32_t cmd;
  	int rc = 0;
@@ -505,7 +503,7 @@ diff -aur XenGT-Server-kernel-old/drivers/gpu/drm/i915/vgt/cmd_parser.c XenGT-Se
  
  	info = vgt_get_cmd_info(cmd, s->ring_id);
  	if (info == NULL) {
-@@ -2410,7 +2447,7 @@
+@@ -2410,7 +2447,7 @@ static int vgt_cmd_parser_exec(struct parser_exec_state *s)
  	}
  	klog_printk("\n");
  #endif
@@ -514,7 +512,7 @@ diff -aur XenGT-Server-kernel-old/drivers/gpu/drm/i915/vgt/cmd_parser.c XenGT-Se
  
  	if (info->handler) {
  		int post_handle = 0;
-@@ -2438,6 +2475,10 @@
+@@ -2438,6 +2475,10 @@ static int vgt_cmd_parser_exec(struct parser_exec_state *s)
  		}
  	}
  
@@ -525,7 +523,7 @@ diff -aur XenGT-Server-kernel-old/drivers/gpu/drm/i915/vgt/cmd_parser.c XenGT-Se
  	if (!(info->flag & F_IP_ADVANCE_CUSTOM)) {
  		rc = vgt_cmd_advance_default(s);
  		if (rc < 0) {
-@@ -2493,9 +2534,18 @@
+@@ -2493,9 +2534,18 @@ static int __vgt_scan_vring(struct vgt_device *vgt, int ring_id, vgt_reg_t head,
  		return 0;
  	}
  
@@ -545,7 +543,7 @@ diff -aur XenGT-Server-kernel-old/drivers/gpu/drm/i915/vgt/cmd_parser.c XenGT-Se
  
  	klog_printk("ring buffer scan start on ring %d\n", ring_id);
  	vgt_dbg(VGT_DBG_CMD, "scan_start: start=%lx end=%lx\n", gma_head, gma_tail);
-@@ -2542,6 +2592,9 @@
+@@ -2542,6 +2592,9 @@ static int __vgt_scan_vring(struct vgt_device *vgt, int ring_id, vgt_reg_t head,
  
  	klog_printk("ring buffer scan end on ring %d\n", ring_id);
  	vgt_dbg(VGT_DBG_CMD, "scan_end\n");
@@ -555,10 +553,11 @@ diff -aur XenGT-Server-kernel-old/drivers/gpu/drm/i915/vgt/cmd_parser.c XenGT-Se
  	return rc;
  }
  
-diff -aur XenGT-Server-kernel-old/drivers/gpu/drm/i915/vgt/cmd_parser.h XenGT-Server-kernel/drivers/gpu/drm/i915/vgt/cmd_parser.h
---- XenGT-Server-kernel-old/drivers/gpu/drm/i915/vgt/cmd_parser.h	2015-06-05 11:58:39.053189796 +0100
-+++ XenGT-Server-kernel/drivers/gpu/drm/i915/vgt/cmd_parser.h	2015-06-05 09:28:44.755454165 +0100
-@@ -481,6 +481,9 @@
+diff --git a/drivers/gpu/drm/i915/vgt/cmd_parser.h b/drivers/gpu/drm/i915/vgt/cmd_parser.h
+index 09c61cb..202eab0 100644
+--- a/drivers/gpu/drm/i915/vgt/cmd_parser.h
++++ b/drivers/gpu/drm/i915/vgt/cmd_parser.h
+@@ -481,6 +481,9 @@ struct parser_exec_state {
  	bool cmd_issue_irq;
  
  	struct cmd_info* info;
@@ -568,10 +567,11 @@ diff -aur XenGT-Server-kernel-old/drivers/gpu/drm/i915/vgt/cmd_parser.h XenGT-Se
  };
  
  #define CMD_TAIL_NUM	1024
-diff -aur XenGT-Server-kernel-old/drivers/gpu/drm/i915/vgt/debugfs.c XenGT-Server-kernel/drivers/gpu/drm/i915/vgt/debugfs.c
---- XenGT-Server-kernel-old/drivers/gpu/drm/i915/vgt/debugfs.c	2015-06-05 11:58:39.053189796 +0100
-+++ XenGT-Server-kernel/drivers/gpu/drm/i915/vgt/debugfs.c	2015-06-05 09:28:44.755454165 +0100
-@@ -102,6 +102,8 @@
+diff --git a/drivers/gpu/drm/i915/vgt/debugfs.c b/drivers/gpu/drm/i915/vgt/debugfs.c
+index a51dfa4..afd8d78 100644
+--- a/drivers/gpu/drm/i915/vgt/debugfs.c
++++ b/drivers/gpu/drm/i915/vgt/debugfs.c
+@@ -102,6 +102,8 @@ enum vgt_debugfs_entry_t
  	VGT_DEBUGFS_FB_FORMAT,
  	VGT_DEBUGFS_DPY_INFO,
  	VGT_DEBUGFS_VIRTUAL_GTT,
@@ -580,7 +580,7 @@ diff -aur XenGT-Server-kernel-old/drivers/gpu/drm/i915/vgt/debugfs.c XenGT-Serve
  	VGT_DEBUGFS_ENTRY_MAX
  };
  
-@@ -727,6 +729,166 @@
+@@ -727,6 +729,166 @@ static const struct file_operations virt_dpyinfo_fops = {
  	.release = single_release,
  };
  
@@ -747,7 +747,7 @@ diff -aur XenGT-Server-kernel-old/drivers/gpu/drm/i915/vgt/debugfs.c XenGT-Serve
  static int vgt_device_reset_show(struct seq_file *m, void *data)
  {
  	struct pgt_device *pdev = (struct pgt_device *)m->private;
-@@ -858,6 +1020,43 @@
+@@ -858,6 +1020,43 @@ static const struct file_operations vgt_debug_fops = {
  	.release = single_release,
  };
  
@@ -791,7 +791,7 @@ diff -aur XenGT-Server-kernel-old/drivers/gpu/drm/i915/vgt/debugfs.c XenGT-Serve
  static int vgt_el_status_show(struct seq_file *m, void *data)
  {
  	struct pgt_device *pdev = (struct pgt_device *)m->private;
-@@ -935,6 +1134,11 @@
+@@ -935,6 +1134,11 @@ struct dentry *vgt_init_debugfs(struct pgt_device *pdev)
  	if (!temp_d)
  		return NULL;
  
@@ -803,7 +803,7 @@ diff -aur XenGT-Server-kernel-old/drivers/gpu/drm/i915/vgt/debugfs.c XenGT-Serve
  	temp_d = debugfs_create_file("show_el_status", 0444, d_vgt_debug,
  		pdev, &vgt_el_status_fops);
  	if (!temp_d)
-@@ -1076,6 +1280,22 @@
+@@ -1076,6 +1280,22 @@ int vgt_create_debugfs(struct vgt_device *vgt)
  		printk("vGT(%d): create debugfs node: virtual_mmio_space\n", vgt_id);
  	/* end of virtual gtt space dump */
  
@@ -826,7 +826,7 @@ diff -aur XenGT-Server-kernel-old/drivers/gpu/drm/i915/vgt/debugfs.c XenGT-Serve
  	d_debugfs_entry[vgt_id][VGT_DEBUGFS_FB_FORMAT] = debugfs_create_file("frame_buffer_format",
  			0444, d_per_vgt[vgt_id], vgt, &fbinfo_fops);
  
-@@ -1116,8 +1336,18 @@
+@@ -1116,8 +1336,18 @@ int vgt_create_debugfs(struct vgt_device *vgt)
  		debugfs_create_u64_node ("total_cmds", 0444, perf_dir_entry, &(vgt->total_cmds));
  		debugfs_create_u64_node ("vring_scan_cnt", 0444, perf_dir_entry, &(vgt->stat.vring_scan_cnt));
  		debugfs_create_u64_node ("vring_scan_cycles", 0444, perf_dir_entry, &(vgt->stat.vring_scan_cycles));
@@ -845,10 +845,11 @@ diff -aur XenGT-Server-kernel-old/drivers/gpu/drm/i915/vgt/debugfs.c XenGT-Serve
  		debugfs_create_u64_node ("skip_bb_cnt", 0444, perf_dir_entry, &(vgt->stat.skip_bb_cnt));
  
  		/* cmd statistics for ring/batch buffers */
-diff -aur XenGT-Server-kernel-old/drivers/gpu/drm/i915/vgt/execlists.c XenGT-Server-kernel/drivers/gpu/drm/i915/vgt/execlists.c
---- XenGT-Server-kernel-old/drivers/gpu/drm/i915/vgt/execlists.c	2015-06-05 11:58:39.057189866 +0100
-+++ XenGT-Server-kernel/drivers/gpu/drm/i915/vgt/execlists.c	2015-06-05 09:28:44.756454180 +0100
-@@ -1098,40 +1098,6 @@
+diff --git a/drivers/gpu/drm/i915/vgt/execlists.c b/drivers/gpu/drm/i915/vgt/execlists.c
+index 7e48327..0c9f467 100644
+--- a/drivers/gpu/drm/i915/vgt/execlists.c
++++ b/drivers/gpu/drm/i915/vgt/execlists.c
+@@ -1098,40 +1098,6 @@ static inline void vgt_add_ctx_switch_status(struct vgt_device *vgt, enum vgt_ri
  	vgt->rb[ring_id].csb_write_ptr = write_idx;
  }
  
@@ -889,7 +890,7 @@ diff -aur XenGT-Server-kernel-old/drivers/gpu/drm/i915/vgt/execlists.c XenGT-Ser
  static void vgt_emulate_context_status_change(struct vgt_device *vgt,
  				enum vgt_ring_id ring_id,
  				struct context_status_format *ctx_status)
-@@ -1180,9 +1146,6 @@
+@@ -1180,9 +1146,6 @@ static void vgt_emulate_context_status_change(struct vgt_device *vgt,
  		goto emulation_done;
  	}
  
@@ -899,7 +900,7 @@ diff -aur XenGT-Server-kernel-old/drivers/gpu/drm/i915/vgt/execlists.c XenGT-Ser
  	if (!vgt_require_shadow_context(vgt))
  		goto emulation_done;
  
-@@ -1379,6 +1342,8 @@
+@@ -1379,6 +1342,8 @@ static inline bool vgt_hw_ELSP_write(struct vgt_device *vgt,
  
  	ASSERT(ctx0 && ctx1);
  
@@ -908,7 +909,7 @@ diff -aur XenGT-Server-kernel-old/drivers/gpu/drm/i915/vgt/execlists.c XenGT-Ser
  	vgt_dbg(VGT_DBG_EXECLIST, "EXECLIST is submitted into hardware! "
  			"Writing 0x%x with: 0x%x; 0x%x; 0x%x; 0x%x\n",
  			reg,
-@@ -1467,9 +1432,6 @@
+@@ -1467,9 +1432,6 @@ void vgt_kick_off_execlists(struct vgt_device *vgt)
  	for (i = 0; i < pdev->max_engines; i ++) {
  		int j;
  		int num = vgt_el_slots_number(&vgt->rb[i]);
@@ -918,7 +919,7 @@ diff -aur XenGT-Server-kernel-old/drivers/gpu/drm/i915/vgt/execlists.c XenGT-Ser
  		if (num == 2)
  			vgt_dbg(VGT_DBG_EXECLIST,
  				"VM(%d) Ring-%d: Preemption is met while "
-@@ -1508,59 +1470,6 @@
+@@ -1508,59 +1470,6 @@ bool vgt_idle_execlist(struct pgt_device *pdev, enum vgt_ring_id ring_id)
  	return true;
  }
  
@@ -978,7 +979,7 @@ diff -aur XenGT-Server-kernel-old/drivers/gpu/drm/i915/vgt/execlists.c XenGT-Ser
  void vgt_submit_execlist(struct vgt_device *vgt, enum vgt_ring_id ring_id)
  {
  	int i;
-@@ -1606,8 +1515,6 @@
+@@ -1606,8 +1515,6 @@ void vgt_submit_execlist(struct vgt_device *vgt, enum vgt_ring_id ring_id)
  		trace_ctx_lifecycle(vgt->vm_id, ring_id,
  			ctx->guest_context.lrca, "schedule_to_run");
  
@@ -987,10 +988,11 @@ diff -aur XenGT-Server-kernel-old/drivers/gpu/drm/i915/vgt/execlists.c XenGT-Ser
  		if (!vgt_require_shadow_context(vgt))
  			continue;
  
-diff -aur XenGT-Server-kernel-old/drivers/gpu/drm/i915/vgt/fb_decoder.c XenGT-Server-kernel/drivers/gpu/drm/i915/vgt/fb_decoder.c
---- XenGT-Server-kernel-old/drivers/gpu/drm/i915/vgt/fb_decoder.c	2015-06-05 11:58:39.065190002 +0100
-+++ XenGT-Server-kernel/drivers/gpu/drm/i915/vgt/fb_decoder.c	2015-06-05 09:28:44.756454180 +0100
-@@ -399,8 +399,8 @@
+diff --git a/drivers/gpu/drm/i915/vgt/fb_decoder.c b/drivers/gpu/drm/i915/vgt/fb_decoder.c
+index cbb4cd2..0b4bef2 100644
+--- a/drivers/gpu/drm/i915/vgt/fb_decoder.c
++++ b/drivers/gpu/drm/i915/vgt/fb_decoder.c
+@@ -399,8 +399,8 @@ int vgt_decode_fb_format(int vmid, struct vgt_fb_format *fb)
  	if (!fb)
  		return -EINVAL;
  
@@ -1001,10 +1003,11 @@ diff -aur XenGT-Server-kernel-old/drivers/gpu/drm/i915/vgt/fb_decoder.c XenGT-Se
  		return -EINVAL;
  	}
  
-diff -aur XenGT-Server-kernel-old/drivers/gpu/drm/i915/vgt/gtt.c XenGT-Server-kernel/drivers/gpu/drm/i915/vgt/gtt.c
---- XenGT-Server-kernel-old/drivers/gpu/drm/i915/vgt/gtt.c	2015-06-05 11:58:39.066190019 +0100
-+++ XenGT-Server-kernel/drivers/gpu/drm/i915/vgt/gtt.c	2015-06-05 09:28:44.756454180 +0100
-@@ -511,17 +511,24 @@
+diff --git a/drivers/gpu/drm/i915/vgt/gtt.c b/drivers/gpu/drm/i915/vgt/gtt.c
+index f94b497..dd1fc80 100644
+--- a/drivers/gpu/drm/i915/vgt/gtt.c
++++ b/drivers/gpu/drm/i915/vgt/gtt.c
+@@ -511,17 +511,24 @@ bool vgt_init_guest_page(struct vgt_device *vgt, guest_page_t *guest_page,
  	guest_page->gfn = gfn;
  	guest_page->handler = handler;
  	guest_page->data = data;
@@ -1029,7 +1032,7 @@ diff -aur XenGT-Server-kernel-old/drivers/gpu/drm/i915/vgt/gtt.c XenGT-Server-ke
  	if (guest_page->writeprotection)
  		hypervisor_unset_wp_pages(vgt, guest_page);
  }
-@@ -529,10 +536,23 @@
+@@ -529,10 +536,23 @@ void vgt_clean_guest_page(struct vgt_device *vgt, guest_page_t *guest_page)
  guest_page_t *vgt_find_guest_page(struct vgt_device *vgt, unsigned long gfn)
  {
  	guest_page_t *guest_page;
@@ -1055,7 +1058,7 @@ diff -aur XenGT-Server-kernel-old/drivers/gpu/drm/i915/vgt/gtt.c XenGT-Server-ke
  
  	return NULL;
  }
-@@ -564,12 +584,24 @@
+@@ -564,12 +584,24 @@ static inline shadow_page_t *vgt_find_shadow_page(struct vgt_device *vgt,
  		unsigned long mfn)
  {
  	shadow_page_t *shadow_page;
@@ -1081,7 +1084,7 @@ diff -aur XenGT-Server-kernel-old/drivers/gpu/drm/i915/vgt/gtt.c XenGT-Server-ke
  	return NULL;
  }
  
-@@ -607,6 +639,10 @@
+@@ -607,6 +639,10 @@ static bool ppgtt_handle_guest_write_page_table_bytes(void *gp,
  static bool ppgtt_write_protection_handler(void *gp, uint64_t pa, void *p_data, int bytes)
  {
  	guest_page_t *gpt = (guest_page_t *)gp;
@@ -1092,7 +1095,7 @@ diff -aur XenGT-Server-kernel-old/drivers/gpu/drm/i915/vgt/gtt.c XenGT-Server-ke
  
  	if (bytes != 4 && bytes != 8)
  		return false;
-@@ -614,8 +650,17 @@
+@@ -614,8 +650,17 @@ static bool ppgtt_write_protection_handler(void *gp, uint64_t pa, void *p_data,
  	if (!gpt->writeprotection)
  		return false;
  
@@ -1112,7 +1115,7 @@ diff -aur XenGT-Server-kernel-old/drivers/gpu/drm/i915/vgt/gtt.c XenGT-Server-ke
  }
  
  static ppgtt_spt_t *ppgtt_alloc_shadow_page(struct vgt_device *vgt,
-@@ -902,6 +947,154 @@
+@@ -902,6 +947,154 @@ fail:
  	return false;
  }
  
@@ -1267,7 +1270,7 @@ diff -aur XenGT-Server-kernel-old/drivers/gpu/drm/i915/vgt/gtt.c XenGT-Server-ke
  /*
   * The heart of PPGTT shadow page table.
   */
-@@ -940,6 +1133,13 @@
+@@ -940,6 +1133,13 @@ fail:
  	return false;
  }
  
@@ -1281,7 +1284,7 @@ diff -aur XenGT-Server-kernel-old/drivers/gpu/drm/i915/vgt/gtt.c XenGT-Server-ke
  static bool ppgtt_handle_guest_write_page_table_bytes(void *gp,
  		uint64_t pa, void *p_data, int bytes)
  {
-@@ -984,7 +1184,32 @@
+@@ -984,7 +1184,32 @@ static bool ppgtt_handle_guest_write_page_table_bytes(void *gp,
  
  	ops->test_pse(&we);
  
@@ -1315,7 +1318,7 @@ diff -aur XenGT-Server-kernel-old/drivers/gpu/drm/i915/vgt/gtt.c XenGT-Server-ke
  }
  
  bool ppgtt_handle_guest_write_root_pointer(struct vgt_mm *mm,
-@@ -1692,6 +1917,7 @@
+@@ -1692,6 +1917,7 @@ bool vgt_init_vgtt(struct vgt_device *vgt)
  	hash_init(gtt->el_ctx_hash_table);
  
  	INIT_LIST_HEAD(&gtt->mm_list_head);
@@ -1323,7 +1326,7 @@ diff -aur XenGT-Server-kernel-old/drivers/gpu/drm/i915/vgt/gtt.c XenGT-Server-ke
  
  	if (!vgt_expand_shadow_page_mempool(vgt->pdev)) {
  		vgt_err("fail to expand the shadow page mempool.");
-@@ -1727,6 +1953,57 @@
+@@ -1727,6 +1953,57 @@ void vgt_clean_vgtt(struct vgt_device *vgt)
  	return;
  }
  
@@ -1381,7 +1384,7 @@ diff -aur XenGT-Server-kernel-old/drivers/gpu/drm/i915/vgt/gtt.c XenGT-Server-ke
  bool vgt_gtt_init(struct pgt_device *pdev)
  {
  	if (IS_PREBDW(pdev)) {
-@@ -1737,6 +2014,8 @@
+@@ -1737,6 +2014,8 @@ bool vgt_gtt_init(struct pgt_device *pdev)
  
  		if (preallocated_shadow_pages == -1)
  			preallocated_shadow_pages = 512;
@@ -1390,7 +1393,7 @@ diff -aur XenGT-Server-kernel-old/drivers/gpu/drm/i915/vgt/gtt.c XenGT-Server-ke
  	} else if (IS_BDW(pdev)) {
  		pdev->gtt.pte_ops = &gen8_gtt_pte_ops;
  		pdev->gtt.gma_ops = &gen8_gtt_gma_ops;
-@@ -1745,17 +2024,27 @@
+@@ -1745,17 +2024,27 @@ bool vgt_gtt_init(struct pgt_device *pdev)
  
  		if (preallocated_shadow_pages == -1)
  			preallocated_shadow_pages = 8192;
@@ -1418,7 +1421,7 @@ diff -aur XenGT-Server-kernel-old/drivers/gpu/drm/i915/vgt/gtt.c XenGT-Server-ke
  		return false;
  	}
  
-@@ -1764,6 +2053,9 @@
+@@ -1764,6 +2053,9 @@ bool vgt_gtt_init(struct pgt_device *pdev)
  
  void vgt_gtt_clean(struct pgt_device *pdev)
  {
@@ -1428,10 +1431,11 @@ diff -aur XenGT-Server-kernel-old/drivers/gpu/drm/i915/vgt/gtt.c XenGT-Server-ke
  	mempool_destroy(pdev->gtt.mempool);
  }
  
-diff -aur XenGT-Server-kernel-old/drivers/gpu/drm/i915/vgt/handlers.c XenGT-Server-kernel/drivers/gpu/drm/i915/vgt/handlers.c
---- XenGT-Server-kernel-old/drivers/gpu/drm/i915/vgt/handlers.c	2015-06-05 11:58:39.066190019 +0100
-+++ XenGT-Server-kernel/drivers/gpu/drm/i915/vgt/handlers.c	2015-06-05 09:28:44.757454195 +0100
-@@ -1929,6 +1929,8 @@
+diff --git a/drivers/gpu/drm/i915/vgt/handlers.c b/drivers/gpu/drm/i915/vgt/handlers.c
+index 8d58ffb..cf8f3ba 100644
+--- a/drivers/gpu/drm/i915/vgt/handlers.c
++++ b/drivers/gpu/drm/i915/vgt/handlers.c
+@@ -1929,6 +1929,8 @@ static bool pvinfo_read(struct vgt_device *vgt, unsigned int offset,
  			 *   *((unsigned int *)p_data)) = VGT_V2G_SET_SW_CURSOR;
  			 */
  			break;
@@ -1440,10 +1444,11 @@ diff -aur XenGT-Server-kernel-old/drivers/gpu/drm/i915/vgt/handlers.c XenGT-Serv
  		default:
  			invalid_read = true;
  			break;
-diff -aur XenGT-Server-kernel-old/drivers/gpu/drm/i915/vgt/instance.c XenGT-Server-kernel/drivers/gpu/drm/i915/vgt/instance.c
---- XenGT-Server-kernel-old/drivers/gpu/drm/i915/vgt/instance.c	2015-06-05 11:58:39.067190036 +0100
-+++ XenGT-Server-kernel/drivers/gpu/drm/i915/vgt/instance.c	2015-06-05 09:28:44.757454195 +0100
-@@ -320,6 +320,9 @@
+diff --git a/drivers/gpu/drm/i915/vgt/instance.c b/drivers/gpu/drm/i915/vgt/instance.c
+index 80a40dd..e8e2c41 100644
+--- a/drivers/gpu/drm/i915/vgt/instance.c
++++ b/drivers/gpu/drm/i915/vgt/instance.c
+@@ -320,6 +320,9 @@ int create_vgt_instance(struct pgt_device *pdev, struct vgt_device **ptr_vgt, vg
  	if (shadow_tail_based_qos)
  		vgt_init_rb_tailq(vgt);
  
@@ -1453,10 +1458,11 @@ diff -aur XenGT-Server-kernel-old/drivers/gpu/drm/i915/vgt/instance.c XenGT-Serv
  	vgt->warn_untrack = 1;
  	return 0;
  err:
-diff -aur XenGT-Server-kernel-old/drivers/gpu/drm/i915/vgt/mmio.c XenGT-Server-kernel/drivers/gpu/drm/i915/vgt/mmio.c
---- XenGT-Server-kernel-old/drivers/gpu/drm/i915/vgt/mmio.c	2015-06-05 11:58:39.087190380 +0100
-+++ XenGT-Server-kernel/drivers/gpu/drm/i915/vgt/mmio.c	2015-06-05 09:28:44.757454195 +0100
-@@ -261,6 +261,30 @@
+diff --git a/drivers/gpu/drm/i915/vgt/mmio.c b/drivers/gpu/drm/i915/vgt/mmio.c
+index a3edd9b..0b8686c 100644
+--- a/drivers/gpu/drm/i915/vgt/mmio.c
++++ b/drivers/gpu/drm/i915/vgt/mmio.c
+@@ -262,6 +262,30 @@ static inline bool valid_mmio_alignment(struct vgt_mmio_entry *mht,
  	return false;
  }
  
@@ -1487,7 +1493,7 @@ diff -aur XenGT-Server-kernel-old/drivers/gpu/drm/i915/vgt/mmio.c XenGT-Server-k
  /*
   * Emulate the VGT MMIO register read ops.
   * Return : true/false
-@@ -345,6 +369,8 @@
+@@ -346,6 +370,8 @@ bool vgt_emulate_read(struct vgt_device *vgt, uint64_t pa, void *p_data,int byte
  	t1 = get_cycles();
  	stat->mmio_rcnt++;
  	stat->mmio_rcycles += t1 - t0;
@@ -1496,7 +1502,7 @@ diff -aur XenGT-Server-kernel-old/drivers/gpu/drm/i915/vgt/mmio.c XenGT-Server-k
  	return true;
  err_mmio:
  	vgt_unlock_dev_flags(pdev, cpu, flags);
-@@ -381,6 +407,9 @@
+@@ -382,6 +408,9 @@ bool vgt_emulate_write(struct vgt_device *vgt, uint64_t pa,
  		guest_page = vgt_find_guest_page(vgt, pa >> PAGE_SHIFT);
  		if (guest_page) {
  			rc = guest_page->handler(guest_page, pa, p_data, bytes);
@@ -1506,7 +1512,7 @@ diff -aur XenGT-Server-kernel-old/drivers/gpu/drm/i915/vgt/mmio.c XenGT-Server-k
  			vgt_unlock_dev_flags(pdev, cpu, flags);
  			return rc;
  		}
-@@ -465,6 +494,7 @@
+@@ -466,6 +495,7 @@ bool vgt_emulate_write(struct vgt_device *vgt, uint64_t pa,
  	t1 = get_cycles();
  	stat->mmio_wcycles += t1 - t0;
  	stat->mmio_wcnt++;
@@ -1514,10 +1520,11 @@ diff -aur XenGT-Server-kernel-old/drivers/gpu/drm/i915/vgt/mmio.c XenGT-Server-k
  	return true;
  err_mmio:
  	vgt_unlock_dev_flags(pdev, cpu, flags);
-diff -aur XenGT-Server-kernel-old/drivers/gpu/drm/i915/vgt/render.c XenGT-Server-kernel/drivers/gpu/drm/i915/vgt/render.c
---- XenGT-Server-kernel-old/drivers/gpu/drm/i915/vgt/render.c	2015-06-05 11:58:39.088190397 +0100
-+++ XenGT-Server-kernel/drivers/gpu/drm/i915/vgt/render.c	2015-06-05 09:28:44.757454195 +0100
-@@ -1319,6 +1319,7 @@
+diff --git a/drivers/gpu/drm/i915/vgt/render.c b/drivers/gpu/drm/i915/vgt/render.c
+index ab4382e..a5d8749 100644
+--- a/drivers/gpu/drm/i915/vgt/render.c
++++ b/drivers/gpu/drm/i915/vgt/render.c
+@@ -1319,6 +1319,7 @@ static struct reg_mask_t rcs_reset_mmio[] = {
  	{0x2044, 0},
  
  	{0x20a0, 0},
@@ -1525,9 +1532,10 @@ diff -aur XenGT-Server-kernel-old/drivers/gpu/drm/i915/vgt/render.c XenGT-Server
  	{0x7004, 1},
  	{0x20dc, 1},
  
-diff -aur XenGT-Server-kernel-old/drivers/gpu/drm/i915/vgt/trace.h XenGT-Server-kernel/drivers/gpu/drm/i915/vgt/trace.h
---- XenGT-Server-kernel-old/drivers/gpu/drm/i915/vgt/trace.h	2015-06-05 11:58:39.088190397 +0100
-+++ XenGT-Server-kernel/drivers/gpu/drm/i915/vgt/trace.h	2015-06-05 09:28:44.758454211 +0100
+diff --git a/drivers/gpu/drm/i915/vgt/trace.h b/drivers/gpu/drm/i915/vgt/trace.h
+index 457ec0e..1b29e7f 100644
+--- a/drivers/gpu/drm/i915/vgt/trace.h
++++ b/drivers/gpu/drm/i915/vgt/trace.h
 @@ -23,6 +23,7 @@
  #include <linux/types.h>
  #include <linux/stringify.h>
@@ -1536,7 +1544,7 @@ diff -aur XenGT-Server-kernel-old/drivers/gpu/drm/i915/vgt/trace.h XenGT-Server-
  
  #undef TRACE_SYSTEM
  #define TRACE_SYSTEM vgt
-@@ -60,11 +61,11 @@
+@@ -60,11 +61,11 @@ TRACE_EVENT(vgt_mmio_rw,
  				__entry->bytes)
  );
  
@@ -1551,7 +1559,7 @@ diff -aur XenGT-Server-kernel-old/drivers/gpu/drm/i915/vgt/trace.h XenGT-Server-
  
  		TP_STRUCT__entry(
  			__field(u8, vm_id)
-@@ -78,7 +79,7 @@
+@@ -78,7 +79,7 @@ TRACE_EVENT(vgt_command,
  			__entry->vm_id = vm_id;
  			__entry->ring_id = ring_id;
  			__entry->cmd_str[0] = '\0';
@@ -1560,7 +1568,7 @@ diff -aur XenGT-Server-kernel-old/drivers/gpu/drm/i915/vgt/trace.h XenGT-Server-
  			strcat(__entry->cmd_str, __entry->tmp_buf);
  			entry->i = 0;
  			while (cmd_len > 0) {
-@@ -251,6 +252,40 @@
+@@ -251,6 +252,40 @@ TRACE_EVENT(gpt_change,
  		TP_printk("%s", __entry->buf)
  );
  
@@ -1601,10 +1609,34 @@ diff -aur XenGT-Server-kernel-old/drivers/gpu/drm/i915/vgt/trace.h XenGT-Server-
  TRACE_EVENT(ctx_lifecycle,
  		TP_PROTO(int vm_id, int ring_id,
  				uint32_t guest_lrca, const char *action),
-diff -aur XenGT-Server-kernel-old/drivers/gpu/drm/i915/vgt/vgt.c XenGT-Server-kernel/drivers/gpu/drm/i915/vgt/vgt.c
---- XenGT-Server-kernel-old/drivers/gpu/drm/i915/vgt/vgt.c	2015-06-05 11:58:39.089190414 +0100
-+++ XenGT-Server-kernel/drivers/gpu/drm/i915/vgt/vgt.c	2015-06-05 09:28:44.758454211 +0100
-@@ -97,6 +97,14 @@
+diff --git a/drivers/gpu/drm/i915/vgt/vgt-if.h b/drivers/gpu/drm/i915/vgt/vgt-if.h
+index 35e8d58..410d92e 100644
+--- a/drivers/gpu/drm/i915/vgt/vgt-if.h
++++ b/drivers/gpu/drm/i915/vgt/vgt-if.h
+@@ -75,12 +75,17 @@ enum vgt_v2g_type {
+ 	VGT_V2G_MAX,
+ };
+ 
++enum vgt_caps_type {
++	VGT_CAPS_PREEMPTION = (1 << 0),
++};
++
+ struct vgt_if {
+     uint64_t  magic;      /* VGT_MAGIC */
+     uint16_t  version_major;
+     uint16_t  version_minor;
+     uint32_t  vgt_id;       /* ID of vGT instance */
+-    uint32_t  rsv2[12];	    /* pad to offset 0x40 */
++    uint32_t  vgt_caps;     /* VGT capabilties */
++    uint32_t  rsv2[11];	    /* pad to offset 0x40 */
+     /*
+      *  Data structure to describe the balooning info of resources.
+      *  Each VM can only have one portion of continuous area for now.
+diff --git a/drivers/gpu/drm/i915/vgt/vgt.c b/drivers/gpu/drm/i915/vgt/vgt.c
+index a2a5383..9b4d570 100644
+--- a/drivers/gpu/drm/i915/vgt/vgt.c
++++ b/drivers/gpu/drm/i915/vgt/vgt.c
+@@ -97,6 +97,14 @@ int preallocated_shadow_pages = -1;
  module_param_named(preallocated_shadow_pages, preallocated_shadow_pages, int, 0600);
  MODULE_PARM_DESC(preallocated_shadow_pages, "Amount of pre-allocated shadow pages");
  
@@ -1619,7 +1651,7 @@ diff -aur XenGT-Server-kernel-old/drivers/gpu/drm/i915/vgt/vgt.c XenGT-Server-ke
  /*
   * FIXME: now video ring switch has weird issue. The cmd
   * parser may enter endless loop even when head/tail is
-@@ -135,6 +143,9 @@
+@@ -135,6 +143,9 @@ module_param_named(bypass_scan, bypass_scan_mask, int, 0600);
  bool bypass_dom0_addr_check = false;
  module_param_named(bypass_dom0_addr_check, bypass_dom0_addr_check, bool, 0600);
  
@@ -1629,7 +1661,7 @@ diff -aur XenGT-Server-kernel-old/drivers/gpu/drm/i915/vgt/vgt.c XenGT-Server-ke
  bool enable_panel_fitting = true;
  module_param_named(enable_panel_fitting, enable_panel_fitting, bool, 0600);
  
-@@ -785,15 +796,6 @@
+@@ -785,15 +796,6 @@ static int vgt_initialize(struct pci_dev *dev)
  
  	printk("vgt_initialize succeeds.\n");
  
@@ -1645,10 +1677,11 @@ diff -aur XenGT-Server-kernel-old/drivers/gpu/drm/i915/vgt/vgt.c XenGT-Server-ke
  	return 0;
  err:
  	printk("vgt_initialize failed.\n");
-diff -aur XenGT-Server-kernel-old/drivers/gpu/drm/i915/vgt/vgt.h XenGT-Server-kernel/drivers/gpu/drm/i915/vgt/vgt.h
---- XenGT-Server-kernel-old/drivers/gpu/drm/i915/vgt/vgt.h	2015-06-05 11:58:39.090190431 +0100
-+++ XenGT-Server-kernel/drivers/gpu/drm/i915/vgt/vgt.h	2015-06-05 09:28:44.770454396 +0100
-@@ -90,6 +90,9 @@
+diff --git a/drivers/gpu/drm/i915/vgt/vgt.h b/drivers/gpu/drm/i915/vgt/vgt.h
+index e2a4ec5..78d2a1a 100644
+--- a/drivers/gpu/drm/i915/vgt/vgt.h
++++ b/drivers/gpu/drm/i915/vgt/vgt.h
+@@ -90,6 +90,9 @@ extern bool wp_submitted_ctx;
  extern bool propagate_monitor_to_guest;
  extern bool irq_based_ctx_switch;
  extern int preallocated_shadow_pages;
@@ -1658,7 +1691,7 @@ diff -aur XenGT-Server-kernel-old/drivers/gpu/drm/i915/vgt/vgt.h XenGT-Server-ke
  
  enum vgt_event_type {
  	// GT
-@@ -402,7 +405,6 @@
+@@ -402,7 +405,6 @@ typedef struct {
  	struct vgt_exec_list execlist_slots[EL_QUEUE_SLOT_NUM];
  	struct vgt_elsp_store elsp_store;
  	int csb_write_ptr;
@@ -1666,7 +1699,7 @@ diff -aur XenGT-Server-kernel-old/drivers/gpu/drm/i915/vgt/vgt.h XenGT-Server-ke
  } vgt_state_ring_t;
  
  #define vgt_el_queue_head(vgt, ring_id) \
-@@ -428,7 +430,7 @@
+@@ -428,7 +430,7 @@ struct vgt_mmio_entry {
  	vgt_mmio_write	write;
  };
  
@@ -1675,7 +1708,7 @@ diff -aur XenGT-Server-kernel-old/drivers/gpu/drm/i915/vgt/vgt.h XenGT-Server-ke
  
  /*
   * Ring ID definition.
-@@ -613,6 +615,7 @@
+@@ -613,6 +615,7 @@ struct vgt_vgtt_info {
  	DECLARE_HASHTABLE(guest_page_hash_table, VGT_HASH_BITS);
  	DECLARE_HASHTABLE(el_ctx_hash_table, VGT_HASH_BITS);
  	atomic_t n_write_protected_guest_page;
@@ -1683,7 +1716,7 @@ diff -aur XenGT-Server-kernel-old/drivers/gpu/drm/i915/vgt/vgt.h XenGT-Server-ke
  };
  
  extern bool vgt_init_vgtt(struct vgt_device *vgt);
-@@ -631,6 +634,8 @@
+@@ -631,6 +634,8 @@ extern struct vgt_mm *gen8_find_ppgtt_mm(struct vgt_device *vgt,
  
  typedef bool guest_page_handler_t(void *gp, uint64_t pa, void *p_data, int bytes);
  
@@ -1692,7 +1725,7 @@ diff -aur XenGT-Server-kernel-old/drivers/gpu/drm/i915/vgt/vgt.h XenGT-Server-ke
  struct guest_page {
  	struct hlist_node node;
  	int writeprotection;
-@@ -638,9 +643,21 @@
+@@ -638,9 +643,21 @@ struct guest_page {
  	void *vaddr;
  	guest_page_handler_t *handler;
  	void *data;
@@ -1714,7 +1747,7 @@ diff -aur XenGT-Server-kernel-old/drivers/gpu/drm/i915/vgt/vgt.h XenGT-Server-ke
  typedef struct {
  	shadow_page_t shadow_page;
  	guest_page_t guest_page;
-@@ -659,6 +676,7 @@
+@@ -659,6 +676,7 @@ extern bool vgt_clear_guest_page_writeprotection(struct vgt_device *vgt,
  extern guest_page_t *vgt_find_guest_page(struct vgt_device *vgt, unsigned long gfn);
  
  extern bool gen7_ppgtt_mm_setup(struct vgt_device *vgt, int ring_id);
@@ -1722,7 +1755,7 @@ diff -aur XenGT-Server-kernel-old/drivers/gpu/drm/i915/vgt/vgt.h XenGT-Server-ke
  
  /* shadow context */
  
-@@ -729,6 +747,13 @@
+@@ -729,6 +747,13 @@ extern void vgt_check_pending_context_switch(struct vgt_device *vgt);
  
  struct vgt_irq_virt_state;
  
@@ -1736,7 +1769,7 @@ diff -aur XenGT-Server-kernel-old/drivers/gpu/drm/i915/vgt/vgt.h XenGT-Server-ke
  struct vgt_statistics {
  	u64	schedule_in_time;	/* TSC time when it is last scheduled in */
  	u64	allocated_cycles;
-@@ -760,9 +785,23 @@
+@@ -760,9 +785,23 @@ struct vgt_statistics {
  	u64	ring_tail_mmio_wcycles;
  	u64	vring_scan_cnt;
  	u64	vring_scan_cycles;
@@ -1760,7 +1793,7 @@ diff -aur XenGT-Server-kernel-old/drivers/gpu/drm/i915/vgt/vgt.h XenGT-Server-ke
  };
  
  /* per-VM structure */
-@@ -1100,6 +1139,11 @@
+@@ -1100,6 +1139,11 @@ struct pgt_statistics {
  	u64	virq_cycles;
  	u64	irq_delay_cycles;
  	u64	events[EVENT_MAX];
@@ -1772,7 +1805,7 @@ diff -aur XenGT-Server-kernel-old/drivers/gpu/drm/i915/vgt/vgt.h XenGT-Server-ke
  };
  
  #define PCI_BDF2(b,df)  ((((b) & 0xff) << 8) | ((df) & 0xff))
-@@ -1139,6 +1183,8 @@
+@@ -1139,6 +1183,8 @@ struct vgt_gtt_info {
  	void (*mm_free_page_table)(struct vgt_mm *mm);
  	mempool_t *mempool;
  	struct mutex mempool_lock;
@@ -1781,32 +1814,11 @@ diff -aur XenGT-Server-kernel-old/drivers/gpu/drm/i915/vgt/vgt.h XenGT-Server-ke
  };
  
  /* per-device structure */
-diff -aur XenGT-Server-kernel-old/drivers/gpu/drm/i915/vgt/vgt-if.h XenGT-Server-kernel/drivers/gpu/drm/i915/vgt/vgt-if.h
---- XenGT-Server-kernel-old/drivers/gpu/drm/i915/vgt/vgt-if.h	2015-06-05 11:58:39.088190397 +0100
-+++ XenGT-Server-kernel/drivers/gpu/drm/i915/vgt/vgt-if.h	2015-06-05 09:28:44.758454211 +0100
-@@ -75,12 +75,17 @@
- 	VGT_V2G_MAX,
- };
- 
-+enum vgt_caps_type {
-+	VGT_CAPS_PREEMPTION = (1 << 0),
-+};
-+
- struct vgt_if {
-     uint64_t  magic;      /* VGT_MAGIC */
-     uint16_t  version_major;
-     uint16_t  version_minor;
-     uint32_t  vgt_id;       /* ID of vGT instance */
--    uint32_t  rsv2[12];	    /* pad to offset 0x40 */
-+    uint32_t  vgt_caps;     /* VGT capabilties */
-+    uint32_t  rsv2[11];	    /* pad to offset 0x40 */
-     /*
-      *  Data structure to describe the balooning info of resources.
-      *  Each VM can only have one portion of continuous area for now.
-diff -aur XenGT-Server-kernel-old/include/uapi/drm/i915_drm.h XenGT-Server-kernel/include/uapi/drm/i915_drm.h
---- XenGT-Server-kernel-old/include/uapi/drm/i915_drm.h	2015-06-05 11:58:39.106190705 +0100
-+++ XenGT-Server-kernel/include/uapi/drm/i915_drm.h	2015-06-05 09:28:44.805454936 +0100
-@@ -343,6 +343,7 @@
+diff --git a/include/uapi/drm/i915_drm.h b/include/uapi/drm/i915_drm.h
+index 32d0ea0..f7f1b6f 100644
+--- a/include/uapi/drm/i915_drm.h
++++ b/include/uapi/drm/i915_drm.h
+@@ -343,6 +343,7 @@ typedef struct drm_i915_irq_wait {
  #define I915_PARAM_HAS_WT     	 	 27
  #define I915_PARAM_CMD_PARSER_VERSION	 28
  #define I915_PARAM_HAS_COHERENT_PHYS_GTT 29
@@ -1814,7 +1826,7 @@ diff -aur XenGT-Server-kernel-old/include/uapi/drm/i915_drm.h XenGT-Server-kerne
  
  typedef struct drm_i915_getparam {
  	int param;
-@@ -739,7 +740,13 @@
+@@ -739,7 +740,13 @@ struct drm_i915_gem_execbuffer2 {
   */
  #define I915_EXEC_HANDLE_LUT		(1<<12)
  
@@ -1829,10 +1841,11 @@ diff -aur XenGT-Server-kernel-old/include/uapi/drm/i915_drm.h XenGT-Server-kerne
  
  #define I915_EXEC_CONTEXT_ID_MASK	(0xffffffff)
  #define i915_execbuffer2_set_context_id(eb2, context) \
-diff -aur XenGT-Server-kernel-old/tools/vgt/vgt_perf XenGT-Server-kernel/tools/vgt/vgt_perf
---- XenGT-Server-kernel-old/tools/vgt/vgt_perf	2015-06-05 11:58:39.120190945 +0100
-+++ XenGT-Server-kernel/tools/vgt/vgt_perf	2015-06-05 09:28:44.814455075 +0100
-@@ -172,11 +172,36 @@
+diff --git a/tools/vgt/vgt_perf b/tools/vgt/vgt_perf
+index 9c080de..7162bff 100644
+--- a/tools/vgt/vgt_perf
++++ b/tools/vgt/vgt_perf
+@@ -172,11 +172,36 @@ state_nodes = {
  		"count" : 1,
  		"cycles": 1,
  	},
@@ -1870,7 +1883,7 @@ diff -aur XenGT-Server-kernel-old/tools/vgt/vgt_perf XenGT-Server-kernel/tools/v
  	"MMIO reads" : {
  		"node"	: "mmio_r",
  		"count" : 1,
-@@ -207,11 +232,6 @@
+@@ -207,11 +232,6 @@ state_nodes = {
  		"count" : 1,
  		"cycles": 1,
  	},
@@ -1882,7 +1895,7 @@ diff -aur XenGT-Server-kernel-old/tools/vgt/vgt_perf XenGT-Server-kernel/tools/v
  	"Skipped batch buffers" : {
  		"node"	: "skip_bb_",
  		"count"	: 1,
-@@ -382,12 +402,15 @@
+@@ -382,12 +402,15 @@ def show_result(e, s, r, time):
  		print_param2(e, vs, "MMIO writes", bias)
  		print_param2(e, vs, "GTT reads", bias)
  		print_param2(e, vs, "GTT writes", bias)
@@ -1901,10 +1914,11 @@ diff -aur XenGT-Server-kernel-old/tools/vgt/vgt_perf XenGT-Server-kernel/tools/v
  
  		print "----"
  		print_param2(e, vs, "Ring tail writes", bias)
-diff -aur XenGT-Server-kernel-old/tools/vgt/vgt_report XenGT-Server-kernel/tools/vgt/vgt_report
---- XenGT-Server-kernel-old/tools/vgt/vgt_report	2015-06-05 11:58:39.120190945 +0100
-+++ XenGT-Server-kernel/tools/vgt/vgt_report	2015-06-05 09:28:44.815455091 +0100
-@@ -163,6 +163,12 @@
+diff --git a/tools/vgt/vgt_report b/tools/vgt/vgt_report
+index e4d5c80..35904e8 100644
+--- a/tools/vgt/vgt_report
++++ b/tools/vgt/vgt_report
+@@ -163,6 +163,12 @@ def get_reg_state(reg):
  	return out
  
  def show_reginfo():
@@ -1917,7 +1931,7 @@ diff -aur XenGT-Server-kernel-old/tools/vgt/vgt_report XenGT-Server-kernel/tools
  	print "===================================="
  	print "Owner Type:"
  	print "\tNone, RDR(Render), DPY(Display), PM, MGMT(Management)"
-@@ -181,14 +187,31 @@
+@@ -181,14 +187,31 @@ def show_reginfo():
  	print "\tG - Accessed by GPU CMDs"
  	print "\tU - Tracked but unused"
  
