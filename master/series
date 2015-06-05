@@ -509,3 +509,4 @@ increase-opregion-size.patch
 #
 kernel-configuration
 abi-version
+Q2-patch-drop2.patch
