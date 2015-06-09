@@ -118,6 +118,10 @@ nullblk_3_13.patch
 0001-PCI-Allow-device-quirks-to-exclude-D3-D0-PM-reset.patch
 # 3d7a34ecf6bb446bf0928aa7d7f51acaa8816063 (linux-vfio tree)
 0002-PCI-quirk-AMD-ATI-VGA-cards-to-avoid-PM-reset.patch
+# e2e64a932556cdfae455497dbe94a8db151fc9fa (4.0-rc1)
+0001-genirq-Set-initial-affinity-in-irq_set_affinity_hint.patch
+# 4fe7ffb7e17ca6ad9173b8de35f260c9c8fc2f79 (4.0-rc1)
+0002-genirq-Fix-null-pointer-reference-in-irq_set_affinit.patch
 
 #
 # xen-netback backports
