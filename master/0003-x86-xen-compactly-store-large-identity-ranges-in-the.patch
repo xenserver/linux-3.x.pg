@@ -1,7 +1,8 @@
-From aa84b37f00046cb45b2cb0c242501aa8a9080a6a Mon Sep 17 00:00:00 2001
+From 3cb83e46d032505016ab2565f067e24c8cba9a9d Mon Sep 17 00:00:00 2001
 From: David Vrabel <david.vrabel@citrix.com>
 Date: Tue, 7 Jan 2014 11:44:32 +0000
-Subject: [PATCH 3/9] x86/xen: compactly store large identity ranges in the p2m
+Subject: [PATCH 3/3] x86/xen: compactly store large identity ranges in the
+ p2m
 
 Large (multi-GB) identity ranges currently require a unique middle page
 (filled with p2m_identity entries) per 1 GB region.
@@ -14,12 +15,14 @@ set_phys_range_identity() thus only needs to allocate new middle pages
 at the beginning and end of the range.
 
 Signed-off-by: David Vrabel <david.vrabel@citrix.com>
+Reviewed-by: Konrad Rzeszutek Wilk <konrad.wilk@oracle.com>
+Tested-by: Konrad Rzeszutek Wilk <konrad.wilk@oracle.com>
 ---
  arch/x86/xen/p2m.c |  155 +++++++++++++++++++++++++++++++++++-----------------
- 1 files changed, 105 insertions(+), 50 deletions(-)
+ 1 file changed, 105 insertions(+), 50 deletions(-)
 
 diff --git a/arch/x86/xen/p2m.c b/arch/x86/xen/p2m.c
-index 82c8c93..5d716f7 100644
+index 82c8c93..5700144 100644
 --- a/arch/x86/xen/p2m.c
 +++ b/arch/x86/xen/p2m.c
 @@ -36,7 +36,7 @@
@@ -119,8 +122,8 @@ index 82c8c93..5d716f7 100644
 + *          | | ...             |     \------------/
 + *          | \-----------------/
 + *          |
-+ *          |     p2m_mid_identity 
-+ *          |   /-----------------\     
++ *          |     p2m_mid_identity
++ *          |   /-----------------\
 + *          \-->| [p2m_identity]  +---->[1]
 + *              | [p2m_identity]  +---->[1]
 + *              | ...             |
@@ -353,5 +356,5 @@ index 82c8c93..5d716f7 100644
  			return true;
  
 -- 
-1.7.2.5
+1.7.10.4
 

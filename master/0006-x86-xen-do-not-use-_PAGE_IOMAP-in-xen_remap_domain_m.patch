@@ -1,7 +1,8 @@
-From 3be32e1a39946bfa4e8ded99c3c79643f3fb761e Mon Sep 17 00:00:00 2001
+From f59c5145dc6a079b14b349c388d44362eb813cdf Mon Sep 17 00:00:00 2001
 From: David Vrabel <david.vrabel@citrix.com>
 Date: Wed, 8 Jan 2014 14:00:01 +0000
-Subject: [PATCH 6/9] x86/xen: do not use _PAGE_IOMAP in xen_remap_domain_mfn_range()
+Subject: [PATCH 6/6] x86/xen: do not use _PAGE_IOMAP in
+ xen_remap_domain_mfn_range()
 
 _PAGE_IOMAP is used in xen_remap_domain_mfn_range() to prevent the
 pfn_pte() call in remap_area_mfn_pte_fn() from using the p2m to translate
@@ -9,9 +10,11 @@ the MFN.  If mfn_pte() is used instead, the p2m look up is avoided and
 the use of _PAGE_IOMAP is no longer needed.
 
 Signed-off-by: David Vrabel <david.vrabel@citrix.com>
+Reviewed-by: Konrad Rzeszutek Wilk <konrad.wilk@oracle.com>
+Tested-by: Konrad Rzeszutek Wilk <konrad.wilk@oracle.com>
 ---
  arch/x86/xen/mmu.c |    4 +---
- 1 files changed, 1 insertions(+), 3 deletions(-)
+ 1 file changed, 1 insertion(+), 3 deletions(-)
 
 diff --git a/arch/x86/xen/mmu.c b/arch/x86/xen/mmu.c
 index 86e02ea..d916024 100644
@@ -36,5 +39,5 @@ index 86e02ea..d916024 100644
  
  	rmd.mfn = mfn;
 -- 
-1.7.2.5
+1.7.10.4
 

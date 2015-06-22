@@ -112,6 +112,24 @@ nullblk_3_13.patch
 0002-hwmon-coretemp-Fix-CPU-hotplug-callback-registration.patch
 # d5c9fde3dae750889168807038243ff36431d276 (3.15-rc4)
 0001-mm-page-writeback.c-fix-divide-by-zero-in-pos_ratio_.patch
+# fcca2e3119f3771dcfd0b03b3718b3c51b5f21c3 (3.16-rc1)
+0001-x86-xen-rename-early_p2m_alloc-and-early_p2m_alloc_m.patch
+# a9b5bff66b2a63f7d0f42434f5da9024b442159c (3.16-rc1)
+0002-x86-xen-fix-set_phys_range_identity-if-pfn_e-MAX_P2M.patch
+# 3cb83e46d032505016ab2565f067e24c8cba9a9d (3.16-rc1)
+0003-x86-xen-compactly-store-large-identity-ranges-in-the.patch
+# 2dcc9a3de1d7f77bb4dbc108358a75776328e887 (3.16-rc1)
+0004-x86-xen-only-warn-once-if-bad-MFNs-are-found-during-.patch
+# 25b884a83d487fd62c3de7ac1ab5549979188482 (3.16-rc1)
+0005-x86-xen-set-regions-above-the-end-of-RAM-as-1-1.patch
+# f59c5145dc6a079b14b349c388d44362eb813cdf (3.16-rc1)
+0006-x86-xen-do-not-use-_PAGE_IOMAP-in-xen_remap_domain_m.patch
+# 31668511424110ad470315c6a63dec9a10f1a7ba (3.18-rc1)
+0007-x86-skip-check-for-spurious-faults-for-non-present-f.patch
+# 7f2f88224517cdaad68b772b2a2095b87dc72886 (3.18-rc1)
+0008-x86-xen-do-not-use-_PAGE_IOMAP-PTE-flag-for-I-O-mapp.patch
+# f955371ca9d3986bca100666041fcfa9b6d21962 (3.18-rc1)
+0009-x86-remove-the-Xen-specific-_PAGE_IOMAP-PTE-flag.patch
 # fb9a0c443691ceaab3daba966bbbd9f5ff3aa26f (3.16-rc6)
 0002-xen-balloon-set-ballooned-out-pages-as-invalid-in-p2.patch
 # 3ab5d207c221f061ff99c1f39af468ed948e3577 (linux-vfio tree)
@@ -367,15 +385,6 @@ blktap2-page_pool_get-fix.patch
 #
 # Xen
 # 
-0001-x86-xen-rename-early_p2m_alloc-and-early_p2m_alloc_m.patch
-0002-x86-xen-fix-set_phys_range_identity-if-pfn_e-MAX_P2M.patch
-0003-x86-xen-compactly-store-large-identity-ranges-in-the.patch
-0004-x86-xen-only-warn-once-if-bad-MFNs-are-found-during-.patch
-0005-x86-xen-set-regions-above-the-end-of-RAM-as-1-1.patch
-0006-x86-xen-do-not-use-_PAGE_IOMAP-in-xen_remap_domain_m.patch
-0007-x86-skip-check-for-spurious-faults-for-non-present-f.patch
-0008-x86-xen-do-not-use-_PAGE_IOMAP-PTE-flag-for-I-O-mapp.patch
-0009-x86-remove-the-Xen-specific-_PAGE_IOMAP-PTE-flag.patch
 mmapbatch-performance-improvment.patch
 0001-xen-install-xen-gntdev.h-and-xen-gntalloc.h.patch
 xenbus_xs_errors.patch
