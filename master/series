@@ -118,6 +118,10 @@ nullblk_3_13.patch
 0001-PCI-Allow-device-quirks-to-exclude-D3-D0-PM-reset.patch
 # 3d7a34ecf6bb446bf0928aa7d7f51acaa8816063 (linux-vfio tree)
 0002-PCI-quirk-AMD-ATI-VGA-cards-to-avoid-PM-reset.patch
+# e2e64a932556cdfae455497dbe94a8db151fc9fa (4.0-rc1)
+0001-genirq-Set-initial-affinity-in-irq_set_affinity_hint.patch
+# 4fe7ffb7e17ca6ad9173b8de35f260c9c8fc2f79 (4.0-rc1)
+0002-genirq-Fix-null-pointer-reference-in-irq_set_affinit.patch
 
 #
 # xen-netback backports
@@ -406,6 +410,9 @@ blkback-debug-ring.diff
 0016-xen-events-use-the-FIFO-based-ABI-if-available.patch
 fifo_page_fix.patch
 
+# Event channels
+0001-xen-events-don-t-bind-non-percpu-VIRQs-with-percpu-c.patch
+
 # pciback
 0001-pci-export-pci_probe_reset_function.patch
 0002-xen-pciback-provide-a-reset-sysfs-file-to-try-harder.patch
@@ -429,6 +436,8 @@ netback-xenvif_idx_release-race-fix.patch
 0001-xen-netback-return-correct-ethtool-stats.patch
 0002-xen-netback-unref-frags-when-handling-a-from-guest-s.patch
 netback-avoid-meta-overflow.patch
+0001-xen-netback-Properly-initialize-credit_bytes.patch
+0001-xen-netback-Allocate-fraglist-early-to-avoid-complex.patch
 
 # nvme driver backport
 backport-nvme-driver-from-3.17.patch
@@ -471,7 +480,6 @@ xen-ioemu-inject-msi.patch
 # Debugging/hacks
 #
 0001-xen-oprofile-Patch-from-Michael-Petullo.patch
-ca-160001-unbind_from_irqhandler-debug.patch
 
 # i915 kernel backport for GVT-G
 sync-3.18-drm+i915.patch

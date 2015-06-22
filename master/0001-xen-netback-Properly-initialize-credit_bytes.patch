@@ -1,0 +1,32 @@
+From 07f1a56c1d2d01a1207095d8b2fe554a80b5a531 Mon Sep 17 00:00:00 2001
+From: Ross Lagerwall <ross.lagerwall@citrix.com>
+Date: Mon, 11 May 2015 15:51:03 +0100
+Subject: [PATCH] xen/netback: Properly initialize credit_bytes
+
+Commit e9ce7cb6b107 ("xen-netback: Factor queue-specific data into queue
+struct") introduced a regression when moving queue-specific data into
+the queue struct by failing to set the credit_bytes field. This
+prevented bandwidth limiting from working. Initialize the field as it
+was done before multiqueue support was added.
+
+Signed-off-by: Ross Lagerwall <ross.lagerwall@citrix.com>
+---
+ drivers/net/xen-netback/xenbus.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/net/xen-netback/xenbus.c b/drivers/net/xen-netback/xenbus.c
+index d37b651..3921d79 100644
+--- a/drivers/net/xen-netback/xenbus.c
++++ b/drivers/net/xen-netback/xenbus.c
+@@ -737,7 +737,7 @@ static void connect(struct backend_info *be)
+ 			goto err;
+ 		}
+ 
+-		queue->remaining_credit = credit_bytes;
++		queue->remaining_credit = queue->credit_bytes = credit_bytes;
+ 		queue->credit_usec = credit_usec;
+ 
+ 		err = connect_rings(be, queue);
+-- 
+2.1.0
+
