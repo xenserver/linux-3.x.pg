@@ -1,0 +1,66 @@
+From 2df58b6d35306e8dab48923c9fbe9e1ad17537e2 Mon Sep 17 00:00:00 2001
+From: Juergen Gross <jgross@suse.com>
+Date: Mon, 3 Nov 2014 14:01:52 +0100
+Subject: [PATCH 6/6] x86: Use new cache mode type in arch/x86/mm/init_64.c
+
+Instead of directly using the cache mode bits in the pte switch to
+using the cache mode type.
+
+Based-on-patch-by: Stefan Bader <stefan.bader@canonical.com>
+Signed-off-by: Juergen Gross <jgross@suse.com>
+Reviewed-by: Thomas Gleixner <tglx@linutronix.de>
+Cc: stefan.bader@canonical.com
+Cc: xen-devel@lists.xensource.com
+Cc: konrad.wilk@oracle.com
+Cc: ville.syrjala@linux.intel.com
+Cc: david.vrabel@citrix.com
+Cc: jbeulich@suse.com
+Cc: toshi.kani@hp.com
+Cc: plagnioj@jcrosoft.com
+Cc: tomi.valkeinen@ti.com
+Cc: bhelgaas@google.com
+Link: http://lkml.kernel.org/r/1415019724-4317-7-git-send-email-jgross@suse.com
+Signed-off-by: Thomas Gleixner <tglx@linutronix.de>
+---
+ arch/x86/mm/init_64.c |    9 ++++++---
+ 1 file changed, 6 insertions(+), 3 deletions(-)
+
+diff --git a/arch/x86/mm/init_64.c b/arch/x86/mm/init_64.c
+index ebca30f..bd42786 100644
+--- a/arch/x86/mm/init_64.c
++++ b/arch/x86/mm/init_64.c
+@@ -337,12 +337,15 @@ pte_t * __init populate_extra_pte(unsigned long vaddr)
+  * Create large page table mappings for a range of physical addresses.
+  */
+ static void __init __init_extra_mapping(unsigned long phys, unsigned long size,
+-						pgprot_t prot)
++					enum page_cache_mode cache)
+ {
+ 	pgd_t *pgd;
+ 	pud_t *pud;
+ 	pmd_t *pmd;
++	pgprot_t prot;
+ 
++	pgprot_val(prot) = pgprot_val(PAGE_KERNEL_LARGE) |
++		pgprot_val(pgprot_4k_2_large(cachemode2pgprot(cache)));
+ 	BUG_ON((phys & ~PMD_MASK) || (size & ~PMD_MASK));
+ 	for (; size; phys += PMD_SIZE, size -= PMD_SIZE) {
+ 		pgd = pgd_offset_k((unsigned long)__va(phys));
+@@ -365,12 +368,12 @@ static void __init __init_extra_mapping(unsigned long phys, unsigned long size,
+ 
+ void __init init_extra_mapping_wb(unsigned long phys, unsigned long size)
+ {
+-	__init_extra_mapping(phys, size, PAGE_KERNEL_LARGE);
++	__init_extra_mapping(phys, size, _PAGE_CACHE_MODE_WB);
+ }
+ 
+ void __init init_extra_mapping_uc(unsigned long phys, unsigned long size)
+ {
+-	__init_extra_mapping(phys, size, PAGE_KERNEL_LARGE_NOCACHE);
++	__init_extra_mapping(phys, size, _PAGE_CACHE_MODE_UC);
+ }
+ 
+ /*
+-- 
+1.7.10.4
+

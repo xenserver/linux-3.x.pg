@@ -1,0 +1,53 @@
+From 5006e45a6bc293b490638210d1a88ac391d2eb92 Mon Sep 17 00:00:00 2001
+From: Juergen Gross <jgross@suse.com>
+Date: Mon, 3 Nov 2014 14:01:50 +0100
+Subject: [PATCH 4/4] x86: Use new cache mode type in
+ drivers/video/fbdev/vermilion
+
+Instead of directly using the cache mode bits in the pte switch to
+using the cache mode type.
+
+Based-on-patch-by: Stefan Bader <stefan.bader@canonical.com>
+Signed-off-by: Juergen Gross <jgross@suse.com>
+Reviewed-by: Thomas Gleixner <tglx@linutronix.de>
+Cc: stefan.bader@canonical.com
+Cc: xen-devel@lists.xensource.com
+Cc: konrad.wilk@oracle.com
+Cc: ville.syrjala@linux.intel.com
+Cc: david.vrabel@citrix.com
+Cc: jbeulich@suse.com
+Cc: toshi.kani@hp.com
+Cc: plagnioj@jcrosoft.com
+Cc: tomi.valkeinen@ti.com
+Cc: bhelgaas@google.com
+Link: http://lkml.kernel.org/r/1415019724-4317-5-git-send-email-jgross@suse.com
+Signed-off-by: Thomas Gleixner <tglx@linutronix.de>
+---
+ drivers/video/fbdev/vermilion/vermilion.c |    6 ++++--
+ 1 file changed, 4 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/video/fbdev/vermilion/vermilion.c b/drivers/video/fbdev/vermilion/vermilion.c
+index 5f930ae..6b70d7f 100644
+--- a/drivers/video/vermilion/vermilion.c
++++ b/drivers/video/vermilion/vermilion.c
+@@ -1003,13 +1003,15 @@ static int vmlfb_mmap(struct fb_info *info, struct vm_area_struct *vma)
+ 	struct vml_info *vinfo = container_of(info, struct vml_info, info);
+ 	unsigned long offset = vma->vm_pgoff << PAGE_SHIFT;
+ 	int ret;
++	unsigned long prot;
+ 
+ 	ret = vmlfb_vram_offset(vinfo, offset);
+ 	if (ret)
+ 		return -EINVAL;
+ 
+-	pgprot_val(vma->vm_page_prot) |= _PAGE_PCD;
+-	pgprot_val(vma->vm_page_prot) &= ~_PAGE_PWT;
++	prot = pgprot_val(vma->vm_page_prot) & ~_PAGE_CACHE_MASK;
++	pgprot_val(vma->vm_page_prot) =
++		prot | cachemode2protval(_PAGE_CACHE_MODE_UC_MINUS);
+ 
+ 	return vm_iomap_memory(vma, vinfo->vram_start,
+ 			vinfo->vram_contig_size);
+-- 
+1.7.10.4
+

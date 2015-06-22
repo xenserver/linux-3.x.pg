@@ -1,0 +1,67 @@
+From f439c429c320981943f8b64b2a4049d946cb492b Mon Sep 17 00:00:00 2001
+From: Juergen Gross <jgross@suse.com>
+Date: Mon, 3 Nov 2014 14:02:01 +0100
+Subject: [PATCH 15/15] x86: Support PAT bit in pagetable dump for lower
+ levels
+
+Dumping page table protection bits is not correct for entries on levels
+2 and 3 regarding the PAT bit, which is at a different position as on
+level 4.
+
+Based-on-patch-by: Stefan Bader <stefan.bader@canonical.com>
+Signed-off-by: Juergen Gross <jgross@suse.com>
+Reviewed-by: Thomas Gleixner <tglx@linutronix.de>
+Cc: stefan.bader@canonical.com
+Cc: xen-devel@lists.xensource.com
+Cc: konrad.wilk@oracle.com
+Cc: ville.syrjala@linux.intel.com
+Cc: david.vrabel@citrix.com
+Cc: jbeulich@suse.com
+Cc: toshi.kani@hp.com
+Cc: plagnioj@jcrosoft.com
+Cc: tomi.valkeinen@ti.com
+Cc: bhelgaas@google.com
+Link: http://lkml.kernel.org/r/1415019724-4317-16-git-send-email-jgross@suse.com
+Signed-off-by: Thomas Gleixner <tglx@linutronix.de>
+diff --git a/arch/x86/mm/dump_pagetables.c b/arch/x86/mm/dump_pagetables.c
+index e04e677..2ad805d 100644
+--- a/arch/x86/mm/dump_pagetables.c
++++ b/arch/x86/mm/dump_pagetables.c
+@@ -103,7 +103,7 @@ static void printk_prot(struct seq_file *m, pgprot_t prot, int level)
+ 
+ 	if (!pgprot_val(prot)) {
+ 		/* Not present */
+-		seq_printf(m, "                          ");
++		seq_printf(m, "                              ");
+ 	} else {
+ 		if (pr & _PAGE_USER)
+ 			seq_printf(m, "USR ");
+@@ -122,18 +122,16 @@ static void printk_prot(struct seq_file *m, pgprot_t prot, int level)
+ 		else
+ 			seq_printf(m, "    ");
+ 
+-		/* Bit 9 has a different meaning on level 3 vs 4 */
+-		if (level <= 3) {
+-			if (pr & _PAGE_PSE)
+-				seq_printf(m, "PSE ");
+-			else
+-				seq_printf(m, "    ");
+-		} else {
+-			if (pr & _PAGE_PAT)
+-				seq_printf(m, "pat ");
+-			else
+-				seq_printf(m, "    ");
+-		}
++		/* Bit 7 has a different meaning on level 3 vs 4 */
++		if (level <= 3 && pr & _PAGE_PSE)
++			seq_printf(m, "PSE ");
++		else
++			seq_printf(m, "    ");
++		if ((level == 4 && pr & _PAGE_PAT) ||
++		    ((level == 3 || level == 2) && pr & _PAGE_PAT_LARGE))
++			seq_printf(m, "pat ");
++		else
++			seq_printf(m, "    ");
+ 		if (pr & _PAGE_GLOBAL)
+ 			seq_printf(m, "GLB ");
+ 		else

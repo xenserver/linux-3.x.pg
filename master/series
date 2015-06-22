@@ -136,10 +136,51 @@ nullblk_3_13.patch
 0001-PCI-Allow-device-quirks-to-exclude-D3-D0-PM-reset.patch
 # 3d7a34ecf6bb446bf0928aa7d7f51acaa8816063 (linux-vfio tree)
 0002-PCI-quirk-AMD-ATI-VGA-cards-to-avoid-PM-reset.patch
+# 281d4078bec366d60990add9d91a952953bd0d72 (3.19-rc1)
+0001-x86-Make-page-cache-mode-a-real-type.patch
+# c27ce0af896b7cc1718995f2b3e66e2892d5081c (3.19-rc1)
+0002-x86-Use-new-cache-mode-type-in-include-asm-fb.h.patch
+# 2d85ebf8e12e14694d6f9a4f34359c19f0738ace (3.19-rc1)
+0003-x86-Use-new-cache-mode-type-in-drivers-video-fbdev-g.patch
+# 5006e45a6bc293b490638210d1a88ac391d2eb92 (3.19-rc1)
+0004-x86-Use-new-cache-mode-type-in-drivers-video-fbdev-v.patch
+# 1c64216be16404df7fab33c793890bb5076e8123 (3.19-rc1)
+0005-x86-Use-new-cache-mode-type-in-arch-x86-pci.patch
+# 2df58b6d35306e8dab48923c9fbe9e1ad17537e2 (3.19-rc1)
+0006-x86-Use-new-cache-mode-type-in-arch-x86-mm-init_64.c.patch
+# d85f33342a0f57acfbe078cdd0c4f590d5608bb7 (3.19-rc1)
+0007-x86-Use-new-cache-mode-type-in-asm-pgtable.h.patch
+# 49a3b3cbdf1621678a39bd95a3e67c0f858539c7 (3.19-rc1)
+0008-x86-Use-new-cache-mode-type-in-mm-iomap_32.c.patch
+# 2a3746984c98b17b565e6a2c2bbaaaef757db1b4 (3.19-rc1)
+0009-x86-Use-new-cache-mode-type-in-track_pfn_remap-and-t.patch
+# 102e19e1955d85f31475416b1ee22980c6462cf8 (3.19-rc1)
+0010-x86-Remove-looking-for-setting-of-_PAGE_PAT_LARGE-in.patch
+# c06814d8419a74528500f85faf5fc01f67f8e7e6 (3.19-rc1)
+0011-x86-Use-new-cache-mode-type-in-setting-page-attribut.patch
+# b14097bd911c2554b0b5271b3a6b2d84044d1843 (3.19-rc1)
+0012-x86-Use-new-cache-mode-type-in-mm-ioremap.c.patch
+# e00c8cc93c1ac01ecd5049929a50fb47b62bb041 (3.19-rc1)
+0013-x86-Use-new-cache-mode-type-in-memtype-related-funct.patch
+# 87ad0b713b1034b6caf559976c35ce47f6d1d1e9 (3.19-rc1)
+0014-x86-Clean-up-pgtable_types.h.patch
+# f439c429c320981943f8b64b2a4049d946cb492b (3.19-rc1)
+0015-x86-Support-PAT-bit-in-pagetable-dump-for-lower-leve.patch
+# f5b2831d654167d77da8afbef4d2584897b12d0c (3.19-rc1)
+0016-x86-Respect-PAT-bit-when-copying-pte-values-between-.patch
+# bd809af16e3ab1f8d55b3e2928c47c67e2a865d2 (3.19-rc1)
+0017-x86-Enable-PAT-to-use-cache-mode-translation-tables.patch
+# 47591df505129c9774af6cca2debf283a6e56ed7 (3.19-rc1)
+0018-xen-Support-Xen-pv-domains-using-PAT.patch
+# 31bb7723706ba9660504a6c3903ea46198f98fd1 (3.19-rc6)
+0019-x86-mm-Change-cachemode-exports-to-non-gpl.patch
+# 9d34cfdf47963905d792ae9c000efa522739abe4 (3.19-rc6)
+0020-x86-Don-t-rely-on-VMWare-emulating-PAT-MSR-correctly.patch
 # e2e64a932556cdfae455497dbe94a8db151fc9fa (4.0-rc1)
 0001-genirq-Set-initial-affinity-in-irq_set_affinity_hint.patch
 # 4fe7ffb7e17ca6ad9173b8de35f260c9c8fc2f79 (4.0-rc1)
 0002-genirq-Fix-null-pointer-reference-in-irq_set_affinit.patch
+
 
 #
 # xen-netback backports
