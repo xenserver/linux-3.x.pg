@@ -524,3 +524,4 @@ Q2-patch-drop2.patch
 force-vgt-g-primary.patch
 add-hashing-to-vgtbuffer.patch
 vgt-vgtbuffer-adjust-size-calculation.patch
+vgt-fix-fb-hashing-broadwell.patch
