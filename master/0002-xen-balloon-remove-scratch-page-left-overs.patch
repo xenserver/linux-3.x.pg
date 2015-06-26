@@ -1,0 +1,33 @@
+From 656c929b250dfdbf632e302d31e5b808d0c134c8 Mon Sep 17 00:00:00 2001
+From: David Vrabel <david.vrabel@citrix.com>
+Date: Thu, 25 Jun 2015 13:18:12 +0100
+Subject: [PATCH 2/8] xen/balloon: remove scratch page left overs
+
+Commit 0bb599fd30108883b00c7d4a226eeb49111e6932 (xen: remove scratch
+frames for ballooned pages and m2p override) removed the use of the
+scratch page for ballooned out pages.
+
+Remove some left over function definitions.
+
+Signed-off-by: David Vrabel <david.vrabel@citrix.com>
+---
+ include/xen/balloon.h |    3 ---
+ 1 file changed, 3 deletions(-)
+
+diff --git a/include/xen/balloon.h b/include/xen/balloon.h
+index a4c1c6a..cc2e1a7 100644
+--- a/include/xen/balloon.h
++++ b/include/xen/balloon.h
+@@ -29,9 +29,6 @@ int alloc_xenballooned_pages(int nr_pages, struct page **pages,
+ 		bool highmem);
+ void free_xenballooned_pages(int nr_pages, struct page **pages);
+ 
+-struct page *get_balloon_scratch_page(void);
+-void put_balloon_scratch_page(void);
+-
+ struct device;
+ #ifdef CONFIG_XEN_SELFBALLOONING
+ extern int register_xen_selfballooning(struct device *dev);
+-- 
+1.7.10.4
+
