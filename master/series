@@ -535,3 +535,4 @@ vgt-fix-fb-hashing-broadwell.patch
 0007-i915-call-i915_deballoon-on-gtt-cleanup.patch
 0008-i915-vgt-make-it-unloadable.patch
 i915-build-as-module.patch
+i915-module-cleanup.patch
