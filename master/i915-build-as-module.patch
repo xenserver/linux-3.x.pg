@@ -1,0 +1,39 @@
+diff --git a/buildconfigs/linux-defconfig_xen_x86_64 b/buildconfigs/linux-defconfig_xen_x86_64
+index 728e3b2..5856a58 100644
+--- a/buildconfigs/linux-defconfig_xen_x86_64
++++ b/buildconfigs/linux-defconfig_xen_x86_64
+@@ -512,7 +512,7 @@ CONFIG_ACPI_PROC_EVENT=y
+ CONFIG_ACPI_AC=y
+ CONFIG_ACPI_BATTERY=y
+ CONFIG_ACPI_BUTTON=y
+-CONFIG_ACPI_VIDEO=y
++CONFIG_ACPI_VIDEO=m
+ CONFIG_ACPI_FAN=y
+ CONFIG_ACPI_DOCK=y
+ CONFIG_ACPI_I2C=y
+@@ -2498,7 +2498,7 @@ CONFIG_VGA_ARB=y
+ CONFIG_VGA_ARB_MAX_GPUS=16
+ # CONFIG_VGA_SWITCHEROO is not set
+ CONFIG_DRM=y
+-CONFIG_DRM_KMS_HELPER=y
++CONFIG_DRM_KMS_HELPER=m
+ CONFIG_DRM_KMS_FB_HELPER=y
+ # CONFIG_DRM_LOAD_EDID_FIRMWARE is not set
+ 
+@@ -2513,7 +2513,7 @@ CONFIG_DRM_KMS_FB_HELPER=y
+ # CONFIG_DRM_RADEON is not set
+ # CONFIG_DRM_NOUVEAU is not set
+ # CONFIG_DRM_I810 is not set
+-CONFIG_DRM_I915=y
++CONFIG_DRM_I915=m
+ CONFIG_DRM_I915_KMS=y
+ CONFIG_DRM_I915_FBDEV=y
+ CONFIG_DRM_I915_PRELIMINARY_HW_SUPPORT=y
+@@ -2572,6 +2572,7 @@ CONFIG_FB_EFI=y
+ # CONFIG_FB_RIVA is not set
+ # CONFIG_FB_I740 is not set
+ # CONFIG_FB_LE80578 is not set
++# CONFIG_FB_INTEL is not set
+ # CONFIG_FB_MATROX is not set
+ # CONFIG_FB_RADEON is not set
+ # CONFIG_FB_ATY128 is not set

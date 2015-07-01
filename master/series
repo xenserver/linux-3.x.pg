@@ -525,3 +525,13 @@ force-vgt-g-primary.patch
 add-hashing-to-vgtbuffer.patch
 vgt-vgtbuffer-adjust-size-calculation.patch
 vgt-fix-fb-hashing-broadwell.patch
+
+# Build vgt/i915 as a module
+0001-modulize-Xen-MPT-as-LKM.patch
+0002-agp-intel-restore-the-original-dependecy-of-INTEL_GT.patch
+0003-build-vgt-into-i915.patch
+0004-drm-use-a-dirty-workaround-to-remove-dependency-betw.patch
+0005-i915-vgt-and-xengt-dont-depend-on-each-other.patch
+0007-i915-call-i915_deballoon-on-gtt-cleanup.patch
+0008-i915-vgt-make-it-unloadable.patch
+i915-build-as-module.patch

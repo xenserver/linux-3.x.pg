@@ -1,0 +1,25 @@
+From 6f046cf4e48e1578d88fb7f3671ffb6c364461d3 Mon Sep 17 00:00:00 2001
+From: Jike Song <jike.song@intel.com>
+Date: Mon, 1 Jun 2015 16:25:23 +0800
+Subject: [PATCH 7/8] i915: call i915_deballoon on gtt cleanup
+
+---
+ drivers/gpu/drm/i915/i915_gem_gtt.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/drivers/gpu/drm/i915/i915_gem_gtt.c b/drivers/gpu/drm/i915/i915_gem_gtt.c
+index e84685b..ec1fbdd 100644
+--- a/drivers/gpu/drm/i915/i915_gem_gtt.c
++++ b/drivers/gpu/drm/i915/i915_gem_gtt.c
+@@ -2174,6 +2174,8 @@ void i915_global_gtt_cleanup(struct drm_device *dev)
+ 	}
+ 
+ 	if (drm_mm_initialized(&vm->mm)) {
++		if (USES_VGT(dev))
++			i915_deballoon(dev_priv);
+ 		drm_mm_takedown(&vm->mm);
+ 		list_del(&vm->global_link);
+ 	}
+-- 
+1.9.1
+
