@@ -1,0 +1,32 @@
+From 929d7b73bb5279fbb9fca3b8ac7a245d73539578 Mon Sep 17 00:00:00 2001
+From: David Vrabel <david.vrabel@citrix.com>
+Date: Mon, 6 Jul 2015 16:03:16 +0100
+Subject: [PATCH 2/3] xen-netback: Check queue allocation succeeds
+
+If the allocation for the queues fails, report a fatal error to the
+frontend.
+
+Signed-off-by: David Vrabel <david.vrabel@citrix.com>
+---
+ drivers/net/xen-netback/xenbus.c |    5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/drivers/net/xen-netback/xenbus.c b/drivers/net/xen-netback/xenbus.c
+index ec383b0..5bf4e11 100644
+--- a/drivers/net/xen-netback/xenbus.c
++++ b/drivers/net/xen-netback/xenbus.c
+@@ -780,6 +780,11 @@ static void connect(struct backend_info *be)
+ 	/* Use the number of queues requested by the frontend */
+ 	be->vif->queues = vzalloc(requested_num_queues *
+ 				  sizeof(struct xenvif_queue));
++	if (!be->vif->queues) {
++		xenbus_dev_fatal(dev, err, "no memory for queues");
++		return;
++	}
++
+ 	be->vif->num_queues = requested_num_queues;
+ 	be->vif->stalled_queues = requested_num_queues;
+ 
+-- 
+1.7.10.4
+
