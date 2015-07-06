@@ -1,33 +1,86 @@
 diff --git a/arch/x86/xen/mmu.c b/arch/x86/xen/mmu.c
-index 3ff2d89..e304349 100644
+index 3ff2d89..2f6fac7 100644
 --- a/arch/x86/xen/mmu.c
 +++ b/arch/x86/xen/mmu.c
-@@ -2630,8 +2630,9 @@ struct vm_struct * xen_remap_domain_mfn_range_in_kernel(unsigned long mfn,
+@@ -2613,10 +2613,7 @@ struct vm_struct * xen_remap_domain_mfn_range_in_kernel(unsigned long mfn,
+ 		int nr, unsigned domid)
+ {
+ 	struct vm_struct *area;
+-	struct remap_data rmd;
+-	struct mmu_update mmu_update[REMAP_BATCH_SIZE];
+-	int batch;
+-	unsigned long range, addr;
++	unsigned long addr;
+ 	pgprot_t prot;
+ 	int err;
+ 
+@@ -2630,22 +2627,10 @@ struct vm_struct * xen_remap_domain_mfn_range_in_kernel(unsigned long mfn,
  
  	prot = __pgprot(pgprot_val(PAGE_KERNEL));
  
 -	rmd.mfn = mfn;
-+	rmd.mfn = &mfn;
- 	rmd.prot = prot;
-+	rmd.contiguous = 0;
+-	rmd.prot = prot;
+-
+-	while (nr) {
+-		batch = min(REMAP_BATCH_SIZE, nr);
+-		range = (unsigned long)batch << PAGE_SHIFT;
+-
+-		rmd.mmu_update = mmu_update;
+-		err = apply_to_page_range(&init_mm, addr, range,
+-					  remap_area_mfn_pte_fn, &rmd);
+-		if (err || HYPERVISOR_mmu_update(mmu_update, batch, NULL, domid) < 0)
+-			goto err;
+-
+-		nr -= batch;
+-		addr += range;
+-	}
++	err =  __xen_remap_domain_mfn_range(&init_mm, addr,
++	                                    &mfn, nr, true, prot, domid, NULL);
++	if (err)
++		goto err;
  
- 	while (nr) {
- 		batch = min(REMAP_BATCH_SIZE, nr);
-@@ -2664,11 +2665,13 @@ void xen_unmap_domain_mfn_range_in_kernel(struct vm_struct *area, int nr,
- 	int batch;
- 	unsigned long range, addr = (unsigned long)area->addr;
- 	int err;
-+	unsigned long mfn;
+ 	xen_flush_tlb_all();
+ 	return area;
+@@ -2659,31 +2644,18 @@ EXPORT_SYMBOL_GPL(xen_remap_domain_mfn_range_in_kernel);
+ void xen_unmap_domain_mfn_range_in_kernel(struct vm_struct *area, int nr,
+ 		unsigned domid)
+ {
+-	struct remap_data rmd;
+-	struct mmu_update mmu_update[REMAP_BATCH_SIZE];
+-	int batch;
+-	unsigned long range, addr = (unsigned long)area->addr;
+-	int err;
++	unsigned long addr = (unsigned long)area->addr;
++	int i;
++	struct multicall_space mcs;
  
  	WARN_ON(in_interrupt() || irqs_disabled());
  
- #define INVALID_MFN (~0UL)
+-#define INVALID_MFN (~0UL)
 -	rmd.mfn = INVALID_MFN;
-+	mfn = INVALID_MFN;
-+	rmd.mfn = &mfn;
- 	rmd.prot = PAGE_NONE;
+-	rmd.prot = PAGE_NONE;
+-
+-	while (nr) {
+-		batch = min(REMAP_BATCH_SIZE, nr);
+-		range = (unsigned long)batch << PAGE_SHIFT;
+-
+-		rmd.mmu_update = mmu_update;
+-		err = apply_to_page_range(&init_mm, addr, range,
+-					  remap_area_mfn_pte_fn, &rmd);
+-		BUG_ON(err);
+-		BUG_ON(HYPERVISOR_mmu_update(mmu_update, batch, NULL, domid) < 0);
+-
+-		nr -= batch;
+-		addr += range;
++	xen_mc_batch();
++	for (i = 0; i < nr; i++, addr += PAGE_SIZE) {
++		mcs = __xen_mc_entry(0);
++		MULTI_update_va_mapping(mcs.mc, addr, VOID_PTE, 0);
+ 	}
++	xen_mc_issue(0);
  
- 	while (nr) {
+ 	free_vm_area(area);
+ 	xen_flush_tlb_all();
 diff --git a/drivers/gpu/drm/i915/i915_drv.c b/drivers/gpu/drm/i915/i915_drv.c
 index e20c94c..749192c 100644
 --- a/drivers/gpu/drm/i915/i915_drv.c

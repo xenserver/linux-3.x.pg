@@ -1,0 +1,38 @@
+diff --git a/drivers/xen/xengt.c b/drivers/xen/xengt.c
+index 0127053..f7c652c 100644
+--- a/drivers/xen/xengt.c
++++ b/drivers/xen/xengt.c
+@@ -531,17 +531,17 @@ static int vgt_hvm_vmem_init(struct vgt_device *vgt)
+ 	/* map the >1MB memory */
+ 	for (i = 1; i < nr_high_bkt; i++) {
+ 		gpfn = i << (VMEM_BUCK_SHIFT - PAGE_SHIFT);
+-		info->vmem_vma[i] = xen_remap_domain_mfn_range_in_kernel(
+-				gpfn, VMEM_BUCK_SIZE >> PAGE_SHIFT, vgt->vm_id);
+-
+-		if (info->vmem_vma[i] != NULL)
+-			continue;
+-
+ 
+ 		/* for <4G GPFNs: skip the hole after low_mem_max_gpfn */
+ 		if (gpfn < (1 << (32 - PAGE_SHIFT)) &&
+ 			vgt->low_mem_max_gpfn != 0 &&
+-			gpfn > vgt->low_mem_max_gpfn)
++			gpfn >= vgt->low_mem_max_gpfn)
++			continue;
++
++		info->vmem_vma[i] = xen_remap_domain_mfn_range_in_kernel(
++				gpfn, VMEM_BUCK_SIZE >> PAGE_SHIFT, vgt->vm_id);
++
++		if (info->vmem_vma[i] != NULL)
+ 			continue;
+ 
+ 		for (j = gpfn;
+@@ -558,7 +558,7 @@ static int vgt_hvm_vmem_init(struct vgt_device *vgt)
+ 		 * message if it's at every 64MB boundary or >4GB memory.
+ 		 */
+ 		if ((i % 64 == 0) || (i >= (1ULL << (32 - VMEM_BUCK_SHIFT))))
+-			vgt_warn("vGT: VM%d: can't map %ldKB\n", vgt->vm_id, i);
++			vgt_warn("vGT: VM%d: can't map %ldMB\n", vgt->vm_id, i);
+ 	}
+ 	printk("end vmem_map (%ld 4k mappings)\n", count);
+ 

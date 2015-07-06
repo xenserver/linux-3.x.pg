@@ -514,12 +514,6 @@ Q2-diff.patch
 # Local changes to GVT-g code
 change-gvt-g-defaults.patch
 increase-opregion-size.patch
-
-#
-# Kernel Configuration.
-#
-kernel-configuration
-abi-version
 Q2-patch-drop2.patch
 force-vgt-g-primary.patch
 add-hashing-to-vgtbuffer.patch
@@ -534,5 +528,12 @@ vgt-fix-fb-hashing-broadwell.patch
 0005-i915-vgt-and-xengt-dont-depend-on-each-other.patch
 0007-i915-call-i915_deballoon-on-gtt-cleanup.patch
 0008-i915-vgt-make-it-unloadable.patch
-i915-build-as-module.patch
 i915-module-cleanup.patch
+Q2-patch-drop3.patch
+gvt-g-correct-mmio-skip-code.patch
+
+#
+# Kernel Configuration.
+#
+kernel-configuration
+abi-version
