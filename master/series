@@ -442,6 +442,7 @@ x86-fix-xen-save-fl.patch
 0006-xen-balloon-only-hotplug-additional-memory-if-requir.patch
 0007-xen-balloon-make-alloc_xenballoon_pages-always-alloc.patch
 0008-xen-balloon-use-hotplugged-pages-for-foreign-mapping.patch
+xen-balloon-hotplug-select-HOLES_IN_ZONE.patch
 
 # Blkback
 blkback-debug-ring.diff

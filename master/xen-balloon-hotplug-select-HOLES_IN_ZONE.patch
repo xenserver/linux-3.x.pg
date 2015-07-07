@@ -1,0 +1,23 @@
+diff --git a/drivers/xen/Kconfig b/drivers/xen/Kconfig
+index 94ff724..765c1f2 100644
+--- a/drivers/xen/Kconfig
++++ b/drivers/xen/Kconfig
+@@ -30,6 +30,7 @@ config XEN_BALLOON_MEMORY_HOTPLUG
+ 	bool "Memory hotplug support for Xen balloon driver"
+ 	default n
+ 	depends on XEN_BALLOON && MEMORY_HOTPLUG
++	select HOLES_IN_ZONE
+ 	help
+ 	  Memory hotplug support for Xen balloon driver allows expanding memory
+ 	  available for the system above limit declared at system startup.
+diff --git a/mm/Kconfig b/mm/Kconfig
+index e742d06..67311fd 100644
+--- a/mm/Kconfig
++++ b/mm/Kconfig
+@@ -477,3 +477,6 @@ config FRONTSWAP
+ 	  and swap data is stored as normal on the matching swap device.
+ 
+ 	  If unsure, say Y to enable frontswap.
++
++config HOLES_IN_ZONE
++        bool
