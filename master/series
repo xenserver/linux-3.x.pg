@@ -539,7 +539,6 @@ xen-ioemu-inject-msi.patch
 # Debugging/hacks
 #
 0001-xen-oprofile-Patch-from-Michael-Petullo.patch
-CA-167633-move_freepages-debug.patch
 
 #
 # Kernel Configuration.
