@@ -435,13 +435,8 @@ x86-fix-xen-save-fl.patch
 0001-x86-xen-fix-set_phys_to_machine-when-the-entry-is-id.patch
 0002-x86-xen-replace-p2m_mid_identity-when-allocating-a-n.patch
 0003-mm-memory-hotplug-with-an-existing-resource.patch
-0003-x86-xen-discard-RAM-regions-above-the-maximum-reserv.patch
-0001-xen-balloon-before-adding-hotplugged-memory-set-fram.patch
-0004-xen-balloon-find-non-conflicting-regions-to-place-ho.patch
-0005-xen-balloon-rationalize-memory-hotplug-stats.patch
-0006-xen-balloon-only-hotplug-additional-memory-if-requir.patch
-0007-xen-balloon-make-alloc_xenballoon_pages-always-alloc.patch
-0008-xen-balloon-use-hotplugged-pages-for-foreign-mapping.patch
+0004-xen-balloon-populate-the-hotplug-memory-before-addin.patch
+0005-x86-xen-discard-RAM-regions-above-the-maximum-reserv.patch
 xen-balloon-hotplug-select-HOLES_IN_ZONE.patch
 
 # Blkback
