@@ -1,7 +1,7 @@
-From 5066447cfb87b76efeacb98df8f58b5d31650676 Mon Sep 17 00:00:00 2001
+From 25b884a83d487fd62c3de7ac1ab5549979188482 Mon Sep 17 00:00:00 2001
 From: David Vrabel <david.vrabel@citrix.com>
 Date: Fri, 3 Jan 2014 15:46:10 +0000
-Subject: [PATCH 5/9] x86/xen: set regions above the end of RAM as 1:1
+Subject: [PATCH 5/5] x86/xen: set regions above the end of RAM as 1:1
 
 PCI devices may have BARs located above the end of RAM so mark such
 frames as identity frames in the p2m (instead of the default of
@@ -11,13 +11,15 @@ PFNs outside the p2m (above MAX_P2M_PFN) are also considered to be
 identity frames for the same reason.
 
 Signed-off-by: David Vrabel <david.vrabel@citrix.com>
+Reviewed-by: Konrad Rzeszutek Wilk <konrad.wilk@oracle.com>
+Tested-by: Konrad Rzeszutek Wilk <konrad.wilk@oracle.com>
 ---
  arch/x86/xen/p2m.c   |    2 +-
  arch/x86/xen/setup.c |    9 +++++++++
- 2 files changed, 10 insertions(+), 1 deletions(-)
+ 2 files changed, 10 insertions(+), 1 deletion(-)
 
 diff --git a/arch/x86/xen/p2m.c b/arch/x86/xen/p2m.c
-index 5d716f7..416c356 100644
+index 5700144..9bb3d82 100644
 --- a/arch/x86/xen/p2m.c
 +++ b/arch/x86/xen/p2m.c
 @@ -507,7 +507,7 @@ unsigned long get_phys_to_machine(unsigned long pfn)
@@ -50,5 +52,5 @@ index 2afe55e..210426a 100644
  	 * reserve ISA memory anyway because too many things poke
  	 * about in there.
 -- 
-1.7.2.5
+1.7.10.4
 

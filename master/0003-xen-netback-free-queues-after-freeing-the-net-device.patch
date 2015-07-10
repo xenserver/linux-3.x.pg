@@ -1,0 +1,51 @@
+From 83df4f76dad37423dc730e6b7f8f7a035799510a Mon Sep 17 00:00:00 2001
+From: David Vrabel <david.vrabel@citrix.com>
+Date: Mon, 6 Jul 2015 16:15:55 +0100
+Subject: [PATCH 3/3] xen-netback: free queues after freeing the net device
+
+If a queue still has a NAPI instance added to the net device, freeing
+the queues early results in a use-after-free.
+
+The shouldn't ever happen because we disconnect and tear down all queues
+before freeing the net device, but doing this makes it obviously safe.
+
+Signed-off-by: David Vrabel <david.vrabel@citrix.com>
+---
+ drivers/net/xen-netback/interface.c |   16 +++++-----------
+ 1 file changed, 5 insertions(+), 11 deletions(-)
+
+diff --git a/drivers/net/xen-netback/interface.c b/drivers/net/xen-netback/interface.c
+index d58cd04..624765f 100644
+--- a/drivers/net/xen-netback/interface.c
++++ b/drivers/net/xen-netback/interface.c
+@@ -669,22 +669,16 @@ void xenvif_deinit_queue(struct xenvif_queue *queue)
+ 
+ void xenvif_free(struct xenvif *vif)
+ {
+-	struct xenvif_queue *queue = NULL;
++	struct xenvif_queue *queues = vif->queues;
+ 	unsigned int num_queues = vif->num_queues;
+ 	unsigned int queue_index;
+ 
+ 	unregister_netdev(vif->dev);
+-
+-	for (queue_index = 0; queue_index < num_queues; ++queue_index) {
+-		queue = &vif->queues[queue_index];
+-		xenvif_deinit_queue(queue);
+-	}
+-
+-	vfree(vif->queues);
+-	vif->queues = NULL;
+-	vif->num_queues = 0;
+-
+ 	free_netdev(vif->dev);
+ 
++	for (queue_index = 0; queue_index < num_queues; ++queue_index)
++		xenvif_deinit_queue(&queues[queue_index]);
++	vfree(queues);
++
+ 	module_put(THIS_MODULE);
+ }
+-- 
+1.7.10.4
+

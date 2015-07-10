@@ -93,6 +93,29 @@ but this was seen as an acceptable thing to do.
 
 Signed-off-by: George Dunlap <george.dunlap@eu.citrix.com>
 
+
+Header from folded patch '0001-xenoprofile-Fix-handling-of-TRACE_BEGIN.patch':
+
+From f3fb8b3d1b443f0de1b1303b89c46d70f046b8f2 Mon Sep 17 00:00:00 2001
+From: Ross Lagerwall <ross.lagerwall@citrix.com>
+Date: Tue, 23 Jun 2015 15:20:41 +0100
+Subject: [PATCH] xenoprofile: Fix handling of TRACE_BEGIN
+
+The existing code uses oprofile_add_pc to add a TRACE_BEGIN event which
+doesn't work because it doesn't have a valid pc.  Instead, use the
+unused oprofile_add_mode which appears to have been added for this
+purpose.
+
+From the comment:
+/*
+ * Equivalent to log_sample(b, ESCAPE_CODE, 1, cpu_mode, CPU_TRACE_BEGIN),
+ * Previously accessible through oprofile_add_pc().
+ */
+void oprofile_add_mode(int cpu_mode)
+
+This fixes callgraph support.
+
+Signed-off-by: Ross Lagerwall <ross.lagerwall@citrix.com>
 diff --git a/arch/x86/include/asm/xen/hypercall.h b/arch/x86/include/asm/xen/hypercall.h
 index 7d3cbfb..a0b1799 100644
 --- a/arch/x86/include/asm/xen/hypercall.h
@@ -1037,10 +1060,10 @@ index 84a208d..7eb2286 100644
  	oprofilefs_create_ulong(sb, root, "buffer_watershed", &oprofile_buffer_watershed);
 diff --git a/drivers/xen/xenoprof/xenoprofile.c b/drivers/xen/xenoprof/xenoprofile.c
 new file mode 100644
-index 0000000..4be72b9
+index 0000000..5323368
 --- /dev/null
 +++ b/drivers/xen/xenoprof/xenoprofile.c
-@@ -0,0 +1,552 @@
+@@ -0,0 +1,551 @@
 +/**
 + * @file xenoprofile.c
 + *
@@ -1190,8 +1213,7 @@ index 0000000..4be72b9
 +		if (xenoprof_is_escape(buf, tail) &&
 +		    xenoprof_get_event(buf, tail) == XENOPROF_TRACE_BEGIN) {
 +			tracing=1;
-+			oprofile_add_pc(ESCAPE_CODE, buf->event_log[tail].mode, 
-+					TRACE_BEGIN); 
++			oprofile_add_mode(buf->event_log[tail].mode);
 +			if (!is_passive)
 +				oprofile_samples++;
 +			else

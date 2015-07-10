@@ -1,12 +1,24 @@
-From 26f55601949e8c856439a7a66fd09800819f49eb Mon Sep 17 00:00:00 2001
+From 31668511424110ad470315c6a63dec9a10f1a7ba Mon Sep 17 00:00:00 2001
 From: David Vrabel <david.vrabel@citrix.com>
 Date: Thu, 10 Apr 2014 18:46:45 +0100
-Subject: [PATCH 7/9] x86: skip check for spurious faults for non-present faults
+Subject: [PATCH 7/7] x86: skip check for spurious faults for non-present
+ faults
 
 If a fault on a kernel address is due to a non-present page, then it
 cannot be the result of stale TLB entry from a protection change (RO
 to RW or NX to X).  Thus the pagetable walk in spurious_fault() can be
 skipped.
+
+See the initial if in spurious_fault() and the tests in
+spurious_fault_check()) for the set of possible error codes checked
+for spurious faults.  These are:
+
+         IRUWP
+Before   x00xx && ( 1xxxx || xxx1x )
+After  ( 10001 || 00011 ) && ( 1xxxx || xxx1x )
+
+Thus the new condition is a subset of the previous one, excluding only
+non-present faults (I == 1 and W == 1 are mutually exclusive).
 
 This avoids spurious_fault() oopsing in some cases if the pagetables
 it attempts to walk are not accessible.  This obscures the location of
@@ -26,30 +38,55 @@ PTE.  However, removing the _PAGE_IOMAP bit requires M2P lookups for
 MMIO mappings as well.
 
 Signed-off-by: David Vrabel <david.vrabel@citrix.com>
+Reported-by: Konrad Rzeszutek Wilk <konrad.wilk@oracle.com>
+Tested-by: Konrad Rzeszutek Wilk <konrad.wilk@oracle.com>
+Acked-by: Dave Hansen <dave.hansen@intel.com>
 ---
-x86 maintainers, this is a prerequisite for removing Xen's usage of
-_PAGE_IOMAP so I think this is best merged via the Xen tree.
----
- arch/x86/mm/fault.c |    6 ++++--
- 1 files changed, 4 insertions(+), 2 deletions(-)
+ arch/x86/mm/fault.c |   22 ++++++++++++++++++++--
+ 1 file changed, 20 insertions(+), 2 deletions(-)
 
 diff --git a/arch/x86/mm/fault.c b/arch/x86/mm/fault.c
-index 8e57229..c39e249 100644
+index a241946..83bb03b 100644
 --- a/arch/x86/mm/fault.c
 +++ b/arch/x86/mm/fault.c
-@@ -936,8 +936,10 @@ spurious_fault(unsigned long error_code, unsigned long address)
+@@ -933,8 +933,17 @@ static int spurious_fault_check(unsigned long error_code, pte_t *pte)
+  * cross-processor TLB flush, even if no stale TLB entries exist
+  * on other processors.
+  *
++ * Spurious faults may only occur if the TLB contains an entry with
++ * fewer permission than the page table entry.  Non-present (P = 0)
++ * and reserved bit (R = 1) faults are never spurious.
++ *
+  * There are no security implications to leaving a stale TLB when
+  * increasing the permissions on a page.
++ *
++ * Returns non-zero if a spurious fault was handled, zero otherwise.
++ *
++ * See Intel Developer's Manual Vol 3 Section 4.10.4.3, bullet 3
++ * (Optional Invalidation).
+  */
+ static noinline int
+ spurious_fault(unsigned long error_code, unsigned long address)
+@@ -945,8 +954,17 @@ spurious_fault(unsigned long error_code, unsigned long address)
  	pte_t *pte;
  	int ret;
  
 -	/* Reserved-bit violation or user access to kernel space? */
 -	if (error_code & (PF_USER | PF_RSVD))
-+	/* Only check for spurious faults on supervisor write or
-+	   instruction faults. */
++	/*
++	 * Only writes to RO or instruction fetches from NX may cause
++	 * spurious faults.
++	 *
++	 * These could be from user or supervisor accesses but the TLB
++	 * is only lazily flushed after a kernel mapping protection
++	 * change, so user accesses are not expected to cause spurious
++	 * faults.
++	 */
 +	if (error_code != (PF_WRITE | PF_PROT)
 +	    && error_code != (PF_INSTR | PF_PROT))
  		return 0;
  
  	pgd = init_mm.pgd + pgd_index(address);
 -- 
-1.7.2.5
+1.7.10.4
 

@@ -1,0 +1,45 @@
+From 9d34cfdf47963905d792ae9c000efa522739abe4 Mon Sep 17 00:00:00 2001
+From: Juergen Gross <jgross@suse.com>
+Date: Mon, 12 Jan 2015 06:15:45 +0100
+Subject: [PATCH 20/20] x86: Don't rely on VMWare emulating PAT MSR correctly
+
+VMWare seems not to emulate the PAT MSR correctly: reaeding
+MSR_IA32_CR_PAT returns 0 even after writing another value to it.
+
+Commit bd809af16e3ab triggers this VMWare bug when the kernel is
+booted as a VMWare guest.
+
+Detect this bug and don't use the read value if it is 0.
+
+Fixes: bd809af16e3ab "x86: Enable PAT to use cache mode translation tables"
+Reported-and-tested-by: Jongman Heo <jongman.heo@samsung.com>
+Acked-by: Alok N Kataria <akataria@vmware.com>
+Signed-off-by: Juergen Gross <jgross@suse.com>
+Link: http://lkml.kernel.org/r/1421039745-14335-1-git-send-email-jgross@suse.com
+Signed-off-by: Thomas Gleixner <tglx@linutronix.de>
+---
+ arch/x86/mm/pat.c |    7 ++++++-
+ 1 file changed, 6 insertions(+), 1 deletion(-)
+
+diff --git a/arch/x86/mm/pat.c b/arch/x86/mm/pat.c
+index edf299c..7ac6869 100644
+--- a/arch/x86/mm/pat.c
++++ b/arch/x86/mm/pat.c
+@@ -234,8 +234,13 @@ void pat_init(void)
+ 	      PAT(4, WB) | PAT(5, WC) | PAT(6, UC_MINUS) | PAT(7, UC);
+ 
+ 	/* Boot CPU check */
+-	if (!boot_pat_state)
++	if (!boot_pat_state) {
+ 		rdmsrl(MSR_IA32_CR_PAT, boot_pat_state);
++		if (!boot_pat_state) {
++			pat_disable("PAT read returns always zero, disabled.");
++			return;
++		}
++	}
+ 
+ 	wrmsrl(MSR_IA32_CR_PAT, pat);
+ 
+-- 
+1.7.10.4
+

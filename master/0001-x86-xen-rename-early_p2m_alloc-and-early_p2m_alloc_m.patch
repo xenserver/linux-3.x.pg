@@ -1,7 +1,8 @@
-From 5f7a62b0e3ee6014748129bbd94530dfbef57e93 Mon Sep 17 00:00:00 2001
+From fcca2e3119f3771dcfd0b03b3718b3c51b5f21c3 Mon Sep 17 00:00:00 2001
 From: David Vrabel <david.vrabel@citrix.com>
 Date: Tue, 7 Jan 2014 11:53:35 +0000
-Subject: [PATCH 1/9] x86/xen: rename early_p2m_alloc() and early_p2m_alloc_middle()
+Subject: [PATCH 1/1] x86/xen: rename early_p2m_alloc() and
+ early_p2m_alloc_middle()
 
 early_p2m_alloc_middle() allocates a new leaf page and
 early_p2m_alloc() allocates a new middle page.  This is confusing.
@@ -9,9 +10,11 @@ early_p2m_alloc() allocates a new middle page.  This is confusing.
 Swap the names so they match what the functions actually do.
 
 Signed-off-by: David Vrabel <david.vrabel@citrix.com>
+Reviewed-by: Konrad Rzeszutek Wilk <konrad.wilk@oracle.com>
+Tested-by: Konrad Rzeszutek Wilk <konrad.wilk@oracle.com>
 ---
  arch/x86/xen/p2m.c |   12 ++++++------
- 1 files changed, 6 insertions(+), 6 deletions(-)
+ 1 file changed, 6 insertions(+), 6 deletions(-)
 
 diff --git a/arch/x86/xen/p2m.c b/arch/x86/xen/p2m.c
 index 85e5d78..4fc71cc 100644
@@ -70,5 +73,5 @@ index 85e5d78..4fc71cc 100644
  
  		if (!__set_phys_to_machine(pfn, mfn))
 -- 
-1.7.2.5
+1.7.10.4
 

@@ -1,0 +1,124 @@
+From 49a3b3cbdf1621678a39bd95a3e67c0f858539c7 Mon Sep 17 00:00:00 2001
+From: Juergen Gross <jgross@suse.com>
+Date: Mon, 3 Nov 2014 14:01:54 +0100
+Subject: [PATCH 8/8] x86: Use new cache mode type in mm/iomap_32.c
+
+Instead of directly using the cache mode bits in the pte switch to
+using the cache mode type. This requires to change
+io_reserve_memtype() as well.
+
+Based-on-patch-by: Stefan Bader <stefan.bader@canonical.com>
+Signed-off-by: Juergen Gross <jgross@suse.com>
+Reviewed-by: Thomas Gleixner <tglx@linutronix.de>
+Cc: stefan.bader@canonical.com
+Cc: xen-devel@lists.xensource.com
+Cc: konrad.wilk@oracle.com
+Cc: ville.syrjala@linux.intel.com
+Cc: david.vrabel@citrix.com
+Cc: jbeulich@suse.com
+Cc: toshi.kani@hp.com
+Cc: plagnioj@jcrosoft.com
+Cc: tomi.valkeinen@ti.com
+Cc: bhelgaas@google.com
+Link: http://lkml.kernel.org/r/1415019724-4317-9-git-send-email-jgross@suse.com
+Signed-off-by: Thomas Gleixner <tglx@linutronix.de>
+---
+ arch/x86/include/asm/pat.h |    2 +-
+ arch/x86/mm/iomap_32.c     |   12 +++++++-----
+ arch/x86/mm/pat.c          |   18 ++++++++++--------
+ 3 files changed, 18 insertions(+), 14 deletions(-)
+
+diff --git a/arch/x86/include/asm/pat.h b/arch/x86/include/asm/pat.h
+index e2c1668..a8438bc 100644
+--- a/arch/x86/include/asm/pat.h
++++ b/arch/x86/include/asm/pat.h
+@@ -20,7 +20,7 @@ extern int kernel_map_sync_memtype(u64 base, unsigned long size,
+ 		unsigned long flag);
+ 
+ int io_reserve_memtype(resource_size_t start, resource_size_t end,
+-			unsigned long *type);
++			enum page_cache_mode *pcm);
+ 
+ void io_free_memtype(resource_size_t start, resource_size_t end);
+ 
+diff --git a/arch/x86/mm/iomap_32.c b/arch/x86/mm/iomap_32.c
+index 7b179b49..9ca35fc 100644
+--- a/arch/x86/mm/iomap_32.c
++++ b/arch/x86/mm/iomap_32.c
+@@ -33,17 +33,17 @@ static int is_io_mapping_possible(resource_size_t base, unsigned long size)
+ 
+ int iomap_create_wc(resource_size_t base, unsigned long size, pgprot_t *prot)
+ {
+-	unsigned long flag = _PAGE_CACHE_WC;
++	enum page_cache_mode pcm = _PAGE_CACHE_MODE_WC;
+ 	int ret;
+ 
+ 	if (!is_io_mapping_possible(base, size))
+ 		return -EINVAL;
+ 
+-	ret = io_reserve_memtype(base, base + size, &flag);
++	ret = io_reserve_memtype(base, base + size, &pcm);
+ 	if (ret)
+ 		return ret;
+ 
+-	*prot = __pgprot(__PAGE_KERNEL | flag);
++	*prot = __pgprot(__PAGE_KERNEL | cachemode2protval(pcm));
+ 	return 0;
+ }
+ EXPORT_SYMBOL_GPL(iomap_create_wc);
+@@ -82,8 +82,10 @@ iomap_atomic_prot_pfn(unsigned long pfn, pgprot_t prot)
+ 	 * MTRR is UC or WC.  UC_MINUS gets the real intention, of the
+ 	 * user, which is "WC if the MTRR is WC, UC if you can't do that."
+ 	 */
+-	if (!pat_enabled && pgprot_val(prot) == pgprot_val(PAGE_KERNEL_WC))
+-		prot = PAGE_KERNEL_UC_MINUS;
++	if (!pat_enabled && pgprot_val(prot) ==
++	    (__PAGE_KERNEL | cachemode2protval(_PAGE_CACHE_MODE_WC)))
++		prot = __pgprot(__PAGE_KERNEL |
++				cachemode2protval(_PAGE_CACHE_MODE_UC_MINUS));
+ 
+ 	return (void __force __iomem *) kmap_atomic_prot_pfn(pfn, prot);
+ }
+diff --git a/arch/x86/mm/pat.c b/arch/x86/mm/pat.c
+index 47282c2..6d5a8e3 100644
+--- a/arch/x86/mm/pat.c
++++ b/arch/x86/mm/pat.c
+@@ -442,25 +442,27 @@ static unsigned long lookup_memtype(u64 paddr)
+  * On failure, returns non-zero
+  */
+ int io_reserve_memtype(resource_size_t start, resource_size_t end,
+-			unsigned long *type)
++			enum page_cache_mode *type)
+ {
+ 	resource_size_t size = end - start;
+-	unsigned long req_type = *type;
+-	unsigned long new_type;
++	enum page_cache_mode req_type = *type;
++	enum page_cache_mode new_type;
++	unsigned long new_prot;
+ 	int ret;
+ 
+ 	WARN_ON_ONCE(iomem_map_sanity_check(start, size));
+ 
+-	ret = reserve_memtype(start, end, req_type, &new_type);
++	ret = reserve_memtype(start, end, cachemode2protval(req_type),
++				&new_prot);
+ 	if (ret)
+ 		goto out_err;
+ 
+-	if (!is_new_memtype_allowed(start, size,
+-				    pgprot2cachemode(__pgprot(req_type)),
+-				    pgprot2cachemode(__pgprot(new_type))))
++	new_type = pgprot2cachemode(__pgprot(new_prot));
++
++	if (!is_new_memtype_allowed(start, size, req_type, new_type))
+ 		goto out_free;
+ 
+-	if (kernel_map_sync_memtype(start, size, new_type) < 0)
++	if (kernel_map_sync_memtype(start, size, new_prot) < 0)
+ 		goto out_free;
+ 
+ 	*type = new_type;
+-- 
+1.7.10.4
+

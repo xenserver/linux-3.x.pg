@@ -1,0 +1,44 @@
+From 102e19e1955d85f31475416b1ee22980c6462cf8 Mon Sep 17 00:00:00 2001
+From: Juergen Gross <jgross@suse.com>
+Date: Mon, 3 Nov 2014 14:01:56 +0100
+Subject: [PATCH 10/10] x86: Remove looking for setting of _PAGE_PAT_LARGE in
+ pageattr.c
+
+When modifying page attributes via change_page_attr_set_clr() don't
+test for setting _PAGE_PAT_LARGE, as this is
+- never done
+- PAT support for large pages is not included in the kernel up to now
+
+Signed-off-by: Juergen Gross <jgross@suse.com>
+Cc: stefan.bader@canonical.com
+Cc: xen-devel@lists.xensource.com
+Cc: konrad.wilk@oracle.com
+Cc: ville.syrjala@linux.intel.com
+Cc: david.vrabel@citrix.com
+Cc: jbeulich@suse.com
+Cc: toshi.kani@hp.com
+Cc: plagnioj@jcrosoft.com
+Cc: tomi.valkeinen@ti.com
+Cc: bhelgaas@google.com
+Link: http://lkml.kernel.org/r/1415019724-4317-11-git-send-email-jgross@suse.com
+Signed-off-by: Thomas Gleixner <tglx@linutronix.de>
+---
+ arch/x86/mm/pageattr.c |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/arch/x86/mm/pageattr.c b/arch/x86/mm/pageattr.c
+index ae242a7..87c0d36 100644
+--- a/arch/x86/mm/pageattr.c
++++ b/arch/x86/mm/pageattr.c
+@@ -1307,7 +1307,7 @@ static int __change_page_attr_set_clr(struct cpa_data *cpa, int checkalias)
+ static inline int cache_attr(pgprot_t attr)
+ {
+ 	return pgprot_val(attr) &
+-		(_PAGE_PAT | _PAGE_PAT_LARGE | _PAGE_PWT | _PAGE_PCD);
++		(_PAGE_PAT | _PAGE_PWT | _PAGE_PCD);
+ }
+ 
+ static int change_page_attr_set_clr(unsigned long *addr, int numpages,
+-- 
+1.7.10.4
+

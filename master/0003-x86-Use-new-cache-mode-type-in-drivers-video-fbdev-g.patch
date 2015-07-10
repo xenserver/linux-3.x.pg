@@ -1,0 +1,45 @@
+From 2d85ebf8e12e14694d6f9a4f34359c19f0738ace Mon Sep 17 00:00:00 2001
+From: Juergen Gross <jgross@suse.com>
+Date: Mon, 3 Nov 2014 14:01:49 +0100
+Subject: [PATCH 3/3] x86: Use new cache mode type in
+ drivers/video/fbdev/gbefb.c
+
+Instead of directly using the cache mode bits in the pte switch to
+using the cache mode type.
+
+Based-on-patch-by: Stefan Bader <stefan.bader@canonical.com>
+Signed-off-by: Juergen Gross <jgross@suse.com>
+Reviewed-by: Thomas Gleixner <tglx@linutronix.de>
+Cc: stefan.bader@canonical.com
+Cc: xen-devel@lists.xensource.com
+Cc: konrad.wilk@oracle.com
+Cc: ville.syrjala@linux.intel.com
+Cc: david.vrabel@citrix.com
+Cc: jbeulich@suse.com
+Cc: toshi.kani@hp.com
+Cc: plagnioj@jcrosoft.com
+Cc: tomi.valkeinen@ti.com
+Cc: bhelgaas@google.com
+Link: http://lkml.kernel.org/r/1415019724-4317-4-git-send-email-jgross@suse.com
+Signed-off-by: Thomas Gleixner <tglx@linutronix.de>
+---
+ drivers/video/fbdev/gbefb.c |    3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/video/fbdev/gbefb.c b/drivers/video/fbdev/gbefb.c
+index 4aa56ba..6d9ef39 100644
+--- a/drivers/video/gbefb.c
++++ b/drivers/video/gbefb.c
+@@ -54,7 +54,8 @@ struct gbefb_par {
+ #endif
+ #endif
+ #ifdef CONFIG_X86
+-#define pgprot_fb(_prot) ((_prot) | _PAGE_PCD)
++#define pgprot_fb(_prot) (((_prot) & ~_PAGE_CACHE_MASK) |	\
++			  cachemode2protval(_PAGE_CACHE_MODE_UC_MINUS))
+ #endif
+ 
+ /*
+-- 
+1.7.10.4
+

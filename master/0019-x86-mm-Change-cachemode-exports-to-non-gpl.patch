@@ -1,0 +1,48 @@
+From 31bb7723706ba9660504a6c3903ea46198f98fd1 Mon Sep 17 00:00:00 2001
+From: Juergen Gross <jgross@suse.com>
+Date: Thu, 22 Jan 2015 12:43:17 +0100
+Subject: [PATCH 19/19] x86, mm: Change cachemode exports to non-gpl
+
+Commit 281d4078bec3 ("x86: Make page cache mode a real type")
+introduced the symbols __cachemode2pte_tbl and __pte2cachemode_tbl and
+exported them via EXPORT_SYMBOL_GPL.  The exports are part of a
+replacement of code which has been EXPORT_SYMBOL before these changes
+resulting in build breakage of out-of-tree non-gpl modules.
+
+Change EXPORT_SYMBOL_GPL to EXPORT-SYMBOL for these two symbols.
+
+Fixes: 281d4078bec3 "x86: Make page cache mode a real type"
+Reported-and-tested-by: Steven Noonan <steven@uplinklabs.net>
+Signed-off-by: Juergen Gross <jgross@suse.com>
+Reviewed-by: Toshi Kani <toshi.kani@hp.com>
+Link: http://lkml.kernel.org/r/1421926997-28615-1-git-send-email-jgross@suse.com
+Signed-off-by: Thomas Gleixner <tglx@linutronix.de>
+---
+ arch/x86/mm/init.c |    4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/arch/x86/mm/init.c b/arch/x86/mm/init.c
+index 08a7d31..079c3b6 100644
+--- a/arch/x86/mm/init.c
++++ b/arch/x86/mm/init.c
+@@ -43,7 +43,7 @@ uint16_t __cachemode2pte_tbl[_PAGE_CACHE_MODE_NUM] = {
+ 	[_PAGE_CACHE_MODE_WT]		= _PAGE_PCD,
+ 	[_PAGE_CACHE_MODE_WP]		= _PAGE_PCD,
+ };
+-EXPORT_SYMBOL_GPL(__cachemode2pte_tbl);
++EXPORT_SYMBOL(__cachemode2pte_tbl);
+ uint8_t __pte2cachemode_tbl[8] = {
+ 	[__pte2cm_idx(0)] = _PAGE_CACHE_MODE_WB,
+ 	[__pte2cm_idx(_PAGE_PWT)] = _PAGE_CACHE_MODE_WC,
+@@ -54,7 +54,7 @@ uint8_t __pte2cachemode_tbl[8] = {
+ 	[__pte2cm_idx(_PAGE_PCD | _PAGE_PAT)] = _PAGE_CACHE_MODE_UC_MINUS,
+ 	[__pte2cm_idx(_PAGE_PWT | _PAGE_PCD | _PAGE_PAT)] = _PAGE_CACHE_MODE_UC,
+ };
+-EXPORT_SYMBOL_GPL(__pte2cachemode_tbl);
++EXPORT_SYMBOL(__pte2cachemode_tbl);
+ 
+ static unsigned long __initdata pgt_buf_start;
+ static unsigned long __initdata pgt_buf_end;
+-- 
+1.7.10.4
+
