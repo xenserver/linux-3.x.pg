@@ -360,7 +360,7 @@ index 0000000..da884e2
 +
 diff --git a/mk/kernel.spec.in b/mk/kernel.spec.in
 new file mode 100644
-index 0000000..e4a7e4e
+index 0000000..3c902b4
 --- /dev/null
 +++ b/mk/kernel.spec.in
 @@ -0,0 +1,298 @@
@@ -615,10 +615,10 @@ index 0000000..e4a7e4e
 +if grep -qs control_d /proc/xen/capabilities ; then
 +  ln -sf vmlinuz-%{uname} vmlinuz-$short_uname-xen
 +else
-+  args="--install --make-default"
++  args="--make-default"
 +fi
 +
-+/sbin/new-kernel-pkg $args --mkinitrd --depmod %{uname}
++/sbin/new-kernel-pkg --update $args --mkinitrd --depmod %{uname}
 +
 +%preun
 +if [ "$1" = "0" ]; then
