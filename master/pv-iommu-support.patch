@@ -1,0 +1,421 @@
+diff --git a/arch/x86/include/asm/xen/hypercall.h b/arch/x86/include/asm/xen/hypercall.h
+index d9e22ea..0c7a1c2 100644
+--- a/arch/x86/include/asm/xen/hypercall.h
++++ b/arch/x86/include/asm/xen/hypercall.h
+@@ -47,6 +47,7 @@
+ #include <xen/interface/xen.h>
+ #include <xen/interface/sched.h>
+ #include <xen/interface/physdev.h>
++#include <xen/interface/iommu.h>
+ #include <xen/interface/platform.h>
+ #include <xen/interface/xen-mca.h>
+ #include <xen/interface/domctl.h>
+@@ -408,6 +409,12 @@ HYPERVISOR_grant_table_op(unsigned int cmd, void *uop, unsigned int count)
+ }
+ 
+ static inline int
++HYPERVISOR_iommu_op(unsigned int cmd, void *uop, unsigned int count)
++{
++	return _hypercall3(int, iommu_op, cmd, uop, count);
++}
++
++static inline int
+ HYPERVISOR_update_va_mapping_otherdomain(unsigned long va, pte_t new_val,
+ 					 unsigned long flags, domid_t domid)
+ {
+diff --git a/arch/x86/xen/p2m.c b/arch/x86/xen/p2m.c
+index d35b5c8..1628336 100644
+--- a/arch/x86/xen/p2m.c
++++ b/arch/x86/xen/p2m.c
+@@ -177,6 +177,9 @@
+ #include "multicalls.h"
+ #include "xen-ops.h"
+ 
++extern int xen_iommu_map_page(unsigned long pfn, unsigned long mfn);
++extern int xen_iommu_unmap_page(unsigned long pfn);
++
+ unsigned long xen_max_p2m_pfn __read_mostly;
+ 
+ #define P2M_PER_PAGE		(PAGE_SIZE / sizeof(unsigned long))
+@@ -914,7 +917,12 @@ bool set_phys_to_machine(unsigned long pfn, unsigned long mfn)
+ 		if (!__set_phys_to_machine(pfn, mfn))
+ 			return false;
+ 	}
+-
++	if (get_phys_to_machine(pfn) != mfn ) {
++		if (mfn == INVALID_P2M_ENTRY)
++			xen_iommu_unmap_page(pfn);
++		else
++			xen_iommu_map_page(pfn, mfn & ~FOREIGN_FRAME_BIT);
++	}
+ 	return true;
+ }
+ 
+diff --git a/arch/x86/xen/pci-swiotlb-xen.c b/arch/x86/xen/pci-swiotlb-xen.c
+index 98eef08..3880526 100644
+--- a/arch/x86/xen/pci-swiotlb-xen.c
++++ b/arch/x86/xen/pci-swiotlb-xen.c
+@@ -7,16 +7,22 @@
+ #include <asm/xen/hypervisor.h>
+ #include <xen/xen.h>
+ #include <asm/iommu_table.h>
++#include <asm/xen/hypercall.h>
+ 
+ 
+ #include <asm/xen/swiotlb-xen.h>
++#include <asm/xen/page.h>
+ #ifdef CONFIG_X86_64
+ #include <asm/iommu.h>
+ #include <asm/dma.h>
+ #endif
+ #include <linux/export.h>
+ 
++#define IOMMU_BATCH_SIZE 128
++
++extern unsigned long max_pfn;
+ int xen_swiotlb __read_mostly;
++static struct iommu_map_op iommu_map_ops[IOMMU_BATCH_SIZE] __initdata;
+ 
+ static struct dma_map_ops xen_swiotlb_dma_ops = {
+ 	.mapping_error = xen_swiotlb_dma_mapping_error,
+@@ -34,6 +40,64 @@ static struct dma_map_ops xen_swiotlb_dma_ops = {
+ 	.get_required_mask = xen_swiotlb_get_required_mask,
+ };
+ 
++int xen_iommu_map_page(unsigned long pfn, unsigned long mfn)
++{
++	struct iommu_map_op iommu_op;
++	int rc;
++
++	iommu_op.gmfn = pfn;
++	iommu_op.mfn = mfn;
++	iommu_op.flags = 3;
++	rc = HYPERVISOR_iommu_op(IOMMUOP_map_page, &iommu_op, 1);
++	if (rc < 0) {
++		printk("Failed to setup IOMMU mapping for gmfn 0x%lx, mfn 0x%lx, err %d\n",
++				pfn, mfn, rc);
++		return rc;
++	}
++	return iommu_op.status;
++}
++EXPORT_SYMBOL_GPL(xen_iommu_map_page);
++
++int xen_iommu_unmap_page(unsigned long pfn)
++{
++	struct iommu_map_op iommu_op;
++	int rc;
++
++	iommu_op.gmfn = pfn;
++	iommu_op.mfn = 0;
++	iommu_op.flags = 0;
++	rc = HYPERVISOR_iommu_op(IOMMUOP_unmap_page, &iommu_op, 1);
++	if (rc < 0) {
++		printk("Failed to remove IOMMU mapping for gmfn 0x%lx, err %d\n", pfn, rc);
++		return rc;
++	}
++	return iommu_op.status;
++}
++
++int xen_iommu_batch_map(struct iommu_map_op *iommu_ops, int count)
++{
++	int rc;
++
++	rc = HYPERVISOR_iommu_op(IOMMUOP_map_page, iommu_ops, count);
++	if (rc < 0) {
++		printk("Failed to batch IOMMU map, err %d\n", rc);
++	}
++	return rc;
++}
++EXPORT_SYMBOL_GPL(xen_iommu_batch_map);
++
++int xen_iommu_batch_unmap(struct iommu_map_op *iommu_ops, int count)
++{
++	int rc;
++
++	rc = HYPERVISOR_iommu_op(IOMMUOP_unmap_page, iommu_ops, count);
++	if (rc < 0) {
++		printk("Failed to batch IOMMU unmap, err %d\n", rc);
++	}
++	return rc;
++}
++EXPORT_SYMBOL_GPL(xen_iommu_batch_unmap);
++
+ /*
+  * pci_xen_swiotlb_detect - set xen_swiotlb to 1 if necessary
+  *
+@@ -46,6 +110,96 @@ int __init pci_xen_swiotlb_detect(void)
+ 	if (!xen_pv_domain())
+ 		return 0;
+ 
++	if (xen_initial_domain()){
++		int i, count = 0;
++		u64 max_mapped_gmfn, max_host_mfn = 0;
++
++		/* Find max RAM address in E820 */
++		/*for (i=e820.nr_map; i >= 0 ; i--)
++		{
++			if (e820.map[i].type == E820_UNUSABLE ||
++				e820.map[i].type == E820_RAM ){
++				char *temp = "Xen IOMMU";
++				max_host_mfn = (e820.map[i].addr +
++					e820.map[i].size) / PAGE_SIZE;
++				printk("E820 entry %d, type %x, addr 0x%llx, size 0x%llx\n",i,
++						e820.map[i].type, e820.map[i].addr, 
++						e820.map[i].size);
++				e820_print_map(temp);
++				break;
++			}
++
++		}*/
++		max_host_mfn = HYPERVISOR_memory_op(XENMEM_maximum_ram_page, NULL);
++		printk("Max host RAM MFN is 0x%llx\n",max_host_mfn);
++		printk("max_pfn is 0x%lx\n",max_pfn);
++
++		/* Setup 1-1 mapping of GPFN to MFN */
++		for (i=0; i < max_host_mfn; i++)
++		{
++			if (get_phys_to_machine(i) != INVALID_P2M_ENTRY)
++			{
++				iommu_map_ops[count].gmfn = i;
++				iommu_map_ops[count].mfn = pfn_to_mfn(i);
++				iommu_map_ops[count].flags = 3;
++				count++;
++
++
++				/* Map non identity pages only */
++				//if (!(get_phys_to_machine(i) & IDENTITY_FRAME_BIT))
++				//	if(xen_iommu_map_page(i, pfn_to_mfn(i)))
++				//		goto remove_iommu_mappings;
++			}
++			if (count == IOMMU_BATCH_SIZE)
++			{
++				count = 0;
++				if (xen_iommu_batch_map(iommu_map_ops,
++							IOMMU_BATCH_SIZE))
++					goto remove_iommu_mappings;
++			}
++
++		}
++		if (count && xen_iommu_batch_map(iommu_map_ops, count))
++			goto remove_iommu_mappings;
++
++		count = 0;
++		for (i=0; i < max_host_mfn; i++)
++		{
++			if (get_phys_to_machine(i) == INVALID_P2M_ENTRY)
++			{
++				iommu_map_ops[count].gmfn = i;
++				iommu_map_ops[count].mfn = 0;
++				iommu_map_ops[count].flags = 0;
++				count++;
++				//	xen_iommu_unmap_page(i);
++					//if(xen_iommu_unmap_page(i))
++					//	goto remove_iommu_mappings;
++			}
++			if (count == IOMMU_BATCH_SIZE)
++			{
++				count = 0;
++				if (xen_iommu_batch_unmap(iommu_map_ops,
++							IOMMU_BATCH_SIZE))
++					goto remove_iommu_mappings;
++			}
++		}
++		if (count && xen_iommu_batch_unmap(iommu_map_ops, count))
++			goto remove_iommu_mappings;
++		printk("Using GMFN IOMMU mode\n");
++		return 0;
++
++remove_iommu_mappings:
++		if ( i != 0) {
++			printk("Failed to setup GMFN IOMMU mode\n");
++			max_mapped_gmfn = i;
++			for (i=0; i < max_mapped_gmfn; i++)
++				if (pfn_to_mfn(i) != INVALID_P2M_ENTRY)
++					if(xen_iommu_unmap_page(i))
++						printk("Failed to remove IOMMU"
++								" mapping\n");
++		}
++	}
++
+ 	/* If running as PV guest, either iommu=soft, or swiotlb=force will
+ 	 * activate this IOMMU. If running as PV privileged, activate it
+ 	 * irregardless.
+diff --git a/arch/x86/xen/xen-head.S b/arch/x86/xen/xen-head.S
+index 7faed58..7d3d315 100644
+--- a/arch/x86/xen/xen-head.S
++++ b/arch/x86/xen/xen-head.S
+@@ -72,7 +72,9 @@ NEXT_HYPERCALL(hvm_op)
+ NEXT_HYPERCALL(sysctl)
+ NEXT_HYPERCALL(domctl)
+ NEXT_HYPERCALL(kexec_op)
+-NEXT_HYPERCALL(tmem_op) /* 38 */
++NEXT_HYPERCALL(tmem_op)
++NEXT_HYPERCALL(xc_reserved_op)
++NEXT_HYPERCALL(iommu_op) /* 40 */
+ ENTRY(xen_hypercall_rsvr)
+ 	.skip 320
+ NEXT_HYPERCALL(mca) /* 48 */
+diff --git a/drivers/xen/pv-iommu-xen.c b/drivers/xen/pv-iommu-xen.c
+new file mode 100644
+index 0000000..c9c1393
+--- /dev/null
++++ b/drivers/xen/pv-iommu-xen.c
+@@ -0,0 +1,158 @@
++/*
++ *  Copyright 2014
++ *  by Malcolm Crossley <malcolm.crossley@citrix.com>
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License v2.0 as published by
++ * the Free Software Foundation
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ *
++ *
++ */
++
++#include <linux/bootmem.h>
++#include <linux/dma-mapping.h>
++#include <linux/export.h>
++#include <xen/swiotlb-xen.h>
++#include <asm/swiotlb.h>
++#include <xen/page.h>
++#include <xen/xen-ops.h>
++#include <xen/hvc-console.h>
++
++#include <trace/events/swiotlb.h>
++
++extern int xen_iommu_map_page(unsigned long pfn, unsigned long mfn);
++extern bool pv_iommu_1_to_1_setup_complete;
++
++extern phys_addr_t io_tlb_start, io_tlb_end;
++
++void *xen_pv_iommu_alloc_coherent(struct device *hwdev, size_t size,
++					dma_addr_t *dma_handle, gfp_t flags,
++					struct dma_attrs *attrs)
++{
++	void *vaddr;
++
++	vaddr = dma_generic_alloc_coherent(hwdev, size, dma_handle, flags,
++					   attrs);
++	if (vaddr)
++		return vaddr;
++
++	return swiotlb_alloc_coherent(hwdev, size, dma_handle, flags);
++}
++EXPORT_SYMBOL_GPL(xen_pv_iommu_alloc_coherent);
++
++void xen_pv_iommu_free_coherent(struct device *dev, size_t size,
++				      void *vaddr, dma_addr_t dma_addr,
++				      struct dma_attrs *attrs)
++{
++	swiotlb_free_coherent(dev, size, vaddr, dma_addr);
++}
++EXPORT_SYMBOL_GPL(xen_pv_iommu_free_coherent);
++
++
++dma_addr_t xen_pv_iommu_get_foreign_addr(unsigned long p2m_entry)
++{
++	dma_addr_t phys;
++	unsigned long mfn = p2m_entry & ~FOREIGN_FRAME_BIT;
++	/* If 1-1 has not completed being setup then map this page now */
++	if (unlikely(!pv_iommu_1_to_1_setup_complete))
++		xen_iommu_map_page(mfn + (pv_iommu_1_to_1_offset >> PAGE_SHIFT),
++					mfn);
++
++	phys = (mfn << PAGE_SHIFT) + pv_iommu_1_to_1_offset;
++	return phys;
++}
++
++/*
++ * Map a single buffer of the indicated size for DMA in streaming mode.  The
++ * physical address to use is returned.
++ *
++ * PV IOMMU version detects Xen foreign pages and use's the original MFN offset
++ * into previously setup IOMMU 1-to-1 offset mapping of host memory
++ */
++dma_addr_t xen_pv_iommu_map_page(struct device *dev, struct page *page,
++				unsigned long offset, size_t size,
++				enum dma_data_direction dir,
++				struct dma_attrs *attrs)
++{
++	unsigned long p2m_entry = get_phys_to_machine(page_to_pfn(page));
++
++	if (p2m_entry & FOREIGN_FRAME_BIT) {
++		dma_addr_t phys = xen_pv_iommu_get_foreign_addr(p2m_entry) + offset;
++		/* Check if device can DMA to 1-1 mapped foreign address */
++		if (dma_capable(dev, phys, size)) {
++			return phys;
++		} else {
++			phys_addr_t map = swiotlb_tbl_map_single(dev, io_tlb_start,
++							page_to_phys(page) + offset,
++							size, dir);
++			trace_swiotlb_bounced(dev, phys, size, 0);
++			return phys_to_dma(dev, map);
++		}
++	}
++
++	return swiotlb_map_page(dev, page, offset, size, dir, attrs);
++}
++EXPORT_SYMBOL_GPL(xen_pv_iommu_map_page);
++
++/*
++ * Map a set of buffers described by scatterlist in streaming mode for DMA.
++ * This is the scatter-gather version of the above xen_swiotlb_map_page
++ * interface.  Here the scatter gather list elements are each tagged with the
++ * appropriate dma address and length.  They are obtained via
++ * sg_dma_{address,length}(SG).
++ *
++ * NOTE: An implementation may be able to use a smaller number of
++ *       DMA address/length pairs than there are SG table elements.
++ *       (for example via virtual mapping capabilities)
++ *       The routine returns the number of addr/length pairs actually
++ *       used, at most nents.
++ *
++ * PV IOMMU version detects Xen foreign pages and use's the original MFN offset
++ * into previously setup IOMMU 1-to-1 offset mapping of host memory
++ *
++ */
++int
++xen_pv_iommu_map_sg_attrs(struct device *hwdev, struct scatterlist *sgl,
++			 int nelems, enum dma_data_direction dir,
++			 struct dma_attrs *attrs)
++{
++	struct scatterlist *sg;
++	int i;
++
++	for_each_sg(sgl, sg, nelems, i) {
++		phys_addr_t paddr = sg_phys(sg);
++		dma_addr_t dev_addr = phys_to_dma(hwdev, paddr);
++		unsigned long p2m_entry = get_phys_to_machine(PFN_DOWN(paddr));
++		if (p2m_entry & FOREIGN_FRAME_BIT)
++			dev_addr = xen_pv_iommu_get_foreign_addr(p2m_entry) +
++					(paddr & ~PAGE_MASK);
++
++		/* Check if device can DMA to bus address */
++		if (!dma_capable(hwdev, dev_addr, sg->length)){
++			phys_addr_t map = swiotlb_tbl_map_single(hwdev, io_tlb_start,
++						paddr, sg->length, dir);
++			trace_swiotlb_bounced(hwdev, dev_addr, sg->length, 0);
++			if (map == SWIOTLB_MAP_ERROR) {
++				/* Don't panic here, we expect map_sg users
++				   to do proper error handling. */
++				swiotlb_unmap_sg_attrs(hwdev, sgl, i, dir,
++						       attrs);
++				sgl[0].dma_length = 0;
++				return 0;
++			}
++			sg->dma_address = phys_to_dma(hwdev, map);
++
++		} else {
++			sg->dma_address = dev_addr;
++		}
++		sg->dma_length = sg->length;
++	}
++	return nelems;
++
++}
++EXPORT_SYMBOL_GPL(xen_pv_iommu_map_sg_attrs);

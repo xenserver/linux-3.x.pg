@@ -1,0 +1,374 @@
+diff --git a/arch/x86/include/asm/xen/hypercall.h b/arch/x86/include/asm/xen/hypercall.h
+index a41b135..57a7409 100644
+--- a/arch/x86/include/asm/xen/hypercall.h
++++ b/arch/x86/include/asm/xen/hypercall.h
+@@ -351,6 +351,12 @@ HYPERVISOR_multicall(void *call_list, int nr_calls)
+ }
+ 
+ static inline int
++HYPERVISOR_iommu_op(void *uop, unsigned int count)
++{
++       return _hypercall2(int, iommu_op, uop, count);
++}
++
++static inline int
+ HYPERVISOR_update_va_mapping(unsigned long va, pte_t new_val,
+ 			     unsigned long flags)
+ {
+@@ -402,12 +408,6 @@ HYPERVISOR_grant_table_op(unsigned int cmd, void *uop, unsigned int count)
+ }
+ 
+ static inline int
+-HYPERVISOR_iommu_op(void *uop, unsigned int count)
+-{
+-	return _hypercall2(int, iommu_op, uop, count);
+-}
+-
+-static inline int
+ HYPERVISOR_update_va_mapping_otherdomain(unsigned long va, pte_t new_val,
+ 					 unsigned long flags, domid_t domid)
+ {
+diff --git a/drivers/gpu/drm/i915/vgt/gtt.c b/drivers/gpu/drm/i915/vgt/gtt.c
+index 8711e08..53d59a0 100644
+--- a/drivers/gpu/drm/i915/vgt/gtt.c
++++ b/drivers/gpu/drm/i915/vgt/gtt.c
+@@ -571,16 +571,20 @@ static inline bool vgt_init_shadow_page(struct vgt_device *vgt,
+ 	memset(sp->vaddr, 0, PAGE_SIZE);
+ 
+ 	INIT_HLIST_NODE(&sp->node);
+-	sp->mfn = hypervisor_virt_to_mfn(sp->vaddr);
++	sp->mfn = pci_map_single(vgt->pdev->pdev, sp->vaddr, PAGE_SIZE,
++			DMA_BIDIRECTIONAL) >> PAGE_SHIFT;
++	//sp->mfn = hypervisor_virt_to_mfn(sp->vaddr);
+ 	hash_add(vgt->gtt.shadow_page_hash_table, &sp->node, sp->mfn);
+ 
+ 	return true;
+ }
+ 
+-static inline void vgt_clean_shadow_page(shadow_page_t *sp)
++static inline void vgt_clean_shadow_page(struct vgt_device *vgt, shadow_page_t *sp)
+ {
+ 	if(!hlist_unhashed(&sp->node))
+ 		hash_del(&sp->node);
++	pci_unmap_single(vgt->pdev->pdev, sp->mfn << PAGE_SHIFT, PAGE_SIZE,
++			DMA_BIDIRECTIONAL);
+ }
+ 
+ static inline shadow_page_t *vgt_find_shadow_page(struct vgt_device *vgt,
+@@ -618,7 +622,7 @@ static void ppgtt_free_shadow_page(ppgtt_spt_t *spt)
+ {
+ 	trace_spt_free(spt->vgt->vm_id, spt, spt->shadow_page.type);
+ 
+-	vgt_clean_shadow_page(&spt->shadow_page);
++	vgt_clean_shadow_page(spt->vgt, &spt->shadow_page);
+ 	vgt_clean_guest_page(spt->vgt, &spt->guest_page);
+ 
+ 	mempool_free(spt, spt->vgt->pdev->gtt.mempool);
+@@ -1530,7 +1534,11 @@ static inline bool ppgtt_get_next_level_entry(struct vgt_mm *mm,
+ 		else
+ 			ppgtt_get_guest_entry(s, e, index);
+ 	} else {
+-		pt = hypervisor_mfn_to_virt(ops->get_pfn(e));
++		//printk("Trying to walk ppgtt page table\n");
++		BUG();
++		//pt = hypervisor_mfn_to_virt(ops->get_pfn(e));
++		//printk("Mfn to virt returned %p, mfn 0x%lx\n", pt,
++		//		ops->get_pfn(e));
+ 		ops->get_entry(pt, e, index, false, NULL);
+ 		e->type = get_entry_type(get_next_pt_type(e->type));
+ 	}
+diff --git a/drivers/gpu/drm/i915/vgt/hypercall.h b/drivers/gpu/drm/i915/vgt/hypercall.h
+index b2457c2..51336a0 100644
+--- a/drivers/gpu/drm/i915/vgt/hypercall.h
++++ b/drivers/gpu/drm/i915/vgt/hypercall.h
+@@ -23,7 +23,7 @@
+ struct guest_page;
+ struct vgt_device;
+ struct kernel_dm {
+-	unsigned long (*g2m_pfn)(int vm_id, unsigned long g_pfn);
++	unsigned long (*g2m_pfn)(int vm_id, unsigned long g_pfn, struct vgt_device *vgt);
+ 	int (*pause_domain)(int vm_id);
+ 	int (*shutdown_domain)(int vm_id);
+ 	int (*map_mfn_to_gpfn)(int vm_id, unsigned long gpfn,
+diff --git a/drivers/gpu/drm/i915/vgt/mmio.c b/drivers/gpu/drm/i915/vgt/mmio.c
+index 0b8686c..51f911a 100644
+--- a/drivers/gpu/drm/i915/vgt/mmio.c
++++ b/drivers/gpu/drm/i915/vgt/mmio.c
+@@ -27,6 +27,7 @@
+ #include <linux/acpi_io.h>
+ #include <linux/kthread.h>
+ #include <linux/freezer.h>
++#include <asm/xen/page.h>
+ 
+ #include "vgt.h"
+ 
+@@ -556,7 +557,7 @@ int vgt_hvm_opregion_map(struct vgt_device *vgt, int map)
+ 	for (i = 0; i < VGT_OPREGION_PAGES; i++) {
+ 		rc = hypervisor_map_mfn_to_gpfn(vgt,
+ 			vgt->state.opregion_gfn[i],
+-			hypervisor_virt_to_mfn(opregion + i*PAGE_SIZE),
++			virt_to_mfn(opregion + i*PAGE_SIZE),
+ 			1,
+ 			map);
+ 		if (rc != 0)
+diff --git a/drivers/gpu/drm/i915/vgt/vgt.h b/drivers/gpu/drm/i915/vgt/vgt.h
+index 09bd08c..7ff049d 100644
+--- a/drivers/gpu/drm/i915/vgt/vgt.h
++++ b/drivers/gpu/drm/i915/vgt/vgt.h
+@@ -2993,7 +2993,7 @@ extern struct kernel_dm *vgt_pkdm;
+ static inline unsigned long hypervisor_g2m_pfn(struct vgt_device *vgt,
+ 	unsigned long g_pfn)
+ {
+-	return vgt_pkdm->g2m_pfn(vgt->vm_id, g_pfn);
++	return vgt_pkdm->g2m_pfn(vgt->vm_id, g_pfn, vgt);
+ }
+ 
+ static inline int hypervisor_pause_domain(struct vgt_device *vgt)
+diff --git a/drivers/xen/xengt.c b/drivers/xen/xengt.c
+index f7c652c..9771737 100644
+--- a/drivers/xen/xengt.c
++++ b/drivers/xen/xengt.c
+@@ -55,6 +55,8 @@ MODULE_DESCRIPTION("XenGT mediated passthrough driver");
+ MODULE_LICENSE("GPL");
+ MODULE_VERSION("0.1");
+ 
++extern dma_addr_t pv_iommu_1_to_1_offset;
++
+ #define MAX_HVM_VCPUS_SUPPORTED 128
+ struct vgt_hvm_info {
+ 	/* iopage_vma->addr is just iopage. We need iopage_vma on VM destroy */
+@@ -85,25 +87,29 @@ struct vgt_hvm_info {
+ };
+ 
+ /* Translate from VM's guest pfn to machine pfn */
+-static unsigned long xen_g2m_pfn(int vm_id, unsigned long g_pfn)
++static unsigned long xen_g2m_pfn(int vm_id, unsigned long g_pfn, struct vgt_device *vgt)
+ {
+-	struct xen_get_mfn_from_pfn pfn_arg;
++	struct pv_iommu_op iommu_op;
++	struct vgt_hvm_info *info = vgt->hvm_info;
+ 	int rc;
+-	unsigned long pfn_list[1];
+ 
+-	pfn_list[0] = g_pfn;
++	if (vm_id == 0)
++		return g_pfn;
+ 
+-	set_xen_guest_handle(pfn_arg.pfn_list, pfn_list);
+-	pfn_arg.nr_pfns = 1;
+-	pfn_arg.domid = vm_id;
++	iommu_op.flags = 0;
++	iommu_op.subop_id = IOMMUOP_lookup_foreign_page;
++	iommu_op.u.lookup_foreign_page.gfn = g_pfn;
++	iommu_op.u.lookup_foreign_page.domid = vm_id;
++	iommu_op.u.lookup_foreign_page.ioserver = info->iosrv_id;
+ 
+-	rc = HYPERVISOR_memory_op(XENMEM_get_mfn_from_pfn, &pfn_arg);
+-	if(rc < 0){
+-		printk("failed to get mfn for gpfn(0x%lx)\n, errno=%d\n", g_pfn, rc);
++	rc = HYPERVISOR_iommu_op(&iommu_op, 1);
++	if(rc < 0 || iommu_op.status ){
++		printk("failed to get mfn for gpfn(0x%lx)\n, errno=%d status %d\n", g_pfn, rc,
++				iommu_op.status);
+ 		return INVALID_MFN;
+ 	}
+ 
+-	return pfn_list[0];
++	return iommu_op.u.lookup_foreign_page.bfn;
+ }
+ 
+ static int xen_get_max_gpfn(int vm_id)
+@@ -200,9 +206,13 @@ static int xen_hvm_memory_mapping(int vm_id, uint64_t first_gfn, uint64_t first_
+ }
+ 
+ static int xen_map_mfn_to_gpfn(int vm_id, unsigned long gpfn,
+-	unsigned long mfn, int nr, int map)
++	unsigned long pfn, int nr, int map)
+ {
++	unsigned long mfn;
+ 	int rc;
++	// Convert PFN to MFN
++	//mfn = pfn_to_mfn(pfn);
++	mfn = pfn;
+ 	rc = xen_hvm_memory_mapping(vm_id, gpfn, mfn, nr,
+ 			map ? DPCI_ADD_MAPPING : DPCI_REMOVE_MAPPING);
+ 	if (rc != 0)
+@@ -457,12 +467,16 @@ static int xen_check_host(void)
+ 
+ static int xen_virt_to_mfn(void *addr)
+ {
+-	return virt_to_mfn(addr);
++	//return virt_to_mfn(addr);
++	return virt_to_pfn(addr);
+ }
+ 
+ static void *xen_mfn_to_virt(int mfn)
+ {
+-	return mfn_to_virt(mfn);
++	if (!pv_iommu_1_to_1_offset)
++		return mfn_to_virt(mfn);
++	else
++		return pfn_to_kaddr(mfn);
+ }
+ 
+ static int xen_inject_msi(int vm_id, u32 addr_lo, u16 data)
+diff --git a/include/xen/interface/iommu.h b/include/xen/interface/iommu.h
+new file mode 100644
+index 0000000..ffe527c
+--- /dev/null
++++ b/include/xen/interface/iommu.h
+@@ -0,0 +1,38 @@
++/*
++ * Permission is hereby granted, free of charge, to any person obtaining a copy
++ * of this software and associated documentation files (the "Software"), to
++ * deal in the Software without restriction, including without limitation the
++ * rights to use, copy, modify, merge, publish, distribute, sublicense, and/or
++ * sell copies of the Software, and to permit persons to whom the Software is
++ * furnished to do so, subject to the following conditions:
++ *
++ * The above copyright notice and this permission notice shall be included in
++ * all copies or substantial portions of the Software.
++ *
++ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
++ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
++ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
++ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
++ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
++ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
++ * DEALINGS IN THE SOFTWARE.
++ */
++
++#ifndef __XEN_PUBLIC_IOMMU_H__
++#define __XEN_PUBLIC_IOMMU_H__
++
++#define IOMMUOP_map_page          1
++#define IOMMUOP_unmap_page        2
++
++
++struct iommu_map_op {
++    /* IN */
++    uint64_t gmfn;
++    uint64_t mfn;
++    uint32_t flags;
++    /* OUT */
++    int16_t status;
++};
++typedef struct iommu_map_op iommu_map_op_t;
++
++#endif
+diff --git a/include/xen/interface/pv-iommu.h b/include/xen/interface/pv-iommu.h
+new file mode 100644
+index 0000000..0cc4ecc
+--- /dev/null
++++ b/include/xen/interface/pv-iommu.h
+@@ -0,0 +1,90 @@
++/*
++ * Permission is hereby granted, free of charge, to any person obtaining a copy
++ * of this software and associated documentation files (the "Software"), to
++ * deal in the Software without restriction, including without limitation the
++ * rights to use, copy, modify, merge, publish, distribute, sublicense, and/or
++ * sell copies of the Software, and to permit persons to whom the Software is
++ * furnished to do so, subject to the following conditions:
++ *
++ * The above copyright notice and this permission notice shall be included in
++ * all copies or substantial portions of the Software.
++ *
++ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
++ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
++ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
++ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
++ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
++ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
++ * DEALINGS IN THE SOFTWARE.
++ */
++
++#ifndef __XEN_PUBLIC_PV_IOMMU_H__
++#define __XEN_PUBLIC_PV_IOMMU_H__
++
++#define IOMMUOP_query_caps            1
++#define IOMMUOP_map_page              2
++#define IOMMUOP_unmap_page            3
++#define IOMMUOP_map_foreign_page      4
++#define IOMMUOP_lookup_foreign_page   5
++#define IOMMUOP_unmap_foreign_page    6
++
++struct pv_iommu_op {
++    uint16_t subop_id;
++
++#define IOMMU_page_order (0xf1 << 10)
++#define IOMMU_get_page_order(flags) ((flags & IOMMU_page_order) >> 10)
++#define IOMMU_QUERY_map_cap (1 << 0)
++#define IOMMU_QUERY_map_all_mfns (1 << 1)
++#define IOMMU_OP_readable (1 << 0)
++#define IOMMU_OP_writeable (1 << 1)
++#define IOMMU_MAP_OP_no_ref_cnt (1 << 2)
++#define IOMMU_MAP_OP_add_m2b (1 << 3)
++#define IOMMU_UNMAP_OP_remove_m2b (1 << 0)
++    uint16_t flags;
++    int32_t status;
++
++    union {
++        struct {
++            uint64_t bfn;
++            uint64_t gfn;
++        } map_page;
++
++        struct {
++            uint64_t bfn;
++        } unmap_page;
++
++        struct {
++            uint64_t bfn;
++            uint64_t gfn;
++            uint16_t domid;
++            uint16_t ioserver;
++        } map_foreign_page;
++
++        struct {
++            uint64_t bfn;
++            uint64_t gfn;
++            uint16_t domid;
++            uint16_t ioserver;
++        } lookup_foreign_page;
++
++        struct {
++            uint64_t bfn;
++            uint16_t ioserver;
++        } unmap_foreign_page;
++    } u;
++};
++
++
++typedef struct pv_iommu_op pv_iommu_op_t;
++
++#endif
++
++/*
++ * Local variables:
++ * mode: C
++ * c-file-style: "BSD"
++ * c-basic-offset: 4
++ * tab-width: 4
++ * indent-tabs-mode: nil
++ * End:
++ */
+diff --git a/include/xen/interface/xen.h b/include/xen/interface/xen.h
+index 460a037..050f4de 100644
+--- a/include/xen/interface/xen.h
++++ b/include/xen/interface/xen.h
+@@ -60,6 +60,7 @@
+ #define __HYPERVISOR_domctl               36
+ #define __HYPERVISOR_kexec_op             37
+ #define __HYPERVISOR_tmem_op              38
++#define __HYPERVISOR_iommu_op             40
+ 
+ /* Architecture-specific hypercall definitions. */
+ #define __HYPERVISOR_arch_0               48
+@@ -83,7 +84,6 @@
+ #define VIRQ_DEBUGGER   6  /* (DOM0) A domain has paused for debugging.   */
+ #define VIRQ_XENOPROF   7  /* V. XenOprofile interrupt: new sample available */
+ #define VIRQ_PCPU_STATE 9  /* (DOM0) PCPU state changed                   */
+-#define VIRQ_VGT_GFX	15 /* (DOM0) Used for graphics interrupt          */
+ 
+ /* Architecture-specific VIRQ definitions. */
+ #define VIRQ_ARCH_0    16

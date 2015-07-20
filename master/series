@@ -591,3 +591,7 @@ gvt-g-correct-mmio-skip-code.patch
 #
 kernel-configuration
 abi-version
+pv-iommu-support.patch
+pv-iommu-host-1-1.patch
+pv-iommu-upstream.patch
+gvt-g-pv-iommu-support.patch
