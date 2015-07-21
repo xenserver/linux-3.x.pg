@@ -360,10 +360,10 @@ index 0000000..da884e2
 +
 diff --git a/mk/kernel.spec.in b/mk/kernel.spec.in
 new file mode 100644
-index 0000000..3c902b4
+index 0000000..f93548a
 --- /dev/null
 +++ b/mk/kernel.spec.in
-@@ -0,0 +1,298 @@
+@@ -0,0 +1,299 @@
 +# -*- rpm-spec -*-
 +
 +# The full kernel uname version
@@ -612,13 +612,14 @@ index 0000000..3c902b4
 +%post
 +short_uname=$(echo %{uname} | awk -F '[.]' '{print $1 "." $2}')
 +
-+if grep -qs control_d /proc/xen/capabilities ; then
-+  ln -sf vmlinuz-%{uname} vmlinuz-$short_uname-xen
++if [ -e /boot/vmlinuz-$short_uname-xen ]; then
++  /sbin/new-kernel-pkg --update --mkinitrd --depmod %{uname}
 +else
-+  args="--make-default"
++  /sbin/new-kernel-pkg --install --make-default --mkinitrd --depmod %{uname}
 +fi
 +
-+/sbin/new-kernel-pkg --update $args --mkinitrd --depmod %{uname}
++ln -sf vmlinuz-%{uname} /boot/vmlinuz-$short_uname-xen
++ln -sf initrd-%{uname}.img /boot/initrd-$short_uname-xen.img
 +
 +%preun
 +if [ "$1" = "0" ]; then
