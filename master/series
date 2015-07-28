@@ -438,6 +438,7 @@ x86-fix-xen-save-fl.patch
 0004-xen-balloon-populate-the-hotplug-memory-before-addin.patch
 0005-x86-xen-discard-RAM-regions-above-the-maximum-reserv.patch
 xen-balloon-hotplug-select-HOLES_IN_ZONE.patch
+xen-balloon-allocate-p2m-entries.patch
 
 # Blkback
 blkback-debug-ring.diff
