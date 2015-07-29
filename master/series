@@ -526,6 +526,7 @@ CA-135938-nfs-disconnect-on-rpc-retry.patch
 CP-9457-blkback-kthread-pid.patch
 0001-Revert-xen-Send-spinlock-IPI-to-all-waiters.patch
 0002-x86-xen-never-re-enable-IRQs-in-spinlock-slow-path.patch
+CA-173529-disable-oplocks-for-CIFS.patch
 
 # Local bonding and bridging patches
 bonding-balance-slb.patch
