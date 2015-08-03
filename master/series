@@ -595,3 +595,4 @@ pv-iommu-support.patch
 pv-iommu-host-1-1.patch
 pv-iommu-upstream.patch
 gvt-g-pv-iommu-support.patch
+gvt-g-pv-iommu-gfn-to-bfn.patch

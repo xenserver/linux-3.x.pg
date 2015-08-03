@@ -1,0 +1,75 @@
+diff --git a/drivers/xen/ioemu.c b/drivers/xen/ioemu.c
+index 369b897..7cb2584 100644
+--- a/drivers/xen/ioemu.c
++++ b/drivers/xen/ioemu.c
+@@ -51,4 +51,49 @@ int xen_ioemu_inject_msi(domid_t domid, uint64_t addr, uint32_t data)
+ 
+ 	return HYPERVISOR_hvm_op(HVMOP_inject_msi, &xinfo);
+ }
++
++/**
++ * xen_ioemu_map_foreign_gfn_to_bfn: Returns the BFN's corresponding to GFN's.
++ * @pv_iommu_ops: pv_iommu_ops contains the struct_ map_foreign_page
++ * that will be used for lookup for BFN.
++ * @count: count of struct pv_iommu_ops.
++ *
++ * Its a wrapper function for getting BFN from GFN using IOMMU hypercall.
++*/
++int xen_ioemu_map_foreign_gfn_to_bfn(struct pv_iommu_op *ops, int count)
++{
++        int i;
++        int rc = 0;
++        for (i = 0; i < count; i++)
++        {
++                ops[i].subop_id = IOMMUOP_lookup_foreign_page;
++                ops[i].flags |= IOMMU_OP_writeable;
++        }
++        rc = HYPERVISOR_iommu_op(ops, count);
++        return rc;
++}
++
++/**
++ * xen_ioemu_unmap_foreign_gfn_to_bfn: Unmap BFN's corresponding to GFN's.
++ * @pv_iommu_ops: pv_iommu_ops contains the struct unmap_foreign_page
++ * that will be used to unmap BFNs.
++ * @count: count of struct pv_iommu_ops.
++ *
++ * Its a wrapper function to unmap foreign GFN's to BFN's .
++*/
++int xen_ioemu_unmap_foreign_gfn_to_bfn(struct pv_iommu_op *ops, int count)
++{
++        int i;
++        int rc = 0;
++        for (i = 0; i < count; i++)
++        {
++                ops[i].subop_id = IOMMUOP_unmap_foreign_page;
++        }
++        rc = HYPERVISOR_iommu_op(ops, count);
++        return rc;
++
++
++}
+ EXPORT_SYMBOL(xen_ioemu_inject_msi);
++EXPORT_SYMBOL(xen_ioemu_map_foreign_gfn_to_bfn);
++EXPORT_SYMBOL(xen_ioemu_unmap_foreign_gfn_to_bfn);
+diff --git a/drivers/xen/xengt.c b/drivers/xen/xengt.c
+index 9771737..cbdbbaa 100644
+--- a/drivers/xen/xengt.c
++++ b/drivers/xen/xengt.c
+@@ -97,12 +97,11 @@ static unsigned long xen_g2m_pfn(int vm_id, unsigned long g_pfn, struct vgt_devi
+ 		return g_pfn;
+ 
+ 	iommu_op.flags = 0;
+-	iommu_op.subop_id = IOMMUOP_lookup_foreign_page;
+-	iommu_op.u.lookup_foreign_page.gfn = g_pfn;
+-	iommu_op.u.lookup_foreign_page.domid = vm_id;
+-	iommu_op.u.lookup_foreign_page.ioserver = info->iosrv_id;
++	iommu_op.u.map_foreign_page.gfn = g_pfn;
++	iommu_op.u.map_foreign_page.domid = vm_id;
++	iommu_op.u.map_foreign_page.ioserver = info->iosrv_id;
+ 
+-	rc = HYPERVISOR_iommu_op(&iommu_op, 1);
++	rc = xen_ioemu_map_foreign_gfn_to_bfn(&iommu_op, 1);
+ 	if(rc < 0 || iommu_op.status ){
+ 		printk("failed to get mfn for gpfn(0x%lx)\n, errno=%d status %d\n", g_pfn, rc,
+ 				iommu_op.status);
