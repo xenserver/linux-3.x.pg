@@ -296,6 +296,20 @@ index dff1491..c314122 100644
  }
  
  static int execlists_context_queue(struct intel_engine_cs *ring,
+diff --git a/drivers/gpu/drm/i915/vgt/Makefile b/drivers/gpu/drm/i915/vgt/Makefile
+deleted file mode 100644
+index 51327eb..0000000
+--- a/drivers/gpu/drm/i915/vgt/Makefile
++++ /dev/null
+@@ -1,8 +0,0 @@
+-VGT_SOURCE := vgt.o render.o mmio.o handlers.o interrupt.o  \
+-	sysfs.o display.o debugfs.o edid.o gtt.o aperture_gm.o utility.o \
+-	klog.o dev.o cmd_parser.o sched.o instance.o cfg_space.o \
+-	fb_decoder.o vbios.o host.o execlists.o
+-
+-ccflags-y				+= -I$(src) -I$(src)/.. -Wall
+-xen_vgt-y				:= $(VGT_SOURCE)
+-obj-$(CONFIG_I915_VGT)			+= xen_vgt.o
 diff --git a/drivers/gpu/drm/i915/vgt/cfg_space.c b/drivers/gpu/drm/i915/vgt/cfg_space.c
 index 18ed7be..c852fe6 100644
 --- a/drivers/gpu/drm/i915/vgt/cfg_space.c
@@ -1089,6 +1103,42 @@ index 9b94f57..c5dc94d 100644
  /*
   * 'consumed' file operations - r/w, binary
   *
+diff --git a/drivers/gpu/drm/i915/vgt/ops.c b/drivers/gpu/drm/i915/vgt/ops.c
+new file mode 100644
+index 0000000..6840c58
+--- /dev/null
++++ b/drivers/gpu/drm/i915/vgt/ops.c
+@@ -0,0 +1,30 @@
++/*
++ * vGT builtin symbol
++ *
++ * Copyright(c) 2011-2013 Intel Corporation. All rights reserved.
++ *
++ * Permission is hereby granted, free of charge, to any person obtaining a
++ * copy of this software and associated documentation files (the "Software"),
++ * to deal in the Software without restriction, including without limitation
++ * the rights to use, copy, modify, merge, publish, distribute, sublicense,
++ * and/or sell copies of the Software, and to permit persons to whom the
++ * Software is furnished to do so, subject to the following conditions:
++ *
++ * The above copyright notice and this permission notice (including the next
++ * paragraph) shall be included in all copies or substantial portions of the
++ * Software.
++ *
++ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
++ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
++ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
++ * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
++ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
++ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
++ * SOFTWARE.
++ */
++#include <linux/kernel.h>
++#include "vgt.h"
++
++struct vgt_ops *vgt_ops = NULL;
++EXPORT_SYMBOL(vgt_ops);
++
 diff --git a/drivers/gpu/drm/i915/vgt/reg.h b/drivers/gpu/drm/i915/vgt/reg.h
 index 1a3ee48..b559f81 100644
 --- a/drivers/gpu/drm/i915/vgt/reg.h
