@@ -583,6 +583,7 @@ Q2-patch-drop3.patch
 Q3-patch-drop1.patch
 # Local GVT-g bug fixes (ready for feed-back to Intel)
 ca-178242.patch
+i915-depend-on-xengt.patch
 
 # Build vgt/i915 as a module
 #0001-modulize-Xen-MPT-as-LKM.patch
