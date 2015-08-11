@@ -1,0 +1,35 @@
+From 06e28a1904893b97c9572889073b1670826f528b Mon Sep 17 00:00:00 2001
+From: Chandrika Srinivasan <chandrika.srinivasan@citrix.com>
+Date: Wed, 29 Jul 2015 09:42:52 +0000
+Subject: [PATCH] CA-173529: Turn off oplocks to disable client side-caching
+
+Oplocks interfere with concurrent access of CIFS files by multiple
+clients and hence need to be disabled for CIFS shares to serve as 
+a shared SR in a XenServer Pool. 
+
+This is hopefully a temporary patch till we can figure out a more
+elegant way to disable oplocks through an external interface. 
+
+Signed-off-by: Chandrika Srinivasan <chandrika.srinivasan@citrix.com>
+---
+ fs/cifs/smb2ops.c |    3 +--
+ 1 file changed, 1 insertion(+), 2 deletions(-)
+
+diff --git a/fs/cifs/smb2ops.c b/fs/cifs/smb2ops.c
+index e12f258..2a61be8 100644
+--- a/fs/cifs/smb2ops.c
++++ b/fs/cifs/smb2ops.c
+@@ -48,9 +48,8 @@ change_conf(struct TCP_Server_Info *server)
+ 		break;
+ 	default:
+ 		server->echoes = true;
+-		server->oplocks = true;
++		server->oplocks = false;
+ 		server->echo_credits = 1;
+-		server->oplock_credits = 1;
+ 	}
+ 	server->credits -= server->echo_credits + server->oplock_credits;
+ 	return 0;
+-- 
+1.7.10.4
+
