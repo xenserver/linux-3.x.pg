@@ -1,9 +1,9 @@
 diff --git a/buildconfigs/linux-defconfig_xen_x86_64 b/buildconfigs/linux-defconfig_xen_x86_64
 new file mode 100644
-index 0000000..5856a58
+index 0000000..479c88a
 --- /dev/null
 +++ b/buildconfigs/linux-defconfig_xen_x86_64
-@@ -0,0 +1,3866 @@
+@@ -0,0 +1,3834 @@
 +#
 +# Automatically generated file; DO NOT EDIT.
 +# Linux/x86_64 3.10.0+0 Kernel Configuration
@@ -2504,38 +2504,7 @@ index 0000000..5856a58
 +CONFIG_VGA_ARB=y
 +CONFIG_VGA_ARB_MAX_GPUS=16
 +# CONFIG_VGA_SWITCHEROO is not set
-+CONFIG_DRM=y
-+CONFIG_DRM_KMS_HELPER=m
-+CONFIG_DRM_KMS_FB_HELPER=y
-+# CONFIG_DRM_LOAD_EDID_FIRMWARE is not set
-+
-+#
-+# I2C encoder or helper chips
-+#
-+# CONFIG_DRM_I2C_CH7006 is not set
-+# CONFIG_DRM_I2C_SIL164 is not set
-+# CONFIG_DRM_I2C_NXP_TDA998X is not set
-+# CONFIG_DRM_TDFX is not set
-+# CONFIG_DRM_R128 is not set
-+# CONFIG_DRM_RADEON is not set
-+# CONFIG_DRM_NOUVEAU is not set
-+# CONFIG_DRM_I810 is not set
-+CONFIG_DRM_I915=m
-+CONFIG_DRM_I915_KMS=y
-+CONFIG_DRM_I915_FBDEV=y
-+CONFIG_DRM_I915_PRELIMINARY_HW_SUPPORT=y
-+CONFIG_I915_VGT=y
-+# CONFIG_DRM_MGA is not set
-+# CONFIG_DRM_SIS is not set
-+# CONFIG_DRM_VIA is not set
-+# CONFIG_DRM_SAVAGE is not set
-+# CONFIG_DRM_VMWGFX is not set
-+# CONFIG_DRM_GMA500 is not set
-+# CONFIG_DRM_UDL is not set
-+# CONFIG_DRM_AST is not set
-+# CONFIG_DRM_MGAG200 is not set
-+# CONFIG_DRM_CIRRUS_QEMU is not set
-+# CONFIG_DRM_QXL is not set
++# CONFIG_DRM is not set
 +CONFIG_VGASTATE=m
 +CONFIG_VIDEO_OUTPUT_CONTROL=m
 +CONFIG_HDMI=y
@@ -3096,7 +3065,6 @@ index 0000000..5856a58
 +CONFIG_XEN_MCE_LOG=y
 +CONFIG_XEN_HAVE_PVMMU=y
 +CONFIG_XEN_EFI=y
-+CONFIG_XENGT=m
 +# CONFIG_STAGING is not set
 +CONFIG_X86_PLATFORM_DEVICES=y
 +# CONFIG_ACER_WMI is not set
@@ -3870,4 +3838,3 @@ index 0000000..5856a58
 +# CONFIG_DDR is not set
 +CONFIG_MPILIB=m
 +CONFIG_OID_REGISTRY=m
-+CONFIG_UCS2_STRING=y
