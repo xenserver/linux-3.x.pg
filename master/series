@@ -538,6 +538,9 @@ CA-137716-fix-bond-slb-softlockup-while-tx.patch
 # In-kernel device emulator support
 xen-ioemu-inject-msi.patch
 
+# Melio
+increase-kernel-thread-stack-size.patch
+
 #
 # Debugging/hacks
 #
