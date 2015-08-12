@@ -1,0 +1,70 @@
+From 3b390f62674eb70522057e58b1787f2cfa2f57c1 Mon Sep 17 00:00:00 2001
+From: Damien Lespiau <damien.lespiau@intel.com>
+Date: Tue, 6 Aug 2013 20:32:16 +0100
+Subject: [PATCH 04/12] video/hmdi: Clear the whole incoming buffer, not just
+ the infoframe size
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+If the user if this API is providing a bigger buffer than the infoframe
+size, it could be for a could reason. For instance it could be because
+it gives the buffer that will be written to the hardware, up to the
+maximum of an infoframe size.
+
+Instead of just zeroing up to the infoframe size, let's zero the whole
+incoming buffer as those extra bytes are also used to compute the
+ECC and need to be 0.
+
+Signed-off-by: Damien Lespiau <damien.lespiau@intel.com>
+Acked-by: Dave Airlie <airlied@gmail.com>
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+Reviewed-by: Ville Syrjälä <ville.syrjala@linux.intel.com>
+Signed-off-by: Daniel Vetter <daniel.vetter@ffwll.ch>
+---
+ drivers/video/hdmi.c | 8 ++++----
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/video/hdmi.c b/drivers/video/hdmi.c
+index f7a85e5..635d569 100644
+--- a/drivers/video/hdmi.c
++++ b/drivers/video/hdmi.c
+@@ -84,7 +84,7 @@ ssize_t hdmi_avi_infoframe_pack(struct hdmi_avi_infoframe *frame, void *buffer,
+ 	if (size < length)
+ 		return -ENOSPC;
+ 
+-	memset(buffer, 0, length);
++	memset(buffer, 0, size);
+ 
+ 	ptr[0] = frame->type;
+ 	ptr[1] = frame->version;
+@@ -186,7 +186,7 @@ ssize_t hdmi_spd_infoframe_pack(struct hdmi_spd_infoframe *frame, void *buffer,
+ 	if (size < length)
+ 		return -ENOSPC;
+ 
+-	memset(buffer, 0, length);
++	memset(buffer, 0, size);
+ 
+ 	ptr[0] = frame->type;
+ 	ptr[1] = frame->version;
+@@ -251,7 +251,7 @@ ssize_t hdmi_audio_infoframe_pack(struct hdmi_audio_infoframe *frame,
+ 	if (size < length)
+ 		return -ENOSPC;
+ 
+-	memset(buffer, 0, length);
++	memset(buffer, 0, size);
+ 
+ 	if (frame->channels >= 2)
+ 		channels = frame->channels - 1;
+@@ -308,7 +308,7 @@ ssize_t hdmi_vendor_infoframe_pack(struct hdmi_vendor_infoframe *frame,
+ 	if (size < length)
+ 		return -ENOSPC;
+ 
+-	memset(buffer, 0, length);
++	memset(buffer, 0, size);
+ 
+ 	ptr[0] = frame->type;
+ 	ptr[1] = frame->version;
+-- 
+2.1.0
+

@@ -1,0 +1,52 @@
+From 3c6b054de1c0243a0f708abf337f2a0e270ce247 Mon Sep 17 00:00:00 2001
+From: Damien Lespiau <damien.lespiau@intel.com>
+Date: Tue, 6 Aug 2013 20:32:13 +0100
+Subject: [PATCH 01/12] video/hdmi: Replace the payload length by their defines
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Cc: Thierry Reding <thierry.reding@avionic-design.de>
+Reviewed-by: Ville Syrjälä <ville.syrjala@linux.intel.com>
+Signed-off-by: Damien Lespiau <damien.lespiau@intel.com>
+Acked-by: Dave Airlie <airlied@gmail.com>
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Daniel Vetter <daniel.vetter@ffwll.ch>
+---
+ drivers/video/hdmi.c | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/video/hdmi.c b/drivers/video/hdmi.c
+index 4017833..dbd882f 100644
+--- a/drivers/video/hdmi.c
++++ b/drivers/video/hdmi.c
+@@ -52,7 +52,7 @@ int hdmi_avi_infoframe_init(struct hdmi_avi_infoframe *frame)
+ 
+ 	frame->type = HDMI_INFOFRAME_TYPE_AVI;
+ 	frame->version = 2;
+-	frame->length = 13;
++	frame->length = HDMI_AVI_INFOFRAME_SIZE;
+ 
+ 	return 0;
+ }
+@@ -151,7 +151,7 @@ int hdmi_spd_infoframe_init(struct hdmi_spd_infoframe *frame,
+ 
+ 	frame->type = HDMI_INFOFRAME_TYPE_SPD;
+ 	frame->version = 1;
+-	frame->length = 25;
++	frame->length = HDMI_SPD_INFOFRAME_SIZE;
+ 
+ 	strncpy(frame->vendor, vendor, sizeof(frame->vendor));
+ 	strncpy(frame->product, product, sizeof(frame->product));
+@@ -218,7 +218,7 @@ int hdmi_audio_infoframe_init(struct hdmi_audio_infoframe *frame)
+ 
+ 	frame->type = HDMI_INFOFRAME_TYPE_AUDIO;
+ 	frame->version = 1;
+-	frame->length = 10;
++	frame->length = HDMI_AUDIO_INFOFRAME_SIZE;
+ 
+ 	return 0;
+ }
+-- 
+2.1.0
+

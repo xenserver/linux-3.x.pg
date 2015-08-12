@@ -53,18 +53,6 @@ index fd9cb76..0b687be 100644
  DEFINE_GUEST_HANDLE(char);
  DEFINE_GUEST_HANDLE(int);
  DEFINE_GUEST_HANDLE(void);
-diff --git a/arch/x86/kernel/traps.c b/arch/x86/kernel/traps.c
-index ab7c0dd..d818d96 100644
---- a/arch/x86/kernel/traps.c
-+++ b/arch/x86/kernel/traps.c
-@@ -615,6 +615,7 @@ dotraplinkage void do_coprocessor_error(struct pt_regs *regs, long error_code)
- 	exception_exit(prev_state);
- }
- 
-+
- dotraplinkage void
- do_simd_coprocessor_error(struct pt_regs *regs, long error_code)
- {
 diff --git a/arch/x86/xen/mmu.c b/arch/x86/xen/mmu.c
 index b80dd26..3ff2d89 100644
 --- a/arch/x86/xen/mmu.c
@@ -155,47 +143,6 @@ index b80dd26..3ff2d89 100644
 +	xen_flush_tlb_all();
 +}
 +EXPORT_SYMBOL_GPL(xen_unmap_domain_mfn_range_in_kernel);
-diff --git a/drivers/acpi/acpica/acmacros.h b/drivers/acpi/acpica/acmacros.h
-index 53666bd..ea935af 100644
---- a/drivers/acpi/acpica/acmacros.h
-+++ b/drivers/acpi/acpica/acmacros.h
-@@ -44,6 +44,9 @@
- #ifndef __ACMACROS_H__
- #define __ACMACROS_H__
- 
-+#ifndef ACPI_NO_ERROR_MESSAGES
-+#define ACPI_NO_ERROR_MESSAGES
-+#endif
- /*
-  * Extract data using a pointer. Any more than a byte and we
-  * get into potential aligment issues -- see the STORE macros below.
-diff --git a/drivers/oprofile/cpu_buffer.c b/drivers/oprofile/cpu_buffer.c
-index 982f732..18112bc 100644
---- a/drivers/oprofile/cpu_buffer.c
-+++ b/drivers/oprofile/cpu_buffer.c
-@@ -309,6 +309,22 @@ __oprofile_add_ext_sample(unsigned long pc, struct pt_regs * const regs,
- 	unsigned long backtrace = oprofile_backtrace_depth;
- 
- 	/*
-+	 * GPU sampling.
-+	 */
-+	if ( !pv_info.paravirt_enabled ) {
-+		/* Running in native or HVM guest */
-+		extern void gpu_perf_sample(void);
-+		gpu_perf_sample();
-+	}
-+#ifdef  CONFIG_XEN_DOM0
-+	else {
-+		/* Xen Domain0 */
-+		extern void vgt_gpu_perf_sample(void);
-+		vgt_gpu_perf_sample();
-+	}
-+#endif
-+
-+	/*
- 	 * if log_sample() fail we can't backtrace since we lost the
- 	 * source of this event
- 	 */
 diff --git a/drivers/pci/quirks.c b/drivers/pci/quirks.c
 index 1705dea..993a012 100644
 --- a/drivers/pci/quirks.c
@@ -221,49 +168,6 @@ index 1705dea..993a012 100644
  
  /*
   * Some devices may pass our check in pci_intx_mask_supported if
-diff --git a/include/acpi/acoutput.h b/include/acpi/acoutput.h
-index 4f52ea7..64a9397 100644
---- a/include/acpi/acoutput.h
-+++ b/include/acpi/acoutput.h
-@@ -44,6 +44,9 @@
- #ifndef __ACOUTPUT_H__
- #define __ACOUTPUT_H__
- 
-+#ifndef ACPI_NO_ERROR_MESSAGES
-+#define ACPI_NO_ERROR_MESSAGES
-+#endif
- /*
-  * Debug levels and component IDs. These are used to control the
-  * granularity of the output of the ACPI_DEBUG_PRINT macro -- on a
-diff --git a/include/linux/pci.h b/include/linux/pci.h
-index 3451f17..2461cc1 100644
---- a/include/linux/pci.h
-+++ b/include/linux/pci.h
-@@ -1905,4 +1905,8 @@ static inline struct eeh_dev *pci_dev_to_eeh_dev(struct pci_dev *pdev)
-  */
- struct pci_dev *pci_find_upstream_pcie_bridge(struct pci_dev *pdev);
- 
-+/* VGT device definition */
-+#define VGT_BUS_ID	0
-+#define VGT_DEVFN	0x10	/* B:D:F = 0:2:0 */
-+
- #endif /* LINUX_PCI_H */
-diff --git a/include/uapi/linux/connector.h b/include/uapi/linux/connector.h
-index 4cb2835..e0d969e 100644
---- a/include/uapi/linux/connector.h
-+++ b/include/uapi/linux/connector.h
-@@ -46,9 +46,9 @@
- #define CN_KVP_VAL			0x1	/* queries from the kernel */
- #define CN_VSS_IDX			0xA     /* HyperV VSS */
- #define CN_VSS_VAL			0x1     /* queries from the kernel */
-+#define CN_IDX_VGT			0xB	/* VGT */
- 
--
--#define CN_NETLINK_USERS		11	/* Highest index + 1 */
-+#define CN_NETLINK_USERS		12	/* Highest index + 1 */
- 
- /*
-  * Maximum connector's message size.
 diff --git a/include/xen/interface/domctl.h b/include/xen/interface/domctl.h
 index 286ee32..70c45a9 100644
 --- a/include/xen/interface/domctl.h
@@ -764,15 +668,3 @@ index f17377f..a69909a 100644
 +void xen_unmap_domain_mfn_range_in_kernel(struct vm_struct *area, int nr,
 +		unsigned domid);
  #endif /* INCLUDE_XEN_OPS_H */
-diff --git a/lib/Kconfig.debug b/lib/Kconfig.debug
-index df04ed0..bcbdda5 100644
---- a/lib/Kconfig.debug
-+++ b/lib/Kconfig.debug
-@@ -244,6 +244,7 @@ config BOOTPARAM_SOFTLOCKUP_PANIC_VALUE
- 
- config PANIC_ON_OOPS
- 	bool "Panic on Oops"
-+	default y
- 	help
- 	  Say Y here to enable the kernel to panic when it oopses. This
- 	  has the same effect as setting oops=panic on the kernel command

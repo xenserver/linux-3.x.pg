@@ -541,10 +541,7 @@ xen-ioemu-inject-msi.patch
 #
 0001-xen-oprofile-Patch-from-Michael-Petullo.patch
 
-# i915 kernel backport for GVT-G
-sync-3.18-drm+i915.patch
-
-# Upstream patches to get 3.18 backport to compile
+# Upstream patches to get xengt to compile
 0001-arch-Make-__mutex_fastpath_lock_retval-return-whethe.patch
 0001-mutex-Add-support-for-wound-wait-style-locks.patch
 0001-mutex-Add-w-w-mutex-slowpath-debugging.patch
@@ -559,12 +556,24 @@ sync-3.18-drm+i915.patch
 0001-time-Export-nsecs_to_jiffies.patch
 0001-drm-add-pseudo-filesystem-for-shared-inodes.patch
 0001-ACPI-PM-Export-acpi_target_system_state-to-modules.patch
-
-# hacks due to unbackportable upstream fixes
-hacks-3.18-drm-compile-3.10.patch
-# upstream patch for Intel 2015Q1 drm +i915 driver to compile
 0001-drm-i915-compute-wait_ioctl-timeout-correctly.patch
-# Intel GVT-g patch itself
+0001-gpu-vgaswitcheroo-add-driver-control.patch
+0001-vgaswitcheroo-add-vga_switcheroo_fini_domain_pm_ops.patch
+0001-video-hdmi-Replace-the-payload-length-by-their-defin.patch
+0002-video-hdmi-Introduce-a-generic-hdmi_infoframe-union.patch
+0003-video-hdmi-Add-a-macro-to-return-the-size-of-a-full-.patch
+0004-video-hmdi-Clear-the-whole-incoming-buffer-not-just-.patch
+0005-video-hdmi-Don-t-let-the-user-of-this-API-create-inv.patch
+0006-video-hdmi-Derive-the-bar-data-valid-bit-from-the-ba.patch
+0007-video-hdmi-Introduce-helpers-for-the-HDMI-vendor-spe.patch
+0008-drm-edid-Move-HDMI_IDENTIFIER-to-hdmi.h.patch
+0009-video-hdmi-Hook-the-HDMI-vendor-infoframe-with-the-g.patch
+0010-video-hdmi-Use-hdmi_vendor_infoframe-for-the-HDMI-sp.patch
+0011-video-hdmi-Rename-HDMI_IDENTIFIER-to-HDMI_IEEE_OUI.patch
+0012-drm-docs-Include-hdmi-infoframe-helper-reference.patch
+0001-x86-Add-support-for-the-clflushopt-instruction.patch
+
+# Required kernel changes for xengt
 import-gvt-g-2015q1-drop.patch
 # Fixes to GVT-g patch to compile on 3.10
 make-gvt-compat-with-3.10.patch

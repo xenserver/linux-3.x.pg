@@ -1,0 +1,44 @@
+From 2d123f463669cb7b84b56aa00e073ce07fe7aff2 Mon Sep 17 00:00:00 2001
+From: Daniel Vetter <daniel.vetter@ffwll.ch>
+Date: Wed, 22 Jan 2014 18:26:16 +0100
+Subject: [PATCH 12/12] drm/docs: Include hdmi infoframe helper reference
+
+Thierry created such nice kerneldocs, it's a shame we've left them
+lingering!
+
+For the fun of it also add a bit of kerneldoc to the header so that we
+can also include that. Just in case someone adds kerneldoc in there.
+
+Cc: Thierry Reding <thierry.reding@gmail.com>
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Daniel Vetter <daniel.vetter@ffwll.ch>
+---
+ include/linux/hdmi.h | 12 ++++++++++++
+ 1 file changed, 12 insertions(+)
+
+diff --git a/include/linux/hdmi.h b/include/linux/hdmi.h
+index 9231be9..11c0182 100644
+--- a/include/linux/hdmi.h
++++ b/include/linux/hdmi.h
+@@ -262,6 +262,18 @@ union hdmi_vendor_any_infoframe {
+ 	struct hdmi_vendor_infoframe hdmi;
+ };
+ 
++/**
++ * union hdmi_infoframe - overall union of all abstract infoframe representations
++ * @any: generic infoframe
++ * @avi: avi infoframe
++ * @spd: spd infoframe
++ * @vendor: union of all vendor infoframes
++ * @audio: audio infoframe
++ *
++ * This is used by the generic pack function. This works since all infoframes
++ * have the same header which also indicates which type of infoframe should be
++ * packed.
++ */
+ union hdmi_infoframe {
+ 	struct hdmi_any_infoframe any;
+ 	struct hdmi_avi_infoframe avi;
+-- 
+2.1.0
+

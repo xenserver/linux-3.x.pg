@@ -1,0 +1,61 @@
+From 974e0701c5251de879624d166890fbd0ee9fc429 Mon Sep 17 00:00:00 2001
+From: "Lespiau, Damien" <damien.lespiau@intel.com>
+Date: Mon, 19 Aug 2013 16:58:57 +0100
+Subject: [PATCH 06/12] video/hdmi: Derive the bar data valid bit from the bar
+ data fields
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Just like:
+
+  Author: Damien Lespiau <damien.lespiau@intel.com>
+  Date:   Mon Aug 12 11:53:24 2013 +0100
+
+      video/hdmi: Don't let the user of this API create invalid infoframes
+
+But this time for the horizontal/vertical bar data present bits.
+
+Signed-off-by: Damien Lespiau <damien.lespiau@intel.com>
+Reviewed-by: Ville Syrjälä <ville.syrjala@linux.intel.com>
+Reviewed-by: Thierry Reding <treding@nvidia.com>
+Signed-off-by: Dave Airlie <airlied@gmail.com>
+---
+ drivers/video/hdmi.c | 5 +++--
+ include/linux/hdmi.h | 2 --
+ 2 files changed, 3 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/video/hdmi.c b/drivers/video/hdmi.c
+index 7ccc118..1201357 100644
+--- a/drivers/video/hdmi.c
++++ b/drivers/video/hdmi.c
+@@ -103,10 +103,11 @@ ssize_t hdmi_avi_infoframe_pack(struct hdmi_avi_infoframe *frame, void *buffer,
+ 	if (frame->active_aspect & 0xf)
+ 		ptr[0] |= BIT(4);
+ 
+-	if (frame->horizontal_bar_valid)
++	/* Bit 3 and 2 indicate if we transmit horizontal/vertical bar data */
++	if (frame->top_bar || frame->bottom_bar)
+ 		ptr[0] |= BIT(3);
+ 
+-	if (frame->vertical_bar_valid)
++	if (frame->left_bar || frame->right_bar)
+ 		ptr[0] |= BIT(2);
+ 
+ 	ptr[1] = ((frame->colorimetry & 0x3) << 6) |
+diff --git a/include/linux/hdmi.h b/include/linux/hdmi.h
+index 931474c6..b98340b 100644
+--- a/include/linux/hdmi.h
++++ b/include/linux/hdmi.h
+@@ -109,8 +109,6 @@ struct hdmi_avi_infoframe {
+ 	unsigned char version;
+ 	unsigned char length;
+ 	enum hdmi_colorspace colorspace;
+-	bool horizontal_bar_valid;
+-	bool vertical_bar_valid;
+ 	enum hdmi_scan_mode scan_mode;
+ 	enum hdmi_colorimetry colorimetry;
+ 	enum hdmi_picture_aspect picture_aspect;
+-- 
+2.1.0
+

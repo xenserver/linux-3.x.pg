@@ -1,0 +1,65 @@
+From a5ad3dcf358475dfc5ccf11e28d3822fc3c8e5fe Mon Sep 17 00:00:00 2001
+From: "Lespiau, Damien" <damien.lespiau@intel.com>
+Date: Mon, 19 Aug 2013 16:58:56 +0100
+Subject: [PATCH 05/12] video/hdmi: Don't let the user of this API create
+ invalid infoframes
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+To set the active aspect ratio value in the AVI infoframe today, you not
+only have to set the active_aspect field, but also the active_info_valid
+bit. Out of the 1 user of this API, we had 100% misuse, forgetting the
+_valid bit. This was fixed in:
+
+  Author: Damien Lespiau <damien.lespiau@intel.com>
+  Date:   Tue Aug 6 20:32:17 2013 +0100
+
+      drm: Don't generate invalid AVI infoframes for CEA modes
+
+We can do better and derive the _valid bit from the user wanting to set
+the active aspect ratio.
+
+v2: Fix multi-lines comment style (Thierry Reding)
+
+Signed-off-by: Damien Lespiau <damien.lespiau@intel.com>
+Reviewed-by: Ville Syrjälä <ville.syrjala@linux.intel.com>
+Reviewed-by: Thierry Reding <treding@nvidia.com>
+Signed-off-by: Dave Airlie <airlied@gmail.com>
+---
+ drivers/video/hdmi.c | 6 +++++-
+ include/linux/hdmi.h | 1 -
+ 2 files changed, 5 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/video/hdmi.c b/drivers/video/hdmi.c
+index 635d569..7ccc118 100644
+--- a/drivers/video/hdmi.c
++++ b/drivers/video/hdmi.c
+@@ -96,7 +96,11 @@ ssize_t hdmi_avi_infoframe_pack(struct hdmi_avi_infoframe *frame, void *buffer,
+ 
+ 	ptr[0] = ((frame->colorspace & 0x3) << 5) | (frame->scan_mode & 0x3);
+ 
+-	if (frame->active_info_valid)
++	/*
++	 * Data byte 1, bit 4 has to be set if we provide the active format
++	 * aspect ratio
++	 */
++	if (frame->active_aspect & 0xf)
+ 		ptr[0] |= BIT(4);
+ 
+ 	if (frame->horizontal_bar_valid)
+diff --git a/include/linux/hdmi.h b/include/linux/hdmi.h
+index bc6743e..931474c6 100644
+--- a/include/linux/hdmi.h
++++ b/include/linux/hdmi.h
+@@ -109,7 +109,6 @@ struct hdmi_avi_infoframe {
+ 	unsigned char version;
+ 	unsigned char length;
+ 	enum hdmi_colorspace colorspace;
+-	bool active_info_valid;
+ 	bool horizontal_bar_valid;
+ 	bool vertical_bar_valid;
+ 	enum hdmi_scan_mode scan_mode;
+-- 
+2.1.0
+

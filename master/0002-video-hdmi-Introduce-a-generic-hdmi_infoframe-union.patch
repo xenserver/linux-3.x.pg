@@ -1,0 +1,115 @@
+From 72b098964d3c3fb030dcac2d4c869c9851a0d17a Mon Sep 17 00:00:00 2001
+From: Damien Lespiau <damien.lespiau@intel.com>
+Date: Tue, 6 Aug 2013 20:32:14 +0100
+Subject: [PATCH 02/12] video/hdmi: Introduce a generic hdmi_infoframe union
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+And a way to pack hdmi_infoframe generically.
+
+Cc: Thierry Reding <thierry.reding@avionic-design.de>
+Reviewed-by: Ville Syrjälä <ville.syrjala@linux.intel.com>
+Signed-off-by: Damien Lespiau <damien.lespiau@intel.com>
+Acked-by: Dave Airlie <airlied@gmail.com>
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Daniel Vetter <daniel.vetter@ffwll.ch>
+---
+ drivers/video/hdmi.c | 43 +++++++++++++++++++++++++++++++++++++++++++
+ include/linux/hdmi.h | 17 +++++++++++++++++
+ 2 files changed, 60 insertions(+)
+
+diff --git a/drivers/video/hdmi.c b/drivers/video/hdmi.c
+index dbd882f..f7a85e5 100644
+--- a/drivers/video/hdmi.c
++++ b/drivers/video/hdmi.c
+@@ -22,6 +22,7 @@
+  */
+ 
+ #include <linux/bitops.h>
++#include <linux/bug.h>
+ #include <linux/errno.h>
+ #include <linux/export.h>
+ #include <linux/hdmi.h>
+@@ -321,3 +322,45 @@ ssize_t hdmi_vendor_infoframe_pack(struct hdmi_vendor_infoframe *frame,
+ 	return length;
+ }
+ EXPORT_SYMBOL(hdmi_vendor_infoframe_pack);
++
++/**
++ * hdmi_infoframe_pack() - write a HDMI infoframe to binary buffer
++ * @frame: HDMI infoframe
++ * @buffer: destination buffer
++ * @size: size of buffer
++ *
++ * Packs the information contained in the @frame structure into a binary
++ * representation that can be written into the corresponding controller
++ * registers. Also computes the checksum as required by section 5.3.5 of
++ * the HDMI 1.4 specification.
++ *
++ * Returns the number of bytes packed into the binary buffer or a negative
++ * error code on failure.
++ */
++ssize_t
++hdmi_infoframe_pack(union hdmi_infoframe *frame, void *buffer, size_t size)
++{
++	ssize_t length;
++
++	switch (frame->any.type) {
++	case HDMI_INFOFRAME_TYPE_AVI:
++		length = hdmi_avi_infoframe_pack(&frame->avi, buffer, size);
++		break;
++	case HDMI_INFOFRAME_TYPE_SPD:
++		length = hdmi_spd_infoframe_pack(&frame->spd, buffer, size);
++		break;
++	case HDMI_INFOFRAME_TYPE_AUDIO:
++		length = hdmi_audio_infoframe_pack(&frame->audio, buffer, size);
++		break;
++	case HDMI_INFOFRAME_TYPE_VENDOR:
++		length = hdmi_vendor_infoframe_pack(&frame->vendor,
++						    buffer, size);
++		break;
++	default:
++		WARN(1, "Bad infoframe type %d\n", frame->any.type);
++		length = -EINVAL;
++	}
++
++	return length;
++}
++EXPORT_SYMBOL(hdmi_infoframe_pack);
+diff --git a/include/linux/hdmi.h b/include/linux/hdmi.h
+index 3b58944..0f3f82e 100644
+--- a/include/linux/hdmi.h
++++ b/include/linux/hdmi.h
+@@ -23,6 +23,12 @@ enum hdmi_infoframe_type {
+ #define HDMI_SPD_INFOFRAME_SIZE    25
+ #define HDMI_AUDIO_INFOFRAME_SIZE  10
+ 
++struct hdmi_any_infoframe {
++	enum hdmi_infoframe_type type;
++	unsigned char version;
++	unsigned char length;
++};
++
+ enum hdmi_colorspace {
+ 	HDMI_COLORSPACE_RGB,
+ 	HDMI_COLORSPACE_YUV422,
+@@ -228,4 +234,15 @@ struct hdmi_vendor_infoframe {
+ ssize_t hdmi_vendor_infoframe_pack(struct hdmi_vendor_infoframe *frame,
+ 				   void *buffer, size_t size);
+ 
++union hdmi_infoframe {
++	struct hdmi_any_infoframe any;
++	struct hdmi_avi_infoframe avi;
++	struct hdmi_spd_infoframe spd;
++	struct hdmi_vendor_infoframe vendor;
++	struct hdmi_audio_infoframe audio;
++};
++
++ssize_t
++hdmi_infoframe_pack(union hdmi_infoframe *frame, void *buffer, size_t size);
++
+ #endif /* _DRM_HDMI_H */
+-- 
+2.1.0
+
