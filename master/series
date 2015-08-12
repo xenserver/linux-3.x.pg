@@ -540,6 +540,7 @@ xen-ioemu-inject-msi.patch
 
 # Melio
 increase-kernel-thread-stack-size.patch
+allow-preempt-count-config.patch
 
 #
 # Debugging/hacks
