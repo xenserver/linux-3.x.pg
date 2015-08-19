@@ -53,10 +53,18 @@ index 369b897..7cb2584 100644
 +EXPORT_SYMBOL(xen_ioemu_map_foreign_gfn_to_bfn);
 +EXPORT_SYMBOL(xen_ioemu_unmap_foreign_gfn_to_bfn);
 diff --git a/drivers/xen/xengt.c b/drivers/xen/xengt.c
-index 9771737..cbdbbaa 100644
+index 9771737..138f411 100644
 --- a/drivers/xen/xengt.c
 +++ b/drivers/xen/xengt.c
-@@ -97,12 +97,11 @@ static unsigned long xen_g2m_pfn(int vm_id, unsigned long g_pfn, struct vgt_devi
+@@ -40,6 +40,7 @@
+ #include <asm/xen/page.h>
+ #include <xen/xen-ops.h>
+ #include <xen/events.h>
++#include <xen/ioemu.h>
+ #include <xen/interface/hvm/params.h>
+ #include <xen/interface/hvm/ioreq.h>
+ #include <xen/interface/hvm/hvm_op.h>
+@@ -97,12 +98,11 @@ static unsigned long xen_g2m_pfn(int vm_id, unsigned long g_pfn, struct vgt_devi
  		return g_pfn;
  
  	iommu_op.flags = 0;
@@ -73,3 +81,14 @@ index 9771737..cbdbbaa 100644
  	if(rc < 0 || iommu_op.status ){
  		printk("failed to get mfn for gpfn(0x%lx)\n, errno=%d status %d\n", g_pfn, rc,
  				iommu_op.status);
+diff --git a/include/xen/ioemu.h b/include/xen/ioemu.h
+index 95eb4e7..05f2d45 100644
+--- a/include/xen/ioemu.h
++++ b/include/xen/ioemu.h
+@@ -31,5 +31,6 @@
+ #define _XEN_IOEMU_H
+ 
+ int xen_ioemu_inject_msi(domid_t domid, uint64_t addr, uint32_t data);
++int xen_ioemu_map_foreign_gfn_to_bfn(struct pv_iommu_op *ops, int count);
+ 
+ #endif /* #ifndef _XEN_IOEMU_H */
