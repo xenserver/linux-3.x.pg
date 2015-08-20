@@ -1,5 +1,5 @@
 diff --git a/arch/x86/include/asm/xen/hypercall.h b/arch/x86/include/asm/xen/hypercall.h
-index a0b1799..b9a5200 100644
+index 7d3cbfb..ed335cb 100644
 --- a/arch/x86/include/asm/xen/hypercall.h
 +++ b/arch/x86/include/asm/xen/hypercall.h
 @@ -49,6 +49,7 @@
@@ -38,10 +38,10 @@ index fd9cb76..0b687be 100644
  DEFINE_GUEST_HANDLE(int);
  DEFINE_GUEST_HANDLE(void);
 diff --git a/arch/x86/xen/mmu.c b/arch/x86/xen/mmu.c
-index 29ae87e..85bd8e2 100644
+index 09f58e37..a610c45 100644
 --- a/arch/x86/xen/mmu.c
 +++ b/arch/x86/xen/mmu.c
-@@ -2562,3 +2562,57 @@ int xen_unmap_domain_mfn_range(struct vm_area_struct *vma,
+@@ -2553,3 +2553,57 @@ int xen_unmap_domain_mfn_range(struct vm_area_struct *vma,
  	return -EINVAL;
  }
  EXPORT_SYMBOL_GPL(xen_unmap_domain_mfn_range);
@@ -472,7 +472,7 @@ index 0000000..6bbf4e4
 + * End:
 + */
 diff --git a/include/xen/interface/memory.h b/include/xen/interface/memory.h
-index b8ac3b3..0e58bd5 100644
+index b8ac3b3..d013548 100644
 --- a/include/xen/interface/memory.h
 +++ b/include/xen/interface/memory.h
 @@ -112,6 +112,11 @@ DEFINE_GUEST_HANDLE_STRUCT(xen_memory_exchange);
@@ -494,7 +494,7 @@ index b8ac3b3..0e58bd5 100644
 +/*
 + * Translate the given guest PFNs to MFNs
 + */
-+#define XENMEM_get_mfn_from_pfn    27
++#define XENMEM_get_mfn_from_pfn    28
 +struct xen_get_mfn_from_pfn {
 +    /*
 +     * Pointer to buffer to fill with list of pfn.
@@ -570,10 +570,10 @@ index 87e6f8a..182267f 100644
 +
  #endif /* __XEN_PUBLIC_VCPU_H__ */
 diff --git a/include/xen/xen-ops.h b/include/xen/xen-ops.h
-index f17377f..a69909a 100644
+index 4100eb8..0ec1906 100644
 --- a/include/xen/xen-ops.h
 +++ b/include/xen/xen-ops.h
-@@ -81,4 +81,8 @@ static inline void xen_preemptible_hcall_end(void)
+@@ -77,4 +77,8 @@ static inline void xen_preemptible_hcall_end(void)
  
  #endif /* CONFIG_PREEMPT */
  
