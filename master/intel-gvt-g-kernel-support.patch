@@ -124,19 +124,6 @@ index 1705dea..993a012 100644
  
  /*
   * Some devices may pass our check in pci_intx_mask_supported if
-diff --git a/include/xen/interface/domctl.h b/include/xen/interface/domctl.h
-index 286ee32..104b192 100644
---- a/include/xen/interface/domctl.h
-+++ b/include/xen/interface/domctl.h
-@@ -32,7 +32,7 @@
- #include "grant_table.h"
- //#include "hvm/save.h"
- 
--#define XEN_DOMCTL_INTERFACE_VERSION 0x0000000b
-+#define XEN_DOMCTL_INTERFACE_VERSION 0x0000000a
- 
- #if 1
- /*
 diff --git a/include/xen/interface/hvm/hvm_op.h b/include/xen/interface/hvm/hvm_op.h
 index 83aeb64..c6e2a24 100644
 --- a/include/xen/interface/hvm/hvm_op.h
