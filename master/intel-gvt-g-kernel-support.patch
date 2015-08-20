@@ -25,22 +25,6 @@ index a0b1799..b9a5200 100644
  HYPERVISOR_tmem_op(
  	struct tmem_op *op)
  {
-diff --git a/arch/x86/include/asm/xen/hypervisor.h b/arch/x86/include/asm/xen/hypervisor.h
-index 125f344..93c7f12 100644
---- a/arch/x86/include/asm/xen/hypervisor.h
-+++ b/arch/x86/include/asm/xen/hypervisor.h
-@@ -62,7 +62,11 @@ extern bool xen_hvm_need_lapic(void);
- 
- static inline bool xen_x2apic_para_available(void)
- {
-+#ifdef CONFIG_XEN_PVHVM
- 	return xen_hvm_need_lapic();
-+#else
-+	return false;
-+#endif
- }
- #else
- static inline bool xen_x2apic_para_available(void)
 diff --git a/arch/x86/include/asm/xen/interface.h b/arch/x86/include/asm/xen/interface.h
 index fd9cb76..0b687be 100644
 --- a/arch/x86/include/asm/xen/interface.h
@@ -54,10 +38,10 @@ index fd9cb76..0b687be 100644
  DEFINE_GUEST_HANDLE(int);
  DEFINE_GUEST_HANDLE(void);
 diff --git a/arch/x86/xen/mmu.c b/arch/x86/xen/mmu.c
-index b80dd26..3ff2d89 100644
+index 29ae87e..85bd8e2 100644
 --- a/arch/x86/xen/mmu.c
 +++ b/arch/x86/xen/mmu.c
-@@ -2607,3 +2607,85 @@ int xen_unmap_domain_mfn_range(struct vm_area_struct *vma,
+@@ -2562,3 +2562,57 @@ int xen_unmap_domain_mfn_range(struct vm_area_struct *vma,
  	return -EINVAL;
  }
  EXPORT_SYMBOL_GPL(xen_unmap_domain_mfn_range);
@@ -67,10 +51,7 @@ index b80dd26..3ff2d89 100644
 +		int nr, unsigned domid)
 +{
 +	struct vm_struct *area;
-+	struct remap_data rmd;
-+	struct mmu_update mmu_update[REMAP_BATCH_SIZE];
-+	int batch;
-+	unsigned long range, addr;
++	unsigned long addr;
 +	pgprot_t prot;
 +	int err;
 +
@@ -84,22 +65,10 @@ index b80dd26..3ff2d89 100644
 +
 +	prot = __pgprot(pgprot_val(PAGE_KERNEL));
 +
-+	rmd.mfn = mfn;
-+	rmd.prot = prot;
-+
-+	while (nr) {
-+		batch = min(REMAP_BATCH_SIZE, nr);
-+		range = (unsigned long)batch << PAGE_SHIFT;
-+
-+		rmd.mmu_update = mmu_update;
-+		err = apply_to_page_range(&init_mm, addr, range,
-+					  remap_area_mfn_pte_fn, &rmd);
-+		if (err || HYPERVISOR_mmu_update(mmu_update, batch, NULL, domid) < 0)
-+			goto err;
-+
-+		nr -= batch;
-+		addr += range;
-+	}
++	err =  __xen_remap_domain_mfn_range(&init_mm, addr,
++	                                    &mfn, nr, true, prot, domid, NULL);
++	if (err)
++		goto err;
 +
 +	xen_flush_tlb_all();
 +	return area;
@@ -113,31 +82,18 @@ index b80dd26..3ff2d89 100644
 +void xen_unmap_domain_mfn_range_in_kernel(struct vm_struct *area, int nr,
 +		unsigned domid)
 +{
-+	struct remap_data rmd;
-+	struct mmu_update mmu_update[REMAP_BATCH_SIZE];
-+	int batch;
-+	unsigned long range, addr = (unsigned long)area->addr;
-+	int err;
++	unsigned long addr = (unsigned long)area->addr;
++	int i;
++	struct multicall_space mcs;
 +
 +	WARN_ON(in_interrupt() || irqs_disabled());
 +
-+#define INVALID_MFN (~0UL)
-+	rmd.mfn = INVALID_MFN;
-+	rmd.prot = PAGE_NONE;
-+
-+	while (nr) {
-+		batch = min(REMAP_BATCH_SIZE, nr);
-+		range = (unsigned long)batch << PAGE_SHIFT;
-+
-+		rmd.mmu_update = mmu_update;
-+		err = apply_to_page_range(&init_mm, addr, range,
-+					  remap_area_mfn_pte_fn, &rmd);
-+		BUG_ON(err);
-+		BUG_ON(HYPERVISOR_mmu_update(mmu_update, batch, NULL, domid) < 0);
-+
-+		nr -= batch;
-+		addr += range;
++	xen_mc_batch();
++	for (i = 0; i < nr; i++, addr += PAGE_SIZE) {
++		mcs = __xen_mc_entry(0);
++		MULTI_update_va_mapping(mcs.mc, addr, VOID_PTE, 0);
 +	}
++	xen_mc_issue(0);
 +
 +	free_vm_area(area);
 +	xen_flush_tlb_all();
@@ -169,7 +125,7 @@ index 1705dea..993a012 100644
  /*
   * Some devices may pass our check in pci_intx_mask_supported if
 diff --git a/include/xen/interface/domctl.h b/include/xen/interface/domctl.h
-index 286ee32..70c45a9 100644
+index 286ee32..104b192 100644
 --- a/include/xen/interface/domctl.h
 +++ b/include/xen/interface/domctl.h
 @@ -32,7 +32,7 @@
@@ -181,36 +137,6 @@ index 286ee32..70c45a9 100644
  
  #if 1
  /*
-@@ -852,6 +852,21 @@ struct xen_domctl_cacheflush {
- };
- DEFINE_GUEST_HANDLE_STRUCT(xen_domctl_cacheflush);
- 
-+struct vgt_io_trap_info {
-+        uint64_t s;
-+        uint64_t e;
-+};
-+
-+#define MAX_VGT_IO_TRAP_INFO 4
-+
-+struct xen_domctl_vgt_io_trap {
-+        uint32_t n_pio;
-+        struct vgt_io_trap_info pio[MAX_VGT_IO_TRAP_INFO];
-+
-+        uint32_t n_mmio;
-+        struct vgt_io_trap_info mmio[MAX_VGT_IO_TRAP_INFO];
-+};
-+
- #if defined(__i386__) || defined(__x86_64__)
- struct xen_domctl_vcpu_msr {
-     uint32_t         index;
-@@ -1073,6 +1088,7 @@ struct xen_domctl {
-         struct xen_domctl_cacheflush        cacheflush;
-         struct xen_domctl_gdbsx_pauseunp_vcpu gdbsx_pauseunp_vcpu;
-         struct xen_domctl_gdbsx_domstatus   gdbsx_domstatus;
-+	struct xen_domctl_vgt_io_trap       vgt_io_trap;
-         uint8_t                             pad[128];
-     } u __attribute__((aligned(8)));
- };
 diff --git a/include/xen/interface/hvm/hvm_op.h b/include/xen/interface/hvm/hvm_op.h
 index 83aeb64..c6e2a24 100644
 --- a/include/xen/interface/hvm/hvm_op.h
@@ -546,7 +472,7 @@ index 0000000..6bbf4e4
 + * End:
 + */
 diff --git a/include/xen/interface/memory.h b/include/xen/interface/memory.h
-index b8ac3b3..7e093ea 100644
+index b8ac3b3..0e58bd5 100644
 --- a/include/xen/interface/memory.h
 +++ b/include/xen/interface/memory.h
 @@ -112,6 +112,11 @@ DEFINE_GUEST_HANDLE_STRUCT(xen_memory_exchange);
@@ -568,7 +494,7 @@ index b8ac3b3..7e093ea 100644
 +/*
 + * Translate the given guest PFNs to MFNs
 + */
-+#define XENMEM_get_mfn_from_pfn    25
++#define XENMEM_get_mfn_from_pfn    27
 +struct xen_get_mfn_from_pfn {
 +    /*
 +     * Pointer to buffer to fill with list of pfn.
@@ -643,18 +569,6 @@ index 87e6f8a..182267f 100644
 +};
 +
  #endif /* __XEN_PUBLIC_VCPU_H__ */
-diff --git a/include/xen/interface/xen.h b/include/xen/interface/xen.h
-index 5caab46..460a037 100644
---- a/include/xen/interface/xen.h
-+++ b/include/xen/interface/xen.h
-@@ -83,6 +83,7 @@
- #define VIRQ_DEBUGGER   6  /* (DOM0) A domain has paused for debugging.   */
- #define VIRQ_XENOPROF   7  /* V. XenOprofile interrupt: new sample available */
- #define VIRQ_PCPU_STATE 9  /* (DOM0) PCPU state changed                   */
-+#define VIRQ_VGT_GFX	15 /* (DOM0) Used for graphics interrupt          */
- 
- /* Architecture-specific VIRQ definitions. */
- #define VIRQ_ARCH_0    16
 diff --git a/include/xen/xen-ops.h b/include/xen/xen-ops.h
 index f17377f..a69909a 100644
 --- a/include/xen/xen-ops.h

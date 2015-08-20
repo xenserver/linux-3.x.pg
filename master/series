@@ -402,6 +402,70 @@ xen-netback-revert-to-v3.10
 0012-arch-x86-xen-Silence-compiler-warnings.patch
 
 #
+# Intel GVT-g backports
+#
+# d0d98eedee2178c803dd824bb09f52b0e2ac1811 (v3.10-rc2)
+0001-Add-arch_phys_wc_-add-del-to-manipulate-WC-MTRRs-if-.patch
+# a41b56efa70e060f650aeb54740aaf52044a1ead (v3.10-rc7)
+0001-arch-Make-__mutex_fastpath_lock_retval-return-whethe.patch
+# 040a0a37100563754bb1fee6ff6427420bcfa609 (v3.10-rc7)
+0001-mutex-Add-support-for-wound-wait-style-locks.patch
+# 230100276955529d5a7c69207421756b9a61a8e5 (v3.10-rc7)
+0001-mutex-Add-w-w-mutex-slowpath-debugging.patch
+# 1b375dc30710180c4b88cc59caba6e3481ec5c8b (v3.10-rc7)
+0001-mutex-Move-ww_mutex-definitions-to-ww_mutex.h.patch
+# 3c6b054de1c0243a0f708abf337f2a0e270ce247 (v3.11-rc2)
+0001-video-hdmi-Replace-the-payload-length-by-their-defin.patch
+# 72b098964d3c3fb030dcac2d4c869c9851a0d17a (v3.11-rc2)
+0002-video-hdmi-Introduce-a-generic-hdmi_infoframe-union.patch
+# 61177b0e12ba162d5de206914e8703d8eb90ad19 (v3.11-rc2)
+0003-video-hdmi-Add-a-macro-to-return-the-size-of-a-full-.patch
+# 5006e45a6bc293b490638210d1a88ac391d2eb92 (v3.11-rc2)
+0004-video-hmdi-Clear-the-whole-incoming-buffer-not-just-.patch
+# a5ad3dcf358475dfc5ccf11e28d3822fc3c8e5fe (v3.11-rc2)
+0005-video-hdmi-Don-t-let-the-user-of-this-API-create-inv.patch
+# 974e0701c5251de879624d166890fbd0ee9fc429 (v3.11-rc2)
+0006-video-hdmi-Derive-the-bar-data-valid-bit-from-the-ba.patch
+# 7d27becb3532d881378846e72864031977be511a (v3.11-rc2)
+0007-video-hdmi-Introduce-helpers-for-the-HDMI-vendor-spe.patch
+# c782d2e73d1e69c863d03945907bc7fbc879a778 (v3.11-rc2)
+0008-drm-edid-Move-HDMI_IDENTIFIER-to-hdmi.h.patch
+# af3e95b40720cdf301eb85387c0a3dc4067cc551 (v3.11-rc2)
+0009-video-hdmi-Hook-the-HDMI-vendor-infoframe-with-the-g.patch
+# ae84b900b009589a7017a1f8f060edd7de501642 (v3.11-rc2)
+0010-video-hdmi-Use-hdmi_vendor_infoframe-for-the-HDMI-sp.patch
+# 6cb3b7f1c013fd4bea41e16ee557bcb2f1561787 (v3.11-rc2)
+0011-video-hdmi-Rename-HDMI_IDENTIFIER-to-HDMI_IEEE_OUI.patch
+# 2d123f463669cb7b84b56aa00e073ce07fe7aff2 (v3.11-rc2)
+0012-drm-docs-Include-hdmi-infoframe-helper-reference.patch
+# 0d69704ae348c03bc216b01e32a0e9a2372be419 (v3.11-rc3)
+0001-gpu-vgaswitcheroo-add-driver-control.patch
+# e84f9e57b90ca89664d733a7cef19aa7ccd832f3 (v3.12-rc4)
+0001-consolidate-the-reassignments-of-f_op-in-open-instan.patch
+# 6987843ff7e836ea65b554905aec34d2fad05c94 (v3.12-rc4)
+0001-take-anon-inode-allocation-to-libfs.c.patch
+# 10ef6b0dffe404bcc54e94cb2ca1a5b18445a66b (v3.12)
+0001-bitops-Introduce-a-more-generic-BITMASK-macro.patch
+# 171699f7630c92d0a928f83e5fb3aeabe35398c0 (v3.14-rc3)
+0001-x86-Add-support-for-the-clflushopt-instruction.patch
+# 31bbe16f6d88622d6731fa2cb4ab38d57d844ac1 (v3.14-rc4)
+0001-drm-add-pseudo-filesystem-for-shared-inodes.patch
+# a88cc108f6f39e56577793f66ac69eb0e18ae099 (v3.15-rc3)
+0001-lib-Export-interval_tree.patch
+# fad16dd9c962229c5965ec6f5cd5f48180f94fd4 (v3.15-rc5)
+0001-ACPI-PM-Export-acpi_target_system_state-to-modules.patch
+# a4de05268e674e8ed31df6348269e22d6c6a1803 (v3.15-rc8)
+0001-drm-i915-Kick-out-vga-console.patch
+# d560fed6abe0f9975b509e4fb824e08ac19adc93 (v3.16-rc5)
+0001-time-Export-nsecs_to_jiffies.patch
+# 766a53d059d1500c9755c8af017bd411bd8f1b20 (v3.17-rc4)
+0001-vgaswitcheroo-add-vga_switcheroo_fini_domain_pm_ops.patch
+# 00b4d9a14125f1e51874def2b9de6092e007412d (v3.18-rc4)
+0001-bitops-Fix-shift-overflow-in-GENMASK-macros.patch
+# 7bd0e226e313547add65c7e4b0ecf65cb981a3c6 (v3.18-rc7)
+0001-drm-i915-compute-wait_ioctl-timeout-correctly.patch
+
+#
 # Build system integration
 #
 kbuild-AFTER_LINK.patch
@@ -536,50 +600,14 @@ CA-137716-fix-bond-slb-softlockup-while-tx.patch
 # In-kernel device emulator support
 xen-ioemu-inject-msi.patch
 
+# Intel GVT-g support patches
+intel-gvt-g-kernel-support.patch
+intel-gvt-g-enable-out-of-tree-compile.patch
+
 #
 # Debugging/hacks
 #
 0001-xen-oprofile-Patch-from-Michael-Petullo.patch
-
-# Upstream patches to get xengt to compile
-0001-arch-Make-__mutex_fastpath_lock_retval-return-whethe.patch
-0001-mutex-Add-support-for-wound-wait-style-locks.patch
-0001-mutex-Add-w-w-mutex-slowpath-debugging.patch
-0001-mutex-Move-ww_mutex-definitions-to-ww_mutex.h.patch
-0001-Add-arch_phys_wc_-add-del-to-manipulate-WC-MTRRs-if-.patch
-0001-bitops-Introduce-a-more-generic-BITMASK-macro.patch
-0001-bitops-Fix-shift-overflow-in-GENMASK-macros.patch
-0001-consolidate-the-reassignments-of-f_op-in-open-instan.patch
-0001-take-anon-inode-allocation-to-libfs.c.patch
-0001-drm-i915-Kick-out-vga-console.patch
-0001-lib-Export-interval_tree.patch
-0001-time-Export-nsecs_to_jiffies.patch
-0001-drm-add-pseudo-filesystem-for-shared-inodes.patch
-0001-ACPI-PM-Export-acpi_target_system_state-to-modules.patch
-0001-drm-i915-compute-wait_ioctl-timeout-correctly.patch
-0001-gpu-vgaswitcheroo-add-driver-control.patch
-0001-vgaswitcheroo-add-vga_switcheroo_fini_domain_pm_ops.patch
-0001-video-hdmi-Replace-the-payload-length-by-their-defin.patch
-0002-video-hdmi-Introduce-a-generic-hdmi_infoframe-union.patch
-0003-video-hdmi-Add-a-macro-to-return-the-size-of-a-full-.patch
-0004-video-hmdi-Clear-the-whole-incoming-buffer-not-just-.patch
-0005-video-hdmi-Don-t-let-the-user-of-this-API-create-inv.patch
-0006-video-hdmi-Derive-the-bar-data-valid-bit-from-the-ba.patch
-0007-video-hdmi-Introduce-helpers-for-the-HDMI-vendor-spe.patch
-0008-drm-edid-Move-HDMI_IDENTIFIER-to-hdmi.h.patch
-0009-video-hdmi-Hook-the-HDMI-vendor-infoframe-with-the-g.patch
-0010-video-hdmi-Use-hdmi_vendor_infoframe-for-the-HDMI-sp.patch
-0011-video-hdmi-Rename-HDMI_IDENTIFIER-to-HDMI_IEEE_OUI.patch
-0012-drm-docs-Include-hdmi-infoframe-helper-reference.patch
-0001-x86-Add-support-for-the-clflushopt-instruction.patch
-
-# Required kernel changes for xengt
-import-gvt-g-2015q1-drop.patch
-# Fixes to GVT-g patch to compile on 3.10
-make-gvt-compat-with-3.10.patch
-
-# hack to allow compiling xengt out-of-tree
-allow-selecting-config.patch
 
 #
 # Kernel Configuration.
