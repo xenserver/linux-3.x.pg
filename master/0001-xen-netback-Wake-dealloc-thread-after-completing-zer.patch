@@ -1,0 +1,33 @@
+From 5cf9510dec9af99d63ed876ae33215fc9c2005fa Mon Sep 17 00:00:00 2001
+From: Ross Lagerwall <ross.lagerwall@citrix.com>
+Date: Tue, 7 Jul 2015 08:38:09 +0000
+Subject: [PATCH] xen/netback: Wake dealloc thread after completing
+ zerocopy work
+
+Waking the dealloc thread before decrementing inflight_packets is racy
+because it means the thread may go to sleep before inflight_packets is
+decremented. If kthread_stop() has already been called, the dealloc
+thread may wait forever with nothing to wake it. Instead, wake the
+thread only after decrementing inflight_packets.
+
+Signed-off-by: Ross Lagerwall <ross.lagerwall@citrix.com>
+diff --git a/drivers/net/xen-netback/netback.c b/drivers/net/xen-netback/netback.c
+index dce33b6..039c1ee 100644
+--- a/drivers/net/xen-netback/netback.c
++++ b/drivers/net/xen-netback/netback.c
+@@ -1583,7 +1583,6 @@ void xenvif_zerocopy_callback(struct ubuf_info *ubuf, bool zerocopy_success)
+ 		smp_wmb();
+ 		queue->dealloc_prod++;
+ 	} while (ubuf);
+-	wake_up(&queue->dealloc_wq);
+ 	spin_unlock_irqrestore(&queue->callback_lock, flags);
+ 
+ 	if (likely(zerocopy_success))
+@@ -1591,6 +1590,7 @@ void xenvif_zerocopy_callback(struct ubuf_info *ubuf, bool zerocopy_success)
+ 	else
+ 		queue->stats.tx_zerocopy_fail++;
+ 	xenvif_skb_zerocopy_complete(queue);
++	wake_up(&queue->dealloc_wq);
+ }
+ 
+ static inline void xenvif_tx_dealloc_action(struct xenvif_queue *queue)

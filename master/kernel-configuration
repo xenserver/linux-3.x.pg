@@ -1,9 +1,8 @@
 diff --git a/buildconfigs/linux-defconfig_xen_x86_64 b/buildconfigs/linux-defconfig_xen_x86_64
 new file mode 100644
-index 0000000..5856a58
 --- /dev/null
 +++ b/buildconfigs/linux-defconfig_xen_x86_64
-@@ -0,0 +1,3866 @@
+@@ -0,0 +1,3875 @@
 +#
 +# Automatically generated file; DO NOT EDIT.
 +# Linux/x86_64 3.10.0+0 Kernel Configuration
@@ -392,6 +391,7 @@ index 0000000..5856a58
 +# CONFIG_PREEMPT_NONE is not set
 +CONFIG_PREEMPT_VOLUNTARY=y
 +# CONFIG_PREEMPT is not set
++CONFIG_PREEMPT_COUNT=y
 +CONFIG_X86_LOCAL_APIC=y
 +CONFIG_X86_IO_APIC=y
 +CONFIG_X86_REROUTE_FOR_BROKEN_BOOT_IRQS=y
@@ -1213,6 +1213,7 @@ index 0000000..5856a58
 +#
 +CONFIG_CONNECTOR=y
 +CONFIG_PROC_EVENTS=y
++CONFIG_FB_UVESA=n
 +# CONFIG_MTD is not set
 +# CONFIG_PARPORT is not set
 +CONFIG_PNP=y
@@ -2045,9 +2046,11 @@ index 0000000..5856a58
 +#
 +# Non-8250 serial port support
 +#
++# CONFIG_SERIAL_KGDB_NMI is not set
 +CONFIG_SERIAL_MFD_HSU=m
 +CONFIG_SERIAL_CORE=y
 +CONFIG_SERIAL_CORE_CONSOLE=y
++CONFIG_CONSOLE_POLL=y
 +CONFIG_SERIAL_JSM=m
 +CONFIG_SERIAL_SCCNXP=m
 +CONFIG_SERIAL_TIMBERDALE=m
@@ -3591,7 +3594,11 @@ index 0000000..5856a58
 +CONFIG_ASYNC_RAID6_TEST=m
 +# CONFIG_SAMPLES is not set
 +CONFIG_HAVE_ARCH_KGDB=y
-+# CONFIG_KGDB is not set
++CONFIG_KGDB=y
++CONFIG_KGDB_SERIAL_CONSOLE=y
++# CONFIG_KGDB_TESTS is not set
++CONFIG_KGDB_LOW_LEVEL_TRAP=y
++# CONFIG_KGDB_KDB is not set
 +CONFIG_HAVE_ARCH_KMEMCHECK=y
 +# CONFIG_TEST_STRING_HELPERS is not set
 +CONFIG_TEST_KSTRTOX=m

@@ -438,6 +438,7 @@ x86-fix-xen-save-fl.patch
 0004-xen-balloon-populate-the-hotplug-memory-before-addin.patch
 0005-x86-xen-discard-RAM-regions-above-the-maximum-reserv.patch
 xen-balloon-hotplug-select-HOLES_IN_ZONE.patch
+xen-balloon-allocate-p2m-entries.patch
 
 # Blkback
 blkback-debug-ring.diff
@@ -492,6 +493,7 @@ netback-avoid-meta-overflow.patch
 0001-xen-netback-delete-NAPI-instance-when-queue-fails-to.patch
 0002-xen-netback-Check-queue-allocation-succeeds.patch
 0003-xen-netback-free-queues-after-freeing-the-net-device.patch
+0001-xen-netback-Wake-dealloc-thread-after-completing-zer.patch
 
 # nvme driver backport
 backport-nvme-driver-from-3.17.patch
@@ -520,6 +522,7 @@ CA-135938-nfs-disconnect-on-rpc-retry.patch
 CP-9457-blkback-kthread-pid.patch
 0001-Revert-xen-Send-spinlock-IPI-to-all-waiters.patch
 0002-x86-xen-never-re-enable-IRQs-in-spinlock-slow-path.patch
+CA-173529-disable-oplocks-for-CIFS.patch
 
 # Local bonding and bridging patches
 bonding-balance-slb.patch
@@ -529,6 +532,10 @@ CA-137716-fix-bond-slb-softlockup-while-tx.patch
 
 # In-kernel device emulator support
 xen-ioemu-inject-msi.patch
+
+# Melio
+increase-kernel-thread-stack-size.patch
+allow-preempt-count-config.patch
 
 #
 # Debugging/hacks

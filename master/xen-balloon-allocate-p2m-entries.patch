@@ -1,0 +1,64 @@
+diff --git a/arch/x86/include/asm/xen/page.h b/arch/x86/include/asm/xen/page.h
+index cc0cbe2..6c286a9 100644
+--- a/arch/x86/include/asm/xen/page.h
++++ b/arch/x86/include/asm/xen/page.h
+@@ -44,6 +44,7 @@ extern unsigned long  machine_to_phys_nr;
+ 
+ extern unsigned long get_phys_to_machine(unsigned long pfn);
+ extern bool set_phys_to_machine(unsigned long pfn, unsigned long mfn);
++extern int xen_alloc_p2m(unsigned long pfn);
+ extern bool __init early_set_phys_to_machine(unsigned long pfn, unsigned long mfn);
+ extern bool __set_phys_to_machine(unsigned long pfn, unsigned long mfn);
+ extern unsigned long set_phys_range_identity(unsigned long pfn_s,
+diff --git a/arch/x86/xen/p2m.c b/arch/x86/xen/p2m.c
+index 8097408..3c6d28f 100644
+--- a/arch/x86/xen/p2m.c
++++ b/arch/x86/xen/p2m.c
+@@ -613,6 +613,14 @@ static bool alloc_p2m(unsigned long pfn)
+ 	return true;
+ }
+ 
++int xen_alloc_p2m(unsigned long pfn)
++{
++	if (!alloc_p2m(pfn))
++		return -ENOMEM;
++	return 0;
++}
++EXPORT_SYMBOL(xen_alloc_p2m);
++
+ static bool __init early_alloc_p2m(unsigned long pfn, bool check_boundary)
+ {
+ 	unsigned topidx, mididx, idx;
+diff --git a/drivers/xen/balloon.c b/drivers/xen/balloon.c
+index 79c69d5..898ece41 100644
+--- a/drivers/xen/balloon.c
++++ b/drivers/xen/balloon.c
+@@ -558,6 +558,7 @@ int alloc_xenballooned_pages(int nr_pages, struct page **pages)
+ {
+ 	int pgno = 0;
+ 	struct page *page;
++	int ret = -ENOMEM;
+ 
+ 	mutex_lock(&balloon_mutex);
+ 
+@@ -567,6 +568,11 @@ int alloc_xenballooned_pages(int nr_pages, struct page **pages)
+ 		page = balloon_retrieve(true);
+ 		if (page) {
+ 			pages[pgno++] = page;
++#ifdef CONFIG_XEN_HAVE_PVMMU
++			ret = xen_alloc_p2m(page_to_pfn(page));
++			if (ret < 0)
++				goto out_undo;
++#endif
+ 		} else {
+ 			enum bp_state st;
+ 
+@@ -593,7 +599,7 @@ int alloc_xenballooned_pages(int nr_pages, struct page **pages)
+  out_undo:
+ 	mutex_unlock(&balloon_mutex);
+ 	free_xenballooned_pages(pgno, pages);
+-	return -ENOMEM;
++	return ret;
+ }
+ EXPORT_SYMBOL(alloc_xenballooned_pages);
+ 
