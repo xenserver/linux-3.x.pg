@@ -1,0 +1,16 @@
+Increase kernel thread stack size to 32K to support Melio kernel module.
+
+32K stack size was highest possible without causing Xenserver installation regressions.
+diff --git a/arch/x86/include/asm/page_64_types.h b/arch/x86/include/asm/page_64_types.h
+index 970f309..03ad023 100644
+--- a/arch/x86/include/asm/page_64_types.h
++++ b/arch/x86/include/asm/page_64_types.h
+@@ -1,7 +1,7 @@
+ #ifndef _ASM_X86_PAGE_64_DEFS_H
+ #define _ASM_X86_PAGE_64_DEFS_H
+ 
+-#define THREAD_SIZE_ORDER	1
++#define THREAD_SIZE_ORDER	3
+ #define THREAD_SIZE  (PAGE_SIZE << THREAD_SIZE_ORDER)
+ #define CURRENT_MASK (~(THREAD_SIZE - 1))
+ 

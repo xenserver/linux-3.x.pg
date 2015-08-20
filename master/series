@@ -562,6 +562,7 @@ netback-avoid-meta-overflow.patch
 0001-xen-netback-delete-NAPI-instance-when-queue-fails-to.patch
 0002-xen-netback-Check-queue-allocation-succeeds.patch
 0003-xen-netback-free-queues-after-freeing-the-net-device.patch
+0001-xen-netback-Wake-dealloc-thread-after-completing-zer.patch
 
 # nvme driver backport
 backport-nvme-driver-from-3.17.patch
@@ -590,6 +591,7 @@ CA-135938-nfs-disconnect-on-rpc-retry.patch
 CP-9457-blkback-kthread-pid.patch
 0001-Revert-xen-Send-spinlock-IPI-to-all-waiters.patch
 0002-x86-xen-never-re-enable-IRQs-in-spinlock-slow-path.patch
+CA-173529-disable-oplocks-for-CIFS.patch
 
 # Local bonding and bridging patches
 bonding-balance-slb.patch
@@ -603,6 +605,10 @@ xen-ioemu-inject-msi.patch
 # Intel GVT-g support patches
 intel-gvt-g-kernel-support.patch
 intel-gvt-g-enable-out-of-tree-compile.patch
+
+# Melio
+increase-kernel-thread-stack-size.patch
+allow-preempt-count-config.patch
 
 #
 # Debugging/hacks
