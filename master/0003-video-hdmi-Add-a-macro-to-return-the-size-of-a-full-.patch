@@ -1,0 +1,36 @@
+From 61177b0e12ba162d5de206914e8703d8eb90ad19 Mon Sep 17 00:00:00 2001
+From: Damien Lespiau <damien.lespiau@intel.com>
+Date: Tue, 6 Aug 2013 20:32:15 +0100
+Subject: [PATCH 03/12] video/hdmi: Add a macro to return the size of a full
+ infoframe
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Cc: Thierry Reding <thierry.reding@avionic-design.de>
+Reviewed-by: Ville Syrjälä <ville.syrjala@linux.intel.com>
+Signed-off-by: Damien Lespiau <damien.lespiau@intel.com>
+Acked-by: Dave Airlie <airlied@gmail.com>
+Reviewed-by: Alex Deucher <alexander.deucher@amd.com>
+Signed-off-by: Daniel Vetter <daniel.vetter@ffwll.ch>
+---
+ include/linux/hdmi.h | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/include/linux/hdmi.h b/include/linux/hdmi.h
+index 0f3f82e..bc6743e 100644
+--- a/include/linux/hdmi.h
++++ b/include/linux/hdmi.h
+@@ -23,6 +23,9 @@ enum hdmi_infoframe_type {
+ #define HDMI_SPD_INFOFRAME_SIZE    25
+ #define HDMI_AUDIO_INFOFRAME_SIZE  10
+ 
++#define HDMI_INFOFRAME_SIZE(type)	\
++	(HDMI_INFOFRAME_HEADER_SIZE + HDMI_ ## type ## _INFOFRAME_SIZE)
++
+ struct hdmi_any_infoframe {
+ 	enum hdmi_infoframe_type type;
+ 	unsigned char version;
+-- 
+2.1.0
+

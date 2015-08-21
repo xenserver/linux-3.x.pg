@@ -1,0 +1,39 @@
+From c782d2e73d1e69c863d03945907bc7fbc879a778 Mon Sep 17 00:00:00 2001
+From: "Lespiau, Damien" <damien.lespiau@intel.com>
+Date: Mon, 19 Aug 2013 16:59:00 +0100
+Subject: [PATCH 08/12] drm/edid: Move HDMI_IDENTIFIER to hdmi.h
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+We'll need the HDMI OUI for the HDMI vendor infoframe data, so let's
+move the DRM one to hdmi.h, might as well use the hdmi header to store
+some hdmi defines.
+
+(Note that, in fact, infoframes are part of the CEA-861 standard, and
+only the HDMI vendor specific infoframe is special to HDMI, but
+details..)
+
+Signed-off-by: Damien Lespiau <damien.lespiau@intel.com>
+Reviewed-by: Ville Syrjälä <ville.syrjala@linux.intel.com>
+Reviewed-by: Thierry Reding <treding@nvidia.com>
+Signed-off-by: Dave Airlie <airlied@gmail.com>
+---
+ include/linux/hdmi.h | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/include/linux/hdmi.h b/include/linux/hdmi.h
+index e733252..37e0cd7 100644
+--- a/include/linux/hdmi.h
++++ b/include/linux/hdmi.h
+@@ -18,6 +18,7 @@ enum hdmi_infoframe_type {
+ 	HDMI_INFOFRAME_TYPE_AUDIO = 0x84,
+ };
+ 
++#define HDMI_IDENTIFIER 0x000c03
+ #define HDMI_INFOFRAME_HEADER_SIZE  4
+ #define HDMI_AVI_INFOFRAME_SIZE    13
+ #define HDMI_SPD_INFOFRAME_SIZE    25
+-- 
+2.1.0
+

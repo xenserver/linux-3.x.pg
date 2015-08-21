@@ -1,0 +1,571 @@
+diff --git a/arch/x86/include/asm/xen/hypercall.h b/arch/x86/include/asm/xen/hypercall.h
+index 7d3cbfb..ed335cb 100644
+--- a/arch/x86/include/asm/xen/hypercall.h
++++ b/arch/x86/include/asm/xen/hypercall.h
+@@ -49,6 +49,7 @@
+ #include <xen/interface/physdev.h>
+ #include <xen/interface/platform.h>
+ #include <xen/interface/xen-mca.h>
++#include <xen/interface/domctl.h>
+ 
+ /*
+  * The hypercall asms have to meet several constraints:
+@@ -466,6 +467,14 @@ HYPERVISOR_kexec_op(
+ }
+ 
+ static inline int
++HYPERVISOR_domctl(
++	struct xen_domctl *arg)
++{
++	return _hypercall1(int, domctl, arg);
++}
++
++
++static inline int
+ HYPERVISOR_tmem_op(
+ 	struct tmem_op *op)
+ {
+diff --git a/arch/x86/include/asm/xen/interface.h b/arch/x86/include/asm/xen/interface.h
+index fd9cb76..0b687be 100644
+--- a/arch/x86/include/asm/xen/interface.h
++++ b/arch/x86/include/asm/xen/interface.h
+@@ -57,6 +57,7 @@ typedef unsigned long xen_ulong_t;
+ /* Guest handles for primitive C types. */
+ __DEFINE_GUEST_HANDLE(uchar, unsigned char);
+ __DEFINE_GUEST_HANDLE(uint,  unsigned int);
++__DEFINE_GUEST_HANDLE(ulong,  unsigned long);
+ DEFINE_GUEST_HANDLE(char);
+ DEFINE_GUEST_HANDLE(int);
+ DEFINE_GUEST_HANDLE(void);
+diff --git a/arch/x86/xen/mmu.c b/arch/x86/xen/mmu.c
+index 09f58e37..a610c45 100644
+--- a/arch/x86/xen/mmu.c
++++ b/arch/x86/xen/mmu.c
+@@ -2553,3 +2553,57 @@ int xen_unmap_domain_mfn_range(struct vm_area_struct *vma,
+ 	return -EINVAL;
+ }
+ EXPORT_SYMBOL_GPL(xen_unmap_domain_mfn_range);
++
++/* Note: here 'mfn' is actually gfn!!! */
++struct vm_struct * xen_remap_domain_mfn_range_in_kernel(unsigned long mfn,
++		int nr, unsigned domid)
++{
++	struct vm_struct *area;
++	unsigned long addr;
++	pgprot_t prot;
++	int err;
++
++	WARN_ON(in_interrupt() || irqs_disabled());
++
++	area = alloc_vm_area(nr << PAGE_SHIFT, NULL);
++	if (!area)
++		return NULL;
++
++	addr = (unsigned long)area->addr;
++
++	prot = __pgprot(pgprot_val(PAGE_KERNEL));
++
++	err =  __xen_remap_domain_mfn_range(&init_mm, addr,
++	                                    &mfn, nr, true, prot, domid, NULL);
++	if (err)
++		goto err;
++
++	xen_flush_tlb_all();
++	return area;
++err:
++	free_vm_area(area);
++	xen_flush_tlb_all();
++	return NULL;
++}
++EXPORT_SYMBOL_GPL(xen_remap_domain_mfn_range_in_kernel);
++
++void xen_unmap_domain_mfn_range_in_kernel(struct vm_struct *area, int nr,
++		unsigned domid)
++{
++	unsigned long addr = (unsigned long)area->addr;
++	int i;
++	struct multicall_space mcs;
++
++	WARN_ON(in_interrupt() || irqs_disabled());
++
++	xen_mc_batch();
++	for (i = 0; i < nr; i++, addr += PAGE_SIZE) {
++		mcs = __xen_mc_entry(0);
++		MULTI_update_va_mapping(mcs.mc, addr, VOID_PTE, 0);
++	}
++	xen_mc_issue(0);
++
++	free_vm_area(area);
++	xen_flush_tlb_all();
++}
++EXPORT_SYMBOL_GPL(xen_unmap_domain_mfn_range_in_kernel);
+diff --git a/drivers/pci/quirks.c b/drivers/pci/quirks.c
+index 1705dea..993a012 100644
+--- a/drivers/pci/quirks.c
++++ b/drivers/pci/quirks.c
+@@ -2933,6 +2933,12 @@ static void fixup_debug_report(struct pci_dev *dev, ktime_t calltime,
+ 	}
+ }
+ 
++#if 0
++   /*
++    * TODO: Temporary disable the GEN register access before
++    * vgt driver is fully initialized to trap-and-emulate.
++    * Need to revisit with on-demand dom0 GEN MMIO trapping.
++    */
+ /*
+  * Some BIOS implementations leave the Intel GPU interrupts enabled,
+  * even though no one is handling them (f.e. i915 driver is never loaded).
+@@ -2967,6 +2973,7 @@ static void disable_igfx_irq(struct pci_dev *dev)
+ DECLARE_PCI_FIXUP_FINAL(PCI_VENDOR_ID_INTEL, 0x0102, disable_igfx_irq);
+ DECLARE_PCI_FIXUP_FINAL(PCI_VENDOR_ID_INTEL, 0x010a, disable_igfx_irq);
+ DECLARE_PCI_FIXUP_FINAL(PCI_VENDOR_ID_INTEL, 0x0152, disable_igfx_irq);
++#endif
+ 
+ /*
+  * Some devices may pass our check in pci_intx_mask_supported if
+diff --git a/include/xen/interface/hvm/hvm_op.h b/include/xen/interface/hvm/hvm_op.h
+index 83aeb64..c6e2a24 100644
+--- a/include/xen/interface/hvm/hvm_op.h
++++ b/include/xen/interface/hvm/hvm_op.h
+@@ -21,6 +21,8 @@
+ #ifndef __XEN_PUBLIC_HVM_HVM_OP_H__
+ #define __XEN_PUBLIC_HVM_HVM_OP_H__
+ 
++#include "../event_channel.h"
++
+ /* Get/set subcommands: the second argument of the hypercall is a
+  * pointer to a xen_hvm_param struct. */
+ #define HVMOP_set_param           0
+@@ -97,6 +99,8 @@ struct xen_hvm_set_mem_type {
+     /* First pfn. */
+     aligned_u64 first_pfn;
+ };
++typedef struct xen_hvm_set_mem_type xen_hvm_set_mem_type_t;
++DEFINE_GUEST_HANDLE_STRUCT(xen_hvm_set_mem_type_t);
+ 
+ /* Hint from PV drivers for pagetable destruction. */
+ #define HVMOP_pagetable_dying       9
+@@ -108,12 +112,6 @@ struct xen_hvm_pagetable_dying {
+ };
+ typedef struct xen_hvm_pagetable_dying xen_hvm_pagetable_dying_t;
+ DEFINE_GUEST_HANDLE_STRUCT(xen_hvm_pagetable_dying_t);
+- 
+-enum hvmmem_type_t {
+-    HVMMEM_ram_rw,             /* Normal read/write guest RAM */
+-    HVMMEM_ram_ro,             /* Read-only; writes are discarded */
+-    HVMMEM_mmio_dm,            /* Reads and write go to the device model */
+-};
+ 
+ #define HVMOP_get_mem_type    15
+ /* Return hvmmem_type_t for the specified pfn. */
+@@ -138,6 +136,159 @@ struct xen_hvm_inject_msi {
+     /* Address (0xfeexxxxx) */
+     uint64_t  addr;
+ };
+-DEFINE_GUEST_HANDLE_STRUCT(xen_hvm_inject_msi);
++typedef struct xen_hvm_inject_msi xen_hvm_inject_msi_t;
++DEFINE_GUEST_HANDLE_STRUCT(xen_hvm_inject_msi_t);
++
++enum hvmmem_type_t {
++    HVMMEM_ram_rw,             /* Normal read/write guest RAM */
++    HVMMEM_ram_ro,             /* Read-only; writes are discarded */
++    HVMMEM_mmio_dm,            /* Reads and write go to the device model */
++    HVMMEM_mmio_write_dm       /* Read-only; writes go to the device model */
++};
++
++#define HVMOP_vgt_wp_pages         27  /* writeprotection to guest pages */
++#define MAX_WP_BATCH_PAGES         128
++struct xen_hvm_vgt_wp_pages {
++	uint16_t domid;
++	uint16_t set;            /* 1: set WP, 0: remove WP */
++	uint16_t nr_pages;
++	unsigned long  wp_pages[MAX_WP_BATCH_PAGES];
++};
++typedef struct xen_hvm_vgt_wp_pages xen_hvm_vgt_wp_pages_t;
++
++/*
++ * IOREQ Servers
++ *
++ * The interface between an I/O emulator an Xen is called an IOREQ Server.
++ * A domain supports a single 'legacy' IOREQ Server which is instantiated if
++ * parameter...
++ *
++ * HVM_PARAM_IOREQ_PFN is read (to get the gmfn containing the synchronous
++ * ioreq structures), or...
++ * HVM_PARAM_BUFIOREQ_PFN is read (to get the gmfn containing the buffered
++ * ioreq ring), or...
++ * HVM_PARAM_BUFIOREQ_EVTCHN is read (to get the event channel that Xen uses
++ * to request buffered I/O emulation).
++ *
++ * The following hypercalls facilitate the creation of IOREQ Servers for
++ * 'secondary' emulators which are invoked to implement port I/O, memory, or
++ * PCI config space ranges which they explicitly register.
++ */
++typedef uint16_t ioservid_t;
++
++/*
++ * HVMOP_create_ioreq_server: Instantiate a new IOREQ Server for a secondary
++ *                            emulator servicing domain <domid>.
++ *
++ * The <id> handed back is unique for <domid>. If <handle_bufioreq> is zero
++ * the buffered ioreq ring will not be allocated and hence all emulation
++ * requestes to this server will be synchronous.
++ */
++#define HVMOP_create_ioreq_server 17
++struct xen_hvm_create_ioreq_server {
++    domid_t domid;           /* IN - domain to be serviced */
++    uint8_t handle_bufioreq; /* IN - should server handle buffered ioreqs */
++    ioservid_t id;           /* OUT - server id */
++};
++typedef struct xen_hvm_create_ioreq_server xen_hvm_create_ioreq_server_t;
++DEFINE_GUEST_HANDLE_STRUCT(xen_hvm_create_ioreq_server_t);
++
++/*
++ * HVMOP_get_ioreq_server_info: Get all the information necessary to access
++ *                              IOREQ Server <id>.
++ *
++ * The emulator needs to map the synchronous ioreq structures and buffered
++ * ioreq ring (if it exists) that Xen uses to request emulation. These are
++ * hosted in domain <domid>'s gmfns <ioreq_pfn> and <bufioreq_pfn>
++ * respectively. In addition, if the IOREQ Server is handling buffered
++ * emulation requests, the emulator needs to bind to event channel
++ * <bufioreq_port> to listen for them. (The event channels used for
++ * synchronous emulation requests are specified in the per-CPU ioreq
++ * structures in <ioreq_pfn>).
++ * If the IOREQ Server is not handling buffered emulation requests then the
++ * values handed back in <bufioreq_pfn> and <bufioreq_port> will both be 0.
++ */
++#define HVMOP_get_ioreq_server_info 18
++struct xen_hvm_get_ioreq_server_info {
++    domid_t domid;                 /* IN - domain to be serviced */
++    ioservid_t id;                 /* IN - server id */
++    evtchn_port_t bufioreq_port;   /* OUT - buffered ioreq port */
++    uint64_t ioreq_pfn;    /* OUT - sync ioreq pfn */
++    uint64_t bufioreq_pfn; /* OUT - buffered ioreq pfn */
++};
++typedef struct xen_hvm_get_ioreq_server_info xen_hvm_get_ioreq_server_info_t;
++DEFINE_GUEST_HANDLE_STRUCT(xen_hvm_get_ioreq_server_info_t);
++
++/*
++ * HVM_map_io_range_to_ioreq_server: Register an I/O range of domain <domid>
++ *                                   for emulation by the client of IOREQ
++ *                                   Server <id>
++ * HVM_unmap_io_range_from_ioreq_server: Deregister an I/O range of <domid>
++ *                                       for emulation by the client of IOREQ
++ *                                       Server <id>
++ *
++ * There are three types of I/O that can be emulated: port I/O, memory accesses
++ * and PCI config space accesses. The <type> field denotes which type of range
++ * the <start> and <end> (inclusive) fields are specifying.
++ * PCI config space ranges are specified by segment/bus/device/function values
++ * which should be encoded using the HVMOP_PCI_SBDF helper macro below.
++ *
++ * NOTE: unless an emulation request falls entirely within a range mapped
++ * by a secondary emulator, it will not be passed to that emulator.
++ */
++#define HVMOP_map_io_range_to_ioreq_server 19
++#define HVMOP_unmap_io_range_from_ioreq_server 20
++struct xen_hvm_io_range {
++    domid_t domid;               /* IN - domain to be serviced */
++    ioservid_t id;               /* IN - server id */
++    uint32_t type;               /* IN - type of range */
++# define HVMOP_IO_RANGE_PORT   0 /* I/O port range */
++# define HVMOP_IO_RANGE_MEMORY 1 /* MMIO range */
++# define HVMOP_IO_RANGE_PCI    2 /* PCI segment/bus/dev/func range */
++    uint64_t start, end; /* IN - inclusive start and end of range */
++};
++typedef struct xen_hvm_io_range xen_hvm_io_range_t;
++DEFINE_GUEST_HANDLE_STRUCT(xen_hvm_io_range_t);
++
++#define HVMOP_PCI_SBDF(s,b,d,f)                 \
++       ((((s) & 0xffff) << 16) |                   \
++        (((b) & 0xff) << 8) |                      \
++        (((d) & 0x1f) << 3) |                      \
++        ((f) & 0x07))
++
++/*
++ * HVMOP_destroy_ioreq_server: Destroy the IOREQ Server <id> servicing domain
++ *                             <domid>.
++ *
++ * Any registered I/O ranges will be automatically deregistered.
++ */
++#define HVMOP_destroy_ioreq_server 21
++struct xen_hvm_destroy_ioreq_server {
++    domid_t domid; /* IN - domain to be serviced */
++    ioservid_t id; /* IN - server id */
++};
++typedef struct xen_hvm_destroy_ioreq_server xen_hvm_destroy_ioreq_server_t;
++DEFINE_GUEST_HANDLE_STRUCT(xen_hvm_destroy_ioreq_server_t);
++
++
++/*
++ * HVMOP_set_ioreq_server_state: Enable or disable the IOREQ Server <id> servicing
++ *                               domain <domid>.
++ *
++ * The IOREQ Server will not be passed any emulation requests until it is in the
++ * enabled state.
++ * Note that the contents of the ioreq_pfn and bufioreq_fn (see
++ * HVMOP_get_ioreq_server_info) are not meaningful until the IOREQ Server is in
++ * the enabled state.
++ */
++#define HVMOP_set_ioreq_server_state 22
++struct xen_hvm_set_ioreq_server_state {
++    domid_t domid;   /* IN - domain to be serviced */
++    ioservid_t id;   /* IN - server id */
++    uint8_t enabled; /* IN - enabled? */
++};
++typedef struct xen_hvm_set_ioreq_server_state xen_hvm_set_ioreq_server_state_t;
++DEFINE_GUEST_HANDLE_STRUCT(xen_hvm_set_ioreq_server_state_t);
++
+ 
+ #endif /* __XEN_PUBLIC_HVM_HVM_OP_H__ */
+diff --git a/include/xen/interface/hvm/ioreq.h b/include/xen/interface/hvm/ioreq.h
+new file mode 100644
+index 0000000..6bbf4e4
+--- /dev/null
++++ b/include/xen/interface/hvm/ioreq.h
+@@ -0,0 +1,132 @@
++/*
++ * This program is free software; you can redistribute it and/or modify it
++ * under the terms and conditions of the GNU General Public License,
++ * version 2, as published by the Free Software Foundation.
++ *
++ * This program is distributed in the hope it will be useful, but WITHOUT
++ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
++ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
++ * more details.
++ *
++ * You should have received a copy of the GNU General Public License along with
++ * this program; if not, write to the Free Software Foundation, Inc.,
++ * 51 Franklin St - Fifth Floor, Boston, MA 02110-1301 USA.
++ */
++#ifndef _IOREQ_H_
++#define _IOREQ_H_
++
++#define IOREQ_READ      1
++#define IOREQ_WRITE     0
++
++#define STATE_IOREQ_NONE        0
++#define STATE_IOREQ_READY       1
++#define STATE_IOREQ_INPROCESS   2
++#define STATE_IORESP_READY      3
++
++#define IOREQ_TYPE_PIO          0 /* pio */
++#define IOREQ_TYPE_COPY         1 /* mmio ops */
++#define IOREQ_TYPE_PCI_CONFIG   2
++#define IOREQ_TYPE_TIMEOFFSET   7
++#define IOREQ_TYPE_INVALIDATE   8 /* mapcache */
++
++/*
++ * VMExit dispatcher should cooperate with instruction decoder to
++ * prepare this structure and notify service OS and DM by sending
++ * virq
++ */
++struct ioreq {
++    uint64_t addr;          /* physical address */
++    uint64_t data;          /* data (or paddr of data) */
++    uint32_t count;         /* for rep prefixes */
++    uint32_t size;          /* size in bytes */
++    uint32_t vp_eport;      /* evtchn for notifications to/from device model */
++    uint16_t _pad0;
++    uint8_t state:4;
++    uint8_t data_is_ptr:1;  /* if 1, data above is the guest paddr
++                             * of the real data to use. */
++    uint8_t dir:1;          /* 1=read, 0=write */
++    uint8_t df:1;
++    uint8_t _pad1:1;
++    uint8_t type;           /* I/O type */
++};
++typedef struct ioreq ioreq_t;
++
++struct shared_iopage {
++    struct ioreq vcpu_ioreq[1];
++};
++typedef struct shared_iopage shared_iopage_t;
++
++struct buf_ioreq {
++    uint8_t  type;   /* I/O type                    */
++    uint8_t  pad:1;
++    uint8_t  dir:1;  /* 1=read, 0=write             */
++    uint8_t  size:2; /* 0=>1, 1=>2, 2=>4, 3=>8. If 8, use two buf_ioreqs */
++    uint32_t addr:20;/* physical address            */
++    uint32_t data;   /* data                        */
++};
++typedef struct buf_ioreq buf_ioreq_t;
++
++#define IOREQ_BUFFER_SLOT_NUM     511 /* 8 bytes each, plus 2 4-byte indexes */
++struct buffered_iopage {
++    unsigned int read_pointer;
++    unsigned int write_pointer;
++    buf_ioreq_t buf_ioreq[IOREQ_BUFFER_SLOT_NUM];
++}; /* NB. Size of this structure must be no greater than one page. */
++typedef struct buffered_iopage buffered_iopage_t;
++
++#if defined(__ia64__)
++struct pio_buffer {
++    uint32_t page_offset;
++    uint32_t pointer;
++    uint32_t data_end;
++    uint32_t buf_size;
++    void *opaque;
++};
++
++#define PIO_BUFFER_IDE_PRIMARY   0 /* I/O port = 0x1F0 */
++#define PIO_BUFFER_IDE_SECONDARY 1 /* I/O port = 0x170 */
++#define PIO_BUFFER_ENTRY_NUM     2
++struct buffered_piopage {
++    struct pio_buffer pio[PIO_BUFFER_ENTRY_NUM];
++    uint8_t buffer[1];
++};
++#endif /* defined(__ia64__) */
++
++/*
++ * ACPI Control/Event register locations. Location is controlled by a
++ * version number in HVM_PARAM_ACPI_IOPORTS_LOCATION.
++ */
++
++/* Version 0 (default): Traditional Xen locations. */
++#define ACPI_PM1A_EVT_BLK_ADDRESS_V0 0x1f40
++#define ACPI_PM1A_CNT_BLK_ADDRESS_V0 (ACPI_PM1A_EVT_BLK_ADDRESS_V0 + 0x04)
++#define ACPI_PM_TMR_BLK_ADDRESS_V0   (ACPI_PM1A_EVT_BLK_ADDRESS_V0 + 0x08)
++#define ACPI_GPE0_BLK_ADDRESS_V0     (ACPI_PM_TMR_BLK_ADDRESS_V0 + 0x20)
++#define ACPI_GPE0_BLK_LEN_V0         0x08
++
++/* Version 1: Locations preferred by modern Qemu. */
++#define ACPI_PM1A_EVT_BLK_ADDRESS_V1 0xb000
++#define ACPI_PM1A_CNT_BLK_ADDRESS_V1 (ACPI_PM1A_EVT_BLK_ADDRESS_V1 + 0x04)
++#define ACPI_PM_TMR_BLK_ADDRESS_V1   (ACPI_PM1A_EVT_BLK_ADDRESS_V1 + 0x08)
++#define ACPI_GPE0_BLK_ADDRESS_V1     0xafe0
++#define ACPI_GPE0_BLK_LEN_V1         0x04
++
++/* Compatibility definitions for the default location (version 0). */
++#define ACPI_PM1A_EVT_BLK_ADDRESS    ACPI_PM1A_EVT_BLK_ADDRESS_V0
++#define ACPI_PM1A_CNT_BLK_ADDRESS    ACPI_PM1A_CNT_BLK_ADDRESS_V0
++#define ACPI_PM_TMR_BLK_ADDRESS      ACPI_PM_TMR_BLK_ADDRESS_V0
++#define ACPI_GPE0_BLK_ADDRESS        ACPI_GPE0_BLK_ADDRESS_V0
++#define ACPI_GPE0_BLK_LEN            ACPI_GPE0_BLK_LEN_V0
++
++
++#endif /* _IOREQ_H_ */
++
++/*
++ * Local variables:
++ * mode: C
++ * c-set-style: "BSD"
++ * c-basic-offset: 4
++ * tab-width: 4
++ * indent-tabs-mode: nil
++ * End:
++ */
+diff --git a/include/xen/interface/memory.h b/include/xen/interface/memory.h
+index b8ac3b3..d013548 100644
+--- a/include/xen/interface/memory.h
++++ b/include/xen/interface/memory.h
+@@ -112,6 +112,11 @@ DEFINE_GUEST_HANDLE_STRUCT(xen_memory_exchange);
+ #define XENMEM_maximum_reservation  4
+ 
+ /*
++ * Returns the maximum GPFN in use by the guest, or -ve errcode on failure.
++ */
++#define XENMEM_maximum_gpfn         14
++
++/*
+  * Returns a list of MFN bases of 2MB extents comprising the machine_to_phys
+  * mapping table. Architectures which do not have a m2p table do not implement
+  * this command.
+@@ -241,6 +246,27 @@ DEFINE_GUEST_HANDLE_STRUCT(xen_memory_map);
+  */
+ #define XENMEM_machine_memory_map   10
+ 
++/*
++ * Translate the given guest PFNs to MFNs
++ */
++#define XENMEM_get_mfn_from_pfn    28
++struct xen_get_mfn_from_pfn {
++    /*
++     * Pointer to buffer to fill with list of pfn.
++     * for IN, it contains the guest PFN that need to translated
++     * for OUT, it contains the translated MFN. or INVALID_MFN if no valid translation
++     */
++    GUEST_HANDLE(ulong) pfn_list;
++
++    /*
++     * IN: Size of the pfn_array.
++     */
++    unsigned int nr_pfns;
++
++    /* IN: which domain */
++    domid_t domid;
++};
++DEFINE_GUEST_HANDLE_STRUCT(xen_get_mfn_from_pfn);
+ 
+ /*
+  * Prevent the balloon driver from changing the memory reservation
+diff --git a/include/xen/interface/vcpu.h b/include/xen/interface/vcpu.h
+index 87e6f8a..182267f 100644
+--- a/include/xen/interface/vcpu.h
++++ b/include/xen/interface/vcpu.h
+@@ -170,4 +170,49 @@ struct vcpu_register_vcpu_info {
+ };
+ DEFINE_GUEST_HANDLE_STRUCT(vcpu_register_vcpu_info);
+ 
++
++/* Request an I/O emulation for the specified VCPU. */
++#define VCPUOP_request_io_emulation       14
++#define PV_IOREQ_READ      1
++#define PV_IOREQ_WRITE     0
++
++#define PV_IOREQ_TYPE_PIO          0 /* pio */
++#define PV_IOREQ_TYPE_COPY         1 /* mmio ops */
++
++struct vcpu_emul_ioreq {
++    uint64_t      addr;           /* physical address */
++    uint64_t      data;           /* data (or paddr of data) */
++    uint64_t      count;          /* for rep prefixes */
++    uint32_t      size;           /* size in bytes */
++    uint16_t      _pad0;
++    uint8_t       state:4;
++    uint8_t       data_is_ptr:1;  /* if 1, data above is the guest paddr
++                                   * of the real data to use. */
++    uint8_t       dir:1;          /* 1=read, 0=write */
++    uint8_t       df:1;
++    uint8_t       _pad1:1;
++    uint8_t       type;           /* I/O type */
++};
++DEFINE_GUEST_HANDLE_STRUCT(vcpu_emul_ioreq);
++
++#define VCPUOP_get_sysdata           16
++/* sub operations */
++#define VCPUOP_sysdata_get_segment   0
++#define VCPUOP_sysdata_read	     1
++struct vcpu_sysdata_request {
++    uint64_t      op_type;
++    union {
++	struct {
++	    uint32_t     selector;
++            uint32_t     pad1;
++	    uint64_t     xdt_desc[2];
++	};
++	struct {
++	    uint64_t     src_addr;	/* linear address */
++            uint64_t     sys_data;
++            uint32_t     bytes;
++	};
++    };
++};
++
+ #endif /* __XEN_PUBLIC_VCPU_H__ */
+diff --git a/include/xen/xen-ops.h b/include/xen/xen-ops.h
+index 4100eb8..0ec1906 100644
+--- a/include/xen/xen-ops.h
++++ b/include/xen/xen-ops.h
+@@ -77,4 +77,8 @@ static inline void xen_preemptible_hcall_end(void)
+ 
+ #endif /* CONFIG_PREEMPT */
+ 
++struct vm_struct * xen_remap_domain_mfn_range_in_kernel(unsigned long mfn,
++        int nr, unsigned domid);
++void xen_unmap_domain_mfn_range_in_kernel(struct vm_struct *area, int nr,
++		unsigned domid);
+ #endif /* INCLUDE_XEN_OPS_H */
