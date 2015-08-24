@@ -6,16 +6,17 @@ Use GIT macros instead of HG ones
 
 diff --git a/mk/Makefile b/mk/Makefile
 new file mode 100644
-index 0000000..d2f147a
+index 0000000..c189b78
 --- /dev/null
 +++ b/mk/Makefile
-@@ -0,0 +1,173 @@
+@@ -0,0 +1,184 @@
 +USE_BRANDING := yes
 +IMPORT_BRANDING := yes
 +REPONAME=linux-3.x
 +include /b/common.mk
 +include /b/rpmbuild.mk
 +
++DRIVER_MANIFEST   = $(MY_OUTPUT_DIR)/driver-manifest.txt
 +RPM_BUILT_COOKIE  = $(MY_OBJ_DIR)/.pvops_rpm_built_cookie
 +FILES_COOKIE      = $(MY_OBJ_DIR)/.files.cookie
 +REPO              = $(call git_loc,$(REPONAME))
@@ -43,7 +44,7 @@ index 0000000..d2f147a
 +SRPM = $(RPM_SRPMSDIR)/kernel-$(PKG_VERSION)-$(PKG_RELEASE).src.rpm
 +
 +.PHONY: build
-+build: $(RPM_BUILT_COOKIE) $(FILES_COOKIE) $(MY_OUTPUT_DIR)/kernel.inc $(BRANDING) $(MY_SOURCES)/MANIFEST check-kernel-abi
++build: $(RPM_BUILT_COOKIE) $(FILES_COOKIE) $(MY_OUTPUT_DIR)/kernel.inc $(BRANDING) $(MY_SOURCES)/MANIFEST $(DRIVER_MANIFEST) check-kernel-abi
 +	@ :
 +
 +.PHONY: clean
@@ -183,6 +184,16 @@ index 0000000..d2f147a
 +		cp -a $(MY_OBJ_DIR)/$(KABI).new $(KABI).new ; \
 +		exit 1 ; \
 +	fi
++
++$(DRIVER_MANIFEST): $(MY_OUTPUT_DIR)/RPMS/$(DOMAIN0_ARCH_OPTIMIZED)/$(OUTPUT_RPM)
++	dir=$$(mktemp -d) ; \
++	( cd $$dir; rpm2cpio $< | \
++	cpio -i --quiet --make-directories --pattern-file $(REPO)/mk/driver-list.txt ); \
++	( find $$dir -type f | while read fname; do \
++		echo -n "$$(basename $$fname .ko) "; \
++		modinfo -F version $$fname; \
++	done ) >$@; \
++	rm -rf $$dir
 diff --git a/mk/check-kabi b/mk/check-kabi
 new file mode 100755
 index 0000000..da884e2
@@ -358,9 +369,53 @@ index 0000000..da884e2
 +	load_kabi(kabi,kabi_file)
 +	check_kabi(symvers,kabi)
 +
+diff --git a/mk/driver-list.txt b/mk/driver-list.txt
+new file mode 100644
+index 0000000..f8ae816
+--- /dev/null
++++ b/mk/driver-list.txt
+@@ -0,0 +1,38 @@
++./lib/modules/*/kernel/drivers/block/mtip32xx/mtip32xx.ko
++./lib/modules/*/kernel/drivers/block/nvme.ko
++./lib/modules/*/kernel/drivers/block/cciss.ko
++./lib/modules/*/kernel/drivers/scsi/lpfc/lpfc.ko
++./lib/modules/*/kernel/drivers/scsi/aic94xx/aic94xx.ko
++./lib/modules/*/kernel/drivers/scsi/qla4xxx/qla4xxx.ko
++./lib/modules/*/kernel/drivers/scsi/megaraid/megaraid_sas.ko
++./lib/modules/*/kernel/drivers/scsi/megaraid.ko
++./lib/modules/*/kernel/drivers/scsi/mpt2sas/mpt2sas.ko
++./lib/modules/*/kernel/drivers/scsi/mpt3sas/mpt3sas.ko
++./lib/modules/*/kernel/drivers/scsi/fnic/fnic.ko
++./lib/modules/*/kernel/drivers/scsi/qla2xxx/qla2xxx.ko
++./lib/modules/*/kernel/drivers/scsi/aacraid/aacraid.ko
++./lib/modules/*/kernel/drivers/scsi/hpsa.ko
++./lib/modules/*/kernel/drivers/scsi/isci/isci.ko
++./lib/modules/*/kernel/drivers/scsi/bfa/bfa.ko
++./lib/modules/*/kernel/drivers/message/fusion/mptsas.ko
++./lib/modules/*/kernel/drivers/net/ethernet/emulex/benet/be2net.ko
++./lib/modules/*/kernel/drivers/net/ethernet/intel/ixgbe/ixgbe.ko
++./lib/modules/*/kernel/drivers/net/ethernet/intel/igb/igb.ko
++./lib/modules/*/kernel/drivers/net/ethernet/intel/e1000e/e1000e.ko
++./lib/modules/*/kernel/drivers/net/ethernet/intel/igbvf/igbvf.ko
++./lib/modules/*/kernel/drivers/net/ethernet/intel/ixgbevf/ixgbevf.ko
++./lib/modules/*/kernel/drivers/net/ethernet/intel/ixgb/ixgb.ko
++./lib/modules/*/kernel/drivers/net/ethernet/intel/e1000/e1000.ko
++./lib/modules/*/kernel/drivers/net/ethernet/qlogic/qlcnic/qlcnic.ko
++./lib/modules/*/kernel/drivers/net/ethernet/qlogic/qlge/qlge.ko
++./lib/modules/*/kernel/drivers/net/ethernet/qlogic/netxen/netxen_nic.ko
++./lib/modules/*/kernel/drivers/net/ethernet/qlogic/qla3xxx.ko
++./lib/modules/*/kernel/drivers/net/ethernet/mellanox/mlx4/mlx4_en.ko
++./lib/modules/*/kernel/drivers/net/ethernet/cisco/enic/enic.ko
++./lib/modules/*/kernel/drivers/net/ethernet/chelsio/cxgb4/cxgb4.ko
++./lib/modules/*/kernel/drivers/net/ethernet/chelsio/cxgb3/cxgb3.ko
++./lib/modules/*/kernel/drivers/net/ethernet/broadcom/bnx2x/bnx2x.ko
++./lib/modules/*/kernel/drivers/net/ethernet/broadcom/bnx2.ko
++./lib/modules/*/kernel/drivers/net/ethernet/broadcom/tg3.ko
++./lib/modules/*/kernel/drivers/net/ethernet/broadcom/cnic.ko
++./lib/modules/*/kernel/drivers/net/ethernet/brocade/bna/bna.ko
 diff --git a/mk/kernel.spec.in b/mk/kernel.spec.in
 new file mode 100644
-index 0000000..f93548a
+index 0000000..8e7f329
 --- /dev/null
 +++ b/mk/kernel.spec.in
 @@ -0,0 +1,299 @@
