@@ -786,11 +786,14 @@ index 5caab46..932186c 100644
  /* Architecture-specific hypercall definitions. */
  #define __HYPERVISOR_arch_0               48
 diff --git a/include/xen/ioemu.h b/include/xen/ioemu.h
-index 95eb4e7..05f2d45 100644
+index 95eb4e7..21ca898 100644
 --- a/include/xen/ioemu.h
 +++ b/include/xen/ioemu.h
-@@ -31,5 +31,6 @@
+@@ -29,7 +29,9 @@
+  */
+ #ifndef _XEN_IOEMU_H
  #define _XEN_IOEMU_H
++#include <xen/interface/pv-iommu.h>
  
  int xen_ioemu_inject_msi(domid_t domid, uint64_t addr, uint32_t data);
 +int xen_ioemu_map_foreign_gfn_to_bfn(struct pv_iommu_op *ops, int count);
