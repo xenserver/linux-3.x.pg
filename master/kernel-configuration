@@ -1,9 +1,9 @@
 diff --git a/buildconfigs/linux-defconfig_xen_x86_64 b/buildconfigs/linux-defconfig_xen_x86_64
 new file mode 100644
-index 0000000..025ebad
+index 0000000..60f1cd5
 --- /dev/null
 +++ b/buildconfigs/linux-defconfig_xen_x86_64
-@@ -0,0 +1,3832 @@
+@@ -0,0 +1,3837 @@
 +#
 +# Automatically generated file; DO NOT EDIT.
 +# Linux/x86_64 3.10.0+0 Kernel Configuration
@@ -1214,7 +1214,6 @@ index 0000000..025ebad
 +#
 +CONFIG_CONNECTOR=y
 +CONFIG_PROC_EVENTS=y
-+CONFIG_FB_UVESA=n
 +# CONFIG_MTD is not set
 +# CONFIG_PARPORT is not set
 +CONFIG_PNP=y
@@ -2537,6 +2536,7 @@ index 0000000..025ebad
 +# CONFIG_FB_ASILIANT is not set
 +# CONFIG_FB_IMSTT is not set
 +CONFIG_FB_VGA16=m
++# CONFIG_FB_UVESA is not set
 +CONFIG_FB_VESA=y
 +CONFIG_FB_EFI=y
 +# CONFIG_FB_N411 is not set
@@ -3193,9 +3193,11 @@ index 0000000..025ebad
 +CONFIG_XFS_RT=y
 +# CONFIG_XFS_WARN is not set
 +# CONFIG_XFS_DEBUG is not set
-+# CONFIG_GFS2_FS is not set
++CONFIG_GFS2_FS=m
++CONFIG_GFS2_FS_LOCKING_DLM=y
 +CONFIG_OCFS2_FS=m
 +CONFIG_OCFS2_FS_O2CB=m
++CONFIG_OCFS2_FS_USERSPACE_CLUSTER=m
 +CONFIG_OCFS2_FS_STATS=y
 +CONFIG_OCFS2_DEBUG_MASKLOG=y
 +# CONFIG_OCFS2_DEBUG_FS is not set
@@ -3412,7 +3414,8 @@ index 0000000..025ebad
 +CONFIG_NLS_MAC_ROMANIAN=m
 +# CONFIG_NLS_MAC_TURKISH is not set
 +CONFIG_NLS_UTF8=m
-+# CONFIG_DLM is not set
++CONFIG_DLM=m
++CONFIG_DLM_DEBUG=y
 +
 +#
 +# Kernel hacking
