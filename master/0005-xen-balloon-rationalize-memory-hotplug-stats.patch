@@ -12,16 +12,11 @@ This will be useful when deciding whether additional memory needs to be
 hotplugged.
 
 Signed-off-by: David Vrabel <david.vrabel@citrix.com>
----
- drivers/xen/balloon.c |   75 ++++++++-----------------------------------------
- include/xen/balloon.h |    5 +---
- 2 files changed, 13 insertions(+), 67 deletions(-)
-
 diff --git a/drivers/xen/balloon.c b/drivers/xen/balloon.c
-index d0121ee..960ac79 100644
+index 19c3fb0..e7c8ca5 100644
 --- a/drivers/xen/balloon.c
 +++ b/drivers/xen/balloon.c
-@@ -194,21 +194,6 @@ static enum bp_state update_schedule(enum bp_state state)
+@@ -208,21 +208,6 @@ static enum bp_state update_schedule(enum bp_state state)
  }
  
  #ifdef CONFIG_XEN_BALLOON_MEMORY_HOTPLUG
@@ -43,7 +38,7 @@ index d0121ee..960ac79 100644
  static struct resource *additional_memory_resource(phys_addr_t size)
  {
  	struct resource *res;
-@@ -299,10 +284,7 @@ static enum bp_state reserve_additional_memory(long credit)
+@@ -313,10 +298,7 @@ static enum bp_state reserve_additional_memory(long credit)
  		goto err;
  	}
  
@@ -55,7 +50,7 @@ index d0121ee..960ac79 100644
  
  	return BP_DONE;
    err:
-@@ -318,11 +300,6 @@ static void xen_online_page(struct page *page)
+@@ -332,11 +314,6 @@ static void xen_online_page(struct page *page)
  
  	__balloon_append(page);
  
@@ -67,7 +62,7 @@ index d0121ee..960ac79 100644
  	mutex_unlock(&balloon_mutex);
  }
  
-@@ -339,32 +316,22 @@ static struct notifier_block xen_memory_nb = {
+@@ -353,32 +330,22 @@ static struct notifier_block xen_memory_nb = {
  	.priority = 0
  };
  #else
@@ -108,7 +103,7 @@ index d0121ee..960ac79 100644
  
  static enum bp_state increase_reservation(unsigned long nr_pages)
  {
-@@ -377,15 +344,6 @@ static enum bp_state increase_reservation(unsigned long nr_pages)
+@@ -391,15 +358,6 @@ static enum bp_state increase_reservation(unsigned long nr_pages)
  		.domid        = DOMID_SELF
  	};
  
@@ -124,7 +119,7 @@ index d0121ee..960ac79 100644
  	if (nr_pages > ARRAY_SIZE(frame_list))
  		nr_pages = ARRAY_SIZE(frame_list);
  
-@@ -448,15 +406,6 @@ static enum bp_state decrease_reservation(unsigned long nr_pages, gfp_t gfp)
+@@ -463,15 +421,6 @@ static enum bp_state decrease_reservation(unsigned long nr_pages, gfp_t gfp)
  		.domid        = DOMID_SELF
  	};
  
@@ -140,7 +135,7 @@ index d0121ee..960ac79 100644
  	if (nr_pages > ARRAY_SIZE(frame_list))
  		nr_pages = ARRAY_SIZE(frame_list);
  
-@@ -646,6 +595,8 @@ static void __init balloon_add_region(unsigned long start_pfn,
+@@ -669,6 +618,8 @@ static void __init balloon_add_region(unsigned long start_pfn,
  		   don't subtract from it. */
  		__balloon_append(page);
  	}
@@ -148,8 +143,8 @@ index d0121ee..960ac79 100644
 +	balloon_stats.total_pages += extra_pfn_end - start_pfn;
  }
  
- static int __init balloon_init(void)
-@@ -663,6 +614,7 @@ static int __init balloon_init(void)
+ static int __cpuinit balloon_cpu_notify(struct notifier_block *self,
+@@ -720,6 +671,7 @@ static int __init balloon_init(void)
  	balloon_stats.target_pages  = balloon_stats.current_pages;
  	balloon_stats.balloon_low   = 0;
  	balloon_stats.balloon_high  = 0;
@@ -157,7 +152,7 @@ index d0121ee..960ac79 100644
  
  	balloon_stats.schedule_delay = 1;
  	balloon_stats.max_schedule_delay = 32;
-@@ -670,9 +622,6 @@ static int __init balloon_init(void)
+@@ -727,9 +679,6 @@ static int __init balloon_init(void)
  	balloon_stats.max_retry_count = RETRY_UNLIMITED;
  
  #ifdef CONFIG_XEN_BALLOON_MEMORY_HOTPLUG
@@ -168,7 +163,7 @@ index d0121ee..960ac79 100644
  	register_memory_notifier(&xen_memory_nb);
  #endif
 diff --git a/include/xen/balloon.h b/include/xen/balloon.h
-index cc2e1a7..c8aee7a 100644
+index a4c1c6a..8953c08 100644
 --- a/include/xen/balloon.h
 +++ b/include/xen/balloon.h
 @@ -11,14 +11,11 @@ struct balloon_stats {
@@ -187,6 +182,3 @@ index cc2e1a7..c8aee7a 100644
  };
  
  extern struct balloon_stats balloon_stats;
--- 
-1.7.10.4
-

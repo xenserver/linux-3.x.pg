@@ -20,17 +20,11 @@ Reviewed-by: David Vrabel <david.vrabel@citrix.com>
 Cc: Ian Campbell <ian.campbell@citrix.com>
 Cc: Jason Luan <jianhai.luan@oracle.com>
 Signed-off-by: David S. Miller <davem@davemloft.net>
----
- drivers/net/xen-netback/common.h    |    1 +
- drivers/net/xen-netback/interface.c |    3 +--
- drivers/net/xen-netback/netback.c   |   10 +++++-----
- 3 files changed, 7 insertions(+), 7 deletions(-)
-
 diff --git a/drivers/net/xen-netback/common.h b/drivers/net/xen-netback/common.h
-index 5715318..400fea1 100644
+index 55b8dec..08ae01b 100644
 --- a/drivers/net/xen-netback/common.h
 +++ b/drivers/net/xen-netback/common.h
-@@ -163,6 +163,7 @@ struct xenvif {
+@@ -169,6 +169,7 @@ struct xenvif {
  	unsigned long   credit_usec;
  	unsigned long   remaining_credit;
  	struct timer_list credit_timeout;
@@ -39,10 +33,10 @@ index 5715318..400fea1 100644
  	/* Statistics */
  	unsigned long rx_gso_checksum_fixup;
 diff --git a/drivers/net/xen-netback/interface.c b/drivers/net/xen-netback/interface.c
-index 01bb854..459935a 100644
+index e4aa267..b78ee10 100644
 --- a/drivers/net/xen-netback/interface.c
 +++ b/drivers/net/xen-netback/interface.c
-@@ -312,8 +312,7 @@ struct xenvif *xenvif_alloc(struct device *parent, domid_t domid,
+@@ -316,8 +316,7 @@ struct xenvif *xenvif_alloc(struct device *parent, domid_t domid,
  	vif->credit_bytes = vif->remaining_credit = ~0UL;
  	vif->credit_usec  = 0UL;
  	init_timer(&vif->credit_timeout);
@@ -51,12 +45,12 @@ index 01bb854..459935a 100644
 +	vif->credit_window_start = get_jiffies_64();
  
  	dev->netdev_ops	= &xenvif_netdev_ops;
- 	dev->hw_features = NETIF_F_SG | NETIF_F_IP_CSUM | NETIF_F_TSO;
+ 	dev->hw_features = NETIF_F_SG |
 diff --git a/drivers/net/xen-netback/netback.c b/drivers/net/xen-netback/netback.c
-index f3e591c..900da4b 100644
+index 828fdab..919b650 100644
 --- a/drivers/net/xen-netback/netback.c
 +++ b/drivers/net/xen-netback/netback.c
-@@ -1185,9 +1185,8 @@ out:
+@@ -1380,9 +1380,8 @@ static int checksum_setup(struct xenvif *vif, struct sk_buff *skb)
  
  static bool tx_credit_exceeded(struct xenvif *vif, unsigned size)
  {
@@ -68,7 +62,7 @@ index f3e591c..900da4b 100644
  		msecs_to_jiffies(vif->credit_usec / 1000);
  
  	/* Timer could already be pending in rare cases. */
-@@ -1195,8 +1194,8 @@ static bool tx_credit_exceeded(struct xenvif *vif, unsigned size)
+@@ -1390,8 +1389,8 @@ static bool tx_credit_exceeded(struct xenvif *vif, unsigned size)
  		return true;
  
  	/* Passed the point where we can replenish credit? */
@@ -79,7 +73,7 @@ index f3e591c..900da4b 100644
  		tx_add_credit(vif);
  	}
  
-@@ -1208,6 +1207,7 @@ static bool tx_credit_exceeded(struct xenvif *vif, unsigned size)
+@@ -1403,6 +1402,7 @@ static bool tx_credit_exceeded(struct xenvif *vif, unsigned size)
  			tx_credit_callback;
  		mod_timer(&vif->credit_timeout,
  			  next_credit);
@@ -87,6 +81,3 @@ index f3e591c..900da4b 100644
  
  		return true;
  	}
--- 
-1.7.10.4
-

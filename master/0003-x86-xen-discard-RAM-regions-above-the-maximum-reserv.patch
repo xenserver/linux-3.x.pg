@@ -9,25 +9,21 @@ reservation (instead of marking them as E820_UNUSABLE).  This allows
 hotplug memory to be placed at these addresses.
 
 Signed-off-by: David Vrabel <david.vrabel@citrix.com>
----
- arch/x86/xen/setup.c |    6 ++++--
- 1 file changed, 4 insertions(+), 2 deletions(-)
-
 diff --git a/arch/x86/xen/setup.c b/arch/x86/xen/setup.c
-index 55f388e..32910c5 100644
+index ff4a29e..98d4c42 100644
 --- a/arch/x86/xen/setup.c
 +++ b/arch/x86/xen/setup.c
-@@ -646,6 +646,7 @@ char * __init xen_memory_setup(void)
- 		phys_addr_t addr = map[i].addr;
- 		phys_addr_t size = map[i].size;
+@@ -421,6 +421,7 @@ char * __init xen_memory_setup(void)
+ 		u64 addr = map[i].addr;
+ 		u64 size = map[i].size;
  		u32 type = map[i].type;
 +		bool discard = false;
  
  		if (type == E820_RAM) {
  			if (addr < mem_end) {
-@@ -656,10 +657,11 @@ char * __init xen_memory_setup(void)
+@@ -430,10 +431,11 @@ char * __init xen_memory_setup(void)
+ 				extra_pages -= size / PAGE_SIZE;
  				xen_add_extra_mem(addr, size);
- 				xen_max_p2m_pfn = PFN_DOWN(addr + size);
  			} else
 -				type = E820_UNUSABLE;
 +				discard = true;
@@ -39,6 +35,3 @@ index 55f388e..32910c5 100644
  
  		map[i].addr += size;
  		map[i].size -= size;
--- 
-1.7.10.4
-

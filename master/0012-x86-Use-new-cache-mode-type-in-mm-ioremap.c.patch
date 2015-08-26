@@ -21,26 +21,19 @@ Cc: tomi.valkeinen@ti.com
 Cc: bhelgaas@google.com
 Link: http://lkml.kernel.org/r/1415019724-4317-13-git-send-email-jgross@suse.com
 Signed-off-by: Thomas Gleixner <tglx@linutronix.de>
----
- arch/x86/include/asm/io.h  |    2 +-
- arch/x86/include/asm/pat.h |    2 +-
- arch/x86/mm/ioremap.c      |   65 ++++++++++++++++++++++++--------------------
- arch/x86/mm/pat.c          |   12 ++++----
- 4 files changed, 44 insertions(+), 37 deletions(-)
-
 diff --git a/arch/x86/include/asm/io.h b/arch/x86/include/asm/io.h
-index b8237d8..71b9e65 100644
+index d8e8eef..f4579a3 100644
 --- a/arch/x86/include/asm/io.h
 +++ b/arch/x86/include/asm/io.h
-@@ -314,7 +314,7 @@ extern void *xlate_dev_mem_ptr(unsigned long phys);
+@@ -313,7 +313,7 @@ extern void *xlate_dev_mem_ptr(unsigned long phys);
  extern void unxlate_dev_mem_ptr(unsigned long phys, void *addr);
  
  extern int ioremap_change_attr(unsigned long vaddr, unsigned long size,
 -				unsigned long prot_val);
-+				enum page_cache_mode pcm);
++			       enum page_cache_mode pcm);
  extern void __iomem *ioremap_wc(resource_size_t offset, unsigned long size);
  
- extern bool is_early_ioremap_ptep(pte_t *ptep);
+ /*
 diff --git a/arch/x86/include/asm/pat.h b/arch/x86/include/asm/pat.h
 index a8438bc..d35ee2d 100644
 --- a/arch/x86/include/asm/pat.h
@@ -55,7 +48,7 @@ index a8438bc..d35ee2d 100644
  int io_reserve_memtype(resource_size_t start, resource_size_t end,
  			enum page_cache_mode *pcm);
 diff --git a/arch/x86/mm/ioremap.c b/arch/x86/mm/ioremap.c
-index 3a81eb9..f31507f 100644
+index 12ceb38..244fd18 100644
 --- a/arch/x86/mm/ioremap.c
 +++ b/arch/x86/mm/ioremap.c
 @@ -29,20 +29,20 @@
@@ -100,7 +93,7 @@ index 3a81eb9..f31507f 100644
  	unsigned long new_prot_val;
  	pgprot_t prot;
  	int retval;
-@@ -134,39 +135,42 @@ static void __iomem *__ioremap_caller(resource_size_t phys_addr,
+@@ -122,39 +123,42 @@ static void __iomem *__ioremap_caller(resource_size_t phys_addr,
  	size = PAGE_ALIGN(last_addr+1) - phys_addr;
  
  	retval = reserve_memtype(phys_addr, (u64)phys_addr + size,
@@ -160,7 +153,7 @@ index 3a81eb9..f31507f 100644
  		break;
  	}
  
-@@ -179,7 +183,7 @@ static void __iomem *__ioremap_caller(resource_size_t phys_addr,
+@@ -167,7 +171,7 @@ static void __iomem *__ioremap_caller(resource_size_t phys_addr,
  	area->phys_addr = phys_addr;
  	vaddr = (unsigned long) area->addr;
  
@@ -169,7 +162,7 @@ index 3a81eb9..f31507f 100644
  		goto err_free_area;
  
  	if (ioremap_page_range(vaddr, vaddr + size, phys_addr, prot))
-@@ -228,14 +232,14 @@ void __iomem *ioremap_nocache(resource_size_t phys_addr, unsigned long size)
+@@ -216,14 +220,14 @@ void __iomem *ioremap_nocache(resource_size_t phys_addr, unsigned long size)
  {
  	/*
  	 * Ideally, this should be:
@@ -187,7 +180,7 @@ index 3a81eb9..f31507f 100644
  				__builtin_return_address(0));
  }
  EXPORT_SYMBOL(ioremap_nocache);
-@@ -253,7 +257,7 @@ EXPORT_SYMBOL(ioremap_nocache);
+@@ -241,7 +245,7 @@ EXPORT_SYMBOL(ioremap_nocache);
  void __iomem *ioremap_wc(resource_size_t phys_addr, unsigned long size)
  {
  	if (pat_enabled)
@@ -196,7 +189,7 @@ index 3a81eb9..f31507f 100644
  					__builtin_return_address(0));
  	else
  		return ioremap_nocache(phys_addr, size);
-@@ -262,7 +266,7 @@ EXPORT_SYMBOL(ioremap_wc);
+@@ -250,7 +254,7 @@ EXPORT_SYMBOL(ioremap_wc);
  
  void __iomem *ioremap_cache(resource_size_t phys_addr, unsigned long size)
  {
@@ -205,7 +198,7 @@ index 3a81eb9..f31507f 100644
  				__builtin_return_address(0));
  }
  EXPORT_SYMBOL(ioremap_cache);
-@@ -270,7 +274,8 @@ EXPORT_SYMBOL(ioremap_cache);
+@@ -258,7 +262,8 @@ EXPORT_SYMBOL(ioremap_cache);
  void __iomem *ioremap_prot(resource_size_t phys_addr, unsigned long size,
  				unsigned long prot_val)
  {
@@ -262,6 +255,3 @@ index 2f3744f..8f68a83 100644
  		free_memtype(paddr, paddr + size);
  		return -EINVAL;
  	}
--- 
-1.7.10.4
-

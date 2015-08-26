@@ -23,14 +23,8 @@ Acked-by: Wei Liu <wei.liu2@citrix.com>
 Cc: Ian Campbell <ian.campbell@citrix.com>
 Cc: David Vrabel <david.vrabel@citrix.com>
 Signed-off-by: David S. Miller <davem@davemloft.net>
----
- drivers/net/xen-netback/common.h    |   19 +++++++++++++------
- drivers/net/xen-netback/interface.c |   10 ++++++++++
- drivers/net/xen-netback/netback.c   |    2 +-
- 3 files changed, 24 insertions(+), 7 deletions(-)
-
 diff --git a/drivers/net/xen-netback/common.h b/drivers/net/xen-netback/common.h
-index 08ae01b..c47794b 100644
+index ba30a6d..c955fc3 100644
 --- a/drivers/net/xen-netback/common.h
 +++ b/drivers/net/xen-netback/common.h
 @@ -101,6 +101,13 @@ struct xenvif_rx_meta {
@@ -47,9 +41,9 @@ index 08ae01b..c47794b 100644
  struct xenvif {
  	/* Unique identifier for this interface. */
  	domid_t          domid;
-@@ -143,13 +150,13 @@ struct xenvif {
+@@ -141,13 +148,13 @@ struct xenvif {
  	 */
- 	RING_IDX rx_req_cons_peek;
+ 	bool rx_event;
  
 -	/* Given MAX_BUFFER_OFFSET of 4096 the worst case is that each
 -	 * head/fragment page uses 2 copy operations because it
@@ -68,7 +62,7 @@ index 08ae01b..c47794b 100644
  	u8               fe_dev_addr[6];
  
 diff --git a/drivers/net/xen-netback/interface.c b/drivers/net/xen-netback/interface.c
-index 870f1fa..34ca4e5 100644
+index 1dcb960..06c6fee 100644
 --- a/drivers/net/xen-netback/interface.c
 +++ b/drivers/net/xen-netback/interface.c
 @@ -307,6 +307,15 @@ struct xenvif *xenvif_alloc(struct device *parent, domid_t domid,
@@ -87,7 +81,7 @@ index 870f1fa..34ca4e5 100644
  	vif->domid  = domid;
  	vif->handle = handle;
  	vif->can_sg = 1;
-@@ -487,6 +496,7 @@ void xenvif_free(struct xenvif *vif)
+@@ -488,6 +497,7 @@ void xenvif_free(struct xenvif *vif)
  
  	unregister_netdev(vif->dev);
  
@@ -96,18 +90,15 @@ index 870f1fa..34ca4e5 100644
  
  	module_put(THIS_MODULE);
 diff --git a/drivers/net/xen-netback/netback.c b/drivers/net/xen-netback/netback.c
-index 7b4fd93..7842555 100644
+index 5c1cd1e..4f81ac0 100644
 --- a/drivers/net/xen-netback/netback.c
 +++ b/drivers/net/xen-netback/netback.c
-@@ -608,7 +608,7 @@ void xenvif_rx_action(struct xenvif *vif)
+@@ -524,7 +524,7 @@ static void xenvif_rx_action(struct xenvif *vif)
  	if (!npo.copy_prod)
- 		return;
+ 		goto done;
  
 -	BUG_ON(npo.copy_prod > ARRAY_SIZE(vif->grant_copy_op));
 +	BUG_ON(npo.copy_prod > MAX_GRANT_COPY_OPS);
  	gnttab_batch_copy(vif->grant_copy_op, npo.copy_prod);
  
  	while ((skb = __skb_dequeue(&rxq)) != NULL) {
--- 
-1.7.10.4
-

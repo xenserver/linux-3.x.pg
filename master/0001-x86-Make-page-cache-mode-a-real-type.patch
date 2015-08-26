@@ -35,18 +35,13 @@ Cc: tomi.valkeinen@ti.com
 Cc: bhelgaas@google.com
 Link: http://lkml.kernel.org/r/1415019724-4317-2-git-send-email-jgross@suse.com
 Signed-off-by: Thomas Gleixner <tglx@linutronix.de>
----
- arch/x86/include/asm/pgtable_types.h |   73 +++++++++++++++++++++++++++++++++-
- arch/x86/mm/init.c                   |   29 ++++++++++++++
- 2 files changed, 101 insertions(+), 1 deletion(-)
-
 diff --git a/arch/x86/include/asm/pgtable_types.h b/arch/x86/include/asm/pgtable_types.h
-index 0778964..5124642 100644
+index b24c654..cd62b1b 100644
 --- a/arch/x86/include/asm/pgtable_types.h
 +++ b/arch/x86/include/asm/pgtable_types.h
-@@ -128,12 +128,34 @@
- 			 _PAGE_SOFT_DIRTY | _PAGE_NUMA)
- #define _HPAGE_CHG_MASK (_PAGE_CHG_MASK | _PAGE_PSE | _PAGE_NUMA)
+@@ -94,12 +94,34 @@
+ 			 _PAGE_SPECIAL | _PAGE_ACCESSED | _PAGE_DIRTY)
+ #define _HPAGE_CHG_MASK (_PAGE_CHG_MASK | _PAGE_PSE)
  
 -#define _PAGE_CACHE_MASK	(_PAGE_PCD | _PAGE_PWT)
  #define _PAGE_CACHE_WB		(0)
@@ -80,7 +75,7 @@ index 0778964..5124642 100644
  #define PAGE_NONE	__pgprot(_PAGE_PROTNONE | _PAGE_ACCESSED)
  #define PAGE_SHARED	__pgprot(_PAGE_PRESENT | _PAGE_RW | _PAGE_USER | \
  				 _PAGE_ACCESSED | _PAGE_NX)
-@@ -341,6 +363,55 @@ static inline pmdval_t pmdnuma_flags(pmd_t pmd)
+@@ -298,6 +320,55 @@ static inline pteval_t pte_flags(pte_t pte)
  #define pgprot_val(x)	((x).pgprot)
  #define __pgprot(x)	((pgprot_t) { (x) } )
  
@@ -137,10 +132,10 @@ index 0778964..5124642 100644
  typedef struct page *pgtable_t;
  
 diff --git a/arch/x86/mm/init.c b/arch/x86/mm/init.c
-index 66dba36..a9776ba 100644
+index 7a5bf1b..afe87b0 100644
 --- a/arch/x86/mm/init.c
 +++ b/arch/x86/mm/init.c
-@@ -27,6 +27,35 @@
+@@ -20,6 +20,35 @@
  
  #include "mm_internal.h"
  
@@ -176,6 +171,3 @@ index 66dba36..a9776ba 100644
  static unsigned long __initdata pgt_buf_start;
  static unsigned long __initdata pgt_buf_end;
  static unsigned long __initdata pgt_buf_top;
--- 
-1.7.10.4
-

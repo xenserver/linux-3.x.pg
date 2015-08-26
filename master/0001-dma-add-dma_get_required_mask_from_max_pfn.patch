@@ -11,19 +11,11 @@ Signed-off-by: David Vrabel <david.vrabel@citrix.com>
 Cc: Tony Luck <tony.luck@intel.com>
 Cc: Fenghua Yu <fenghua.yu@intel.com>
 Cc: linux-ia64@vger.kernel.org
----
- arch/ia64/include/asm/machvec.h      |    2 +-
- arch/ia64/include/asm/machvec_init.h |    1 -
- arch/ia64/pci/pci.c                  |   20 --------------------
- drivers/base/platform.c              |   10 ++++++++--
- include/linux/dma-mapping.h          |    1 +
- 5 files changed, 10 insertions(+), 24 deletions(-)
-
 diff --git a/arch/ia64/include/asm/machvec.h b/arch/ia64/include/asm/machvec.h
-index 9c39bdf..beaa47d 100644
+index 2d1ad4b1..989e77f 100644
 --- a/arch/ia64/include/asm/machvec.h
 +++ b/arch/ia64/include/asm/machvec.h
-@@ -287,7 +287,7 @@ extern struct dma_map_ops *dma_get_ops(struct device *);
+@@ -289,7 +289,7 @@ extern struct dma_map_ops *dma_get_ops(struct device *);
  # define platform_dma_get_ops		dma_get_ops
  #endif
  #ifndef platform_dma_get_required_mask
@@ -45,10 +37,10 @@ index 37a4698..ef964b2 100644
  extern ia64_mv_local_vector_to_irq __ia64_local_vector_to_irq;
  extern ia64_mv_pci_get_legacy_mem_t ia64_pci_get_legacy_mem;
 diff --git a/arch/ia64/pci/pci.c b/arch/ia64/pci/pci.c
-index 291a582..79da21b 100644
+index de1474f..e01f2c4 100644
 --- a/arch/ia64/pci/pci.c
 +++ b/arch/ia64/pci/pci.c
-@@ -791,26 +791,6 @@ static void __init set_pci_dfl_cacheline_size(void)
+@@ -706,26 +706,6 @@ static void __init set_pci_dfl_cacheline_size(void)
  	pci_dfl_cache_line_size = (1 << cci.pcci_line_size) / 4;
  }
  
@@ -76,10 +68,10 @@ index 291a582..79da21b 100644
  {
  	return platform_dma_get_required_mask(dev);
 diff --git a/drivers/base/platform.c b/drivers/base/platform.c
-index 5b47210..a53ef9d 100644
+index 9eda842..c978ee1 100644
 --- a/drivers/base/platform.c
 +++ b/drivers/base/platform.c
-@@ -942,8 +942,7 @@ int __init platform_bus_init(void)
+@@ -916,8 +916,7 @@ int __init platform_bus_init(void)
  	return error;
  }
  
@@ -89,7 +81,7 @@ index 5b47210..a53ef9d 100644
  {
  	u32 low_totalram = ((max_pfn - 1) << PAGE_SHIFT);
  	u32 high_totalram = ((max_pfn - 1) >> (32 - PAGE_SHIFT));
-@@ -961,6 +960,13 @@ u64 dma_get_required_mask(struct device *dev)
+@@ -935,6 +934,13 @@ u64 dma_get_required_mask(struct device *dev)
  	}
  	return mask;
  }
@@ -104,17 +96,14 @@ index 5b47210..a53ef9d 100644
  #endif
  
 diff --git a/include/linux/dma-mapping.h b/include/linux/dma-mapping.h
-index fd4aee2..bc6e2b6 100644
+index 94af418..b0bf514 100644
 --- a/include/linux/dma-mapping.h
 +++ b/include/linux/dma-mapping.h
-@@ -121,6 +121,7 @@ static inline int dma_coerce_mask_and_coherent(struct device *dev, u64 mask)
- 	return dma_set_mask_and_coherent(dev, mask);
+@@ -97,6 +97,7 @@ static inline int dma_set_coherent_mask(struct device *dev, u64 mask)
  }
+ #endif
  
 +extern u64 dma_get_required_mask_from_max_pfn(struct device *dev);
  extern u64 dma_get_required_mask(struct device *dev);
  
  static inline unsigned int dma_get_max_seg_size(struct device *dev)
--- 
-1.7.2.5
-

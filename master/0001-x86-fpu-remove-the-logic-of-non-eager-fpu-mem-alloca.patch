@@ -34,15 +34,8 @@ the logic of non-eager fpu mem allocation at the first usage.
 
 Signed-off-by: Suresh Siddha <sbsiddha@gmail.com>
 Signed-off-by: David Vrabel <david.vrabel@citrix.com>
----
- arch/x86/kernel/i387.c    |   20 +++++++++++---------
- arch/x86/kernel/process.c |    6 ------
- arch/x86/kernel/traps.c   |   16 ++--------------
- arch/x86/kernel/xsave.c   |    2 --
- 4 files changed, 13 insertions(+), 31 deletions(-)
-
 diff --git a/arch/x86/kernel/i387.c b/arch/x86/kernel/i387.c
-index d5dd808..f3c1255 100644
+index b03ff18..1f65e2c 100644
 --- a/arch/x86/kernel/i387.c
 +++ b/arch/x86/kernel/i387.c
 @@ -5,6 +5,7 @@
@@ -53,7 +46,7 @@ index d5dd808..f3c1255 100644
  #include <linux/module.h>
  #include <linux/regset.h>
  #include <linux/sched.h>
-@@ -197,6 +198,16 @@ void fpu_init(void)
+@@ -189,6 +190,16 @@ void __cpuinit fpu_init(void)
  
  	mxcsr_feature_mask_init();
  	xsave_init();
@@ -70,16 +63,16 @@ index d5dd808..f3c1255 100644
  	eager_fpu_init();
  }
  
-@@ -228,8 +239,6 @@ EXPORT_SYMBOL_GPL(fpu_finit);
+@@ -220,8 +231,6 @@ EXPORT_SYMBOL_GPL(fpu_finit);
   */
  int init_fpu(struct task_struct *tsk)
  {
 -	int ret;
 -
  	if (tsk_used_math(tsk)) {
- 		if (cpu_has_fpu && tsk == current)
+ 		if (HAVE_HWFP && tsk == current)
  			unlazy_fpu(tsk);
-@@ -237,13 +246,6 @@ int init_fpu(struct task_struct *tsk)
+@@ -229,13 +238,6 @@ int init_fpu(struct task_struct *tsk)
  		return 0;
  	}
  
@@ -94,7 +87,7 @@ index d5dd808..f3c1255 100644
  
  	set_stopped_child_used_math(tsk);
 diff --git a/arch/x86/kernel/process.c b/arch/x86/kernel/process.c
-index 4505e2a..210d5d7 100644
+index 59b9037..c85c707 100644
 --- a/arch/x86/kernel/process.c
 +++ b/arch/x86/kernel/process.c
 @@ -128,12 +128,6 @@ void flush_thread(void)
@@ -111,10 +104,10 @@ index 4505e2a..210d5d7 100644
  
  static void hard_disable_TSC(void)
 diff --git a/arch/x86/kernel/traps.c b/arch/x86/kernel/traps.c
-index 57409f6..3265429 100644
+index 0010ed7..ab7c0dd 100644
 --- a/arch/x86/kernel/traps.c
 +++ b/arch/x86/kernel/traps.c
-@@ -623,20 +623,8 @@ void math_state_restore(void)
+@@ -657,20 +657,8 @@ void math_state_restore(void)
  {
  	struct task_struct *tsk = current;
  
@@ -138,10 +131,10 @@ index 57409f6..3265429 100644
  	__thread_fpu_begin(tsk);
  
 diff --git a/arch/x86/kernel/xsave.c b/arch/x86/kernel/xsave.c
-index a4b451c..46f6266 100644
+index 1ee7232..8bbe613 100644
 --- a/arch/x86/kernel/xsave.c
 +++ b/arch/x86/kernel/xsave.c
-@@ -598,8 +598,6 @@ void xsave_init(void)
+@@ -590,8 +590,6 @@ void __cpuinit xsave_init(void)
  
  static inline void __init eager_fpu_init_bp(void)
  {
@@ -150,6 +143,3 @@ index a4b451c..46f6266 100644
  	if (!init_xstate_buf)
  		setup_init_fpu_buf();
  }
--- 
-1.7.2.5
-

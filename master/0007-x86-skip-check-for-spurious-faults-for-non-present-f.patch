@@ -41,15 +41,11 @@ Signed-off-by: David Vrabel <david.vrabel@citrix.com>
 Reported-by: Konrad Rzeszutek Wilk <konrad.wilk@oracle.com>
 Tested-by: Konrad Rzeszutek Wilk <konrad.wilk@oracle.com>
 Acked-by: Dave Hansen <dave.hansen@intel.com>
----
- arch/x86/mm/fault.c |   22 ++++++++++++++++++++--
- 1 file changed, 20 insertions(+), 2 deletions(-)
-
 diff --git a/arch/x86/mm/fault.c b/arch/x86/mm/fault.c
-index a241946..83bb03b 100644
+index d8b1ff6..dae1bb7 100644
 --- a/arch/x86/mm/fault.c
 +++ b/arch/x86/mm/fault.c
-@@ -933,8 +933,17 @@ static int spurious_fault_check(unsigned long error_code, pte_t *pte)
+@@ -898,8 +898,17 @@ static int spurious_fault_check(unsigned long error_code, pte_t *pte)
   * cross-processor TLB flush, even if no stale TLB entries exist
   * on other processors.
   *
@@ -65,9 +61,9 @@ index a241946..83bb03b 100644
 + * See Intel Developer's Manual Vol 3 Section 4.10.4.3, bullet 3
 + * (Optional Invalidation).
   */
- static noinline int
+ static noinline __kprobes int
  spurious_fault(unsigned long error_code, unsigned long address)
-@@ -945,8 +954,17 @@ spurious_fault(unsigned long error_code, unsigned long address)
+@@ -910,8 +919,17 @@ spurious_fault(unsigned long error_code, unsigned long address)
  	pte_t *pte;
  	int ret;
  
@@ -87,6 +83,3 @@ index a241946..83bb03b 100644
  		return 0;
  
  	pgd = init_mm.pgd + pgd_index(address);
--- 
-1.7.10.4
-

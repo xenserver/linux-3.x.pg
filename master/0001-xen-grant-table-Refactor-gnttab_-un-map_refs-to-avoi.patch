@@ -23,19 +23,11 @@ Suggested-by: Anthony Liguori <aliguori@amazon.com>
 Suggested-by: David Vrabel <david.vrabel@citrix.com>
 Suggested-by: Stefano Stabellini <stefano.stabellini@eu.citrix.com>
 Signed-off-by: David Vrabel <david.vrabel@citrix.com>
----
- arch/arm/include/asm/xen/page.h |   15 ++---
- arch/arm/xen/p2m.c              |   32 +++++++++++
- arch/x86/include/asm/xen/page.h |   11 +++-
- arch/x86/xen/p2m.c              |  121 ++++++++++++++++++++++++++++++++++-----
- drivers/xen/grant-table.c       |   73 +----------------------
- 5 files changed, 156 insertions(+), 96 deletions(-)
-
 diff --git a/arch/arm/include/asm/xen/page.h b/arch/arm/include/asm/xen/page.h
-index e0965ab..cf4f3e8 100644
+index 30cdacb..e279804 100644
 --- a/arch/arm/include/asm/xen/page.h
 +++ b/arch/arm/include/asm/xen/page.h
-@@ -97,16 +97,13 @@ static inline pte_t *lookup_address(unsigned long address, unsigned int *level)
+@@ -66,16 +66,13 @@ static inline pte_t *lookup_address(unsigned long address, unsigned int *level)
  	return NULL;
  }
  
@@ -56,10 +48,10 @@ index e0965ab..cf4f3e8 100644
 +				     struct gnttab_map_grant_ref *kmap_ops,
 +				     struct page **pages, unsigned int count);
  
- bool __set_phys_to_machine(unsigned long pfn, unsigned long mfn);
- bool __set_phys_to_machine_multi(unsigned long pfn, unsigned long mfn,
+ static inline bool __set_phys_to_machine(unsigned long pfn, unsigned long mfn)
+ {
 diff --git a/arch/x86/include/asm/xen/page.h b/arch/x86/include/asm/xen/page.h
-index 3e276eb..c949923 100644
+index b913915..cc0cbe2 100644
 --- a/arch/x86/include/asm/xen/page.h
 +++ b/arch/x86/include/asm/xen/page.h
 @@ -49,10 +49,17 @@ extern bool __set_phys_to_machine(unsigned long pfn, unsigned long mfn);
@@ -91,10 +83,10 @@ index 3e276eb..c949923 100644
  	 * entry doesn't map back to the mfn and m2p_override doesn't have a
  	 * valid entry for it.
 diff --git a/arch/x86/xen/p2m.c b/arch/x86/xen/p2m.c
-index bd348aa..416c356 100644
+index a61c7d5..afaab1c 100644
 --- a/arch/x86/xen/p2m.c
 +++ b/arch/x86/xen/p2m.c
-@@ -163,6 +163,7 @@
+@@ -154,6 +154,7 @@
  #include <linux/hash.h>
  #include <linux/sched.h>
  #include <linux/seq_file.h>
@@ -102,7 +94,7 @@ index bd348aa..416c356 100644
  
  #include <asm/cache.h>
  #include <asm/setup.h>
-@@ -939,6 +939,65 @@ static unsigned long mfn_hash(unsigned long mfn)
+@@ -870,6 +871,65 @@ static unsigned long mfn_hash(unsigned long mfn)
  	return hash_long(mfn, M2P_OVERRIDE_HASH_SHIFT);
  }
  
@@ -168,7 +160,7 @@ index bd348aa..416c356 100644
  /* Add an MFN override for a particular page */
  int m2p_add_override(unsigned long mfn, struct page *page,
  		struct gnttab_map_grant_ref *kmap_op)
-@@ -957,13 +1016,6 @@ int m2p_add_override(unsigned long mfn, struct page *page,
+@@ -888,13 +948,6 @@ int m2p_add_override(unsigned long mfn, struct page *page,
  					"m2p_add_override: pfn %lx not mapped", pfn))
  			return -EINVAL;
  	}
@@ -182,7 +174,7 @@ index bd348aa..416c356 100644
  
  	if (kmap_op != NULL) {
  		if (!PageHighMem(page)) {
-@@ -1001,20 +1053,62 @@ int m2p_add_override(unsigned long mfn, struct page *page,
+@@ -932,20 +985,62 @@ int m2p_add_override(unsigned long mfn, struct page *page,
  	return 0;
  }
  EXPORT_SYMBOL_GPL(m2p_add_override);
@@ -250,7 +242,7 @@ index bd348aa..416c356 100644
  
  	if (!PageHighMem(page)) {
  		address = (unsigned long)__va(pfn << PAGE_SHIFT);
-@@ -1028,10 +1122,7 @@ int m2p_remove_override(struct page *page,
+@@ -959,10 +1054,7 @@ int m2p_remove_override(struct page *page,
  	spin_lock_irqsave(&m2p_override_lock, flags);
  	list_del(&page->lru);
  	spin_unlock_irqrestore(&m2p_override_lock, flags);
@@ -262,10 +254,10 @@ index bd348aa..416c356 100644
  		if (!PageHighMem(page)) {
  			struct multicall_space mcs;
 diff --git a/drivers/xen/grant-table.c b/drivers/xen/grant-table.c
-index b84e3ab..6d325bd 100644
+index 840604e..e8f02ad 100644
 --- a/drivers/xen/grant-table.c
 +++ b/drivers/xen/grant-table.c
-@@ -933,9 +933,6 @@ int gnttab_map_refs(struct gnttab_map_grant_ref *map_ops,
+@@ -883,9 +883,6 @@ int gnttab_map_refs(struct gnttab_map_grant_ref *map_ops,
  		    struct page **pages, unsigned int count)
  {
  	int i, ret;
@@ -350,6 +342,3 @@ index b84e3ab..6d325bd 100644
  }
  EXPORT_SYMBOL_GPL(gnttab_unmap_refs);
  
--- 
-1.7.9.5
-
