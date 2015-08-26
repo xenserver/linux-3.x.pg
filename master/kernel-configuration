@@ -1,9 +1,9 @@
 diff --git a/buildconfigs/linux-defconfig_xen_x86_64 b/buildconfigs/linux-defconfig_xen_x86_64
 new file mode 100644
-index 0000000..479c88a
+index 0000000..c37a216
 --- /dev/null
 +++ b/buildconfigs/linux-defconfig_xen_x86_64
-@@ -0,0 +1,3844 @@
+@@ -0,0 +1,3849 @@
 +#
 +# Automatically generated file; DO NOT EDIT.
 +# Linux/x86_64 3.10.0+0 Kernel Configuration
@@ -3436,6 +3436,7 @@ index 0000000..479c88a
 +# CONFIG_STRIP_ASM_SYMS is not set
 +CONFIG_READABLE_ASM=y
 +CONFIG_UNUSED_SYMBOLS=y
++CONFIG_PAGE_OWNER=y
 +CONFIG_DEBUG_FS=y
 +# CONFIG_HEADERS_CHECK is not set
 +# CONFIG_DEBUG_SECTION_MISMATCH is not set
@@ -3509,7 +3510,10 @@ index 0000000..479c88a
 +CONFIG_LATENCYTOP=y
 +CONFIG_ARCH_HAS_DEBUG_STRICT_USER_COPY_CHECKS=y
 +# CONFIG_DEBUG_STRICT_USER_COPY_CHECKS is not set
-+# CONFIG_DEBUG_PAGEALLOC is not set
++CONFIG_PAGE_EXTENSION=y
++CONFIG_DEBUG_PAGEALLOC=y
++CONFIG_WANT_PAGE_DEBUG_FLAGS=y
++CONFIG_PAGE_GUARD=y
 +CONFIG_USER_STACKTRACE_SUPPORT=y
 +CONFIG_NOP_TRACER=y
 +CONFIG_HAVE_FUNCTION_TRACER=y
@@ -3848,3 +3852,4 @@ index 0000000..479c88a
 +# CONFIG_DDR is not set
 +CONFIG_MPILIB=m
 +CONFIG_OID_REGISTRY=m
++CONFIG_UCS2_STRING=y
