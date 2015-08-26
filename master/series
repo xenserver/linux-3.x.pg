@@ -176,11 +176,18 @@ nullblk_3_13.patch
 0019-x86-mm-Change-cachemode-exports-to-non-gpl.patch
 # 9d34cfdf47963905d792ae9c000efa522739abe4 (3.19-rc6)
 0020-x86-Don-t-rely-on-VMWare-emulating-PAT-MSR-correctly.patch
+# eefa864b701d78dc9753c70a3540a2e9ae192595 (3.19-rc1)
+0001-mm-page_ext-resurrect-struct-page-extending-code-for.patch
+# e30825f1869a75b29a69dc8e0aaaaccc492092cf (3.19-rc1)
+0001-mm-debug-pagealloc-prepare-boottime-configurable-on-.patch
+# 48c96a3685795e52903e60c7ee115e5e22e7d640 (3.19-rc1) (partial)
+0001-mm-page_owner-keep-track-of-page-owners.patch
+# 9a92a6ce6f842713ccd0025c5228fe8bea61234c (v3.19-rc1)
+0001-stacktrace-introduce-snprint_stack_trace-for-buffer-.patch
 # e2e64a932556cdfae455497dbe94a8db151fc9fa (4.0-rc1)
 0001-genirq-Set-initial-affinity-in-irq_set_affinity_hint.patch
 # 4fe7ffb7e17ca6ad9173b8de35f260c9c8fc2f79 (4.0-rc1)
 0002-genirq-Fix-null-pointer-reference-in-irq_set_affinit.patch
-
 
 #
 # xen-netback backports
