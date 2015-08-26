@@ -1,0 +1,2246 @@
+diff --git a/drivers/char/agp/Kconfig b/drivers/char/agp/Kconfig
+index d8b1b57..805b0cb 100644
+--- a/drivers/char/agp/Kconfig
++++ b/drivers/char/agp/Kconfig
+@@ -68,6 +68,7 @@ config AGP_AMD64
+ config AGP_INTEL
+ 	tristate "Intel 440LX/BX/GX, I8xx and E7x05 chipset support"
+ 	depends on AGP && X86
++	select INTEL_GTT
+ 	help
+ 	  This option gives you AGP support for the GLX component of X
+ 	  on Intel 440LX/BX/GX, 815, 820, 830, 840, 845, 850, 860, 875,
+diff --git a/drivers/gpu/drm/Makefile b/drivers/gpu/drm/Makefile
+index ef16204..30a6bbd 100644
+--- a/drivers/gpu/drm/Makefile
++++ b/drivers/gpu/drm/Makefile
+@@ -41,6 +41,7 @@ obj-$(CONFIG_DRM_RADEON)+= radeon/
+ obj-$(CONFIG_DRM_MGA)	+= mga/
+ obj-$(CONFIG_DRM_I810)	+= i810/
+ obj-$(CONFIG_DRM_I915)  += i915/
++obj-$(CONFIG_I915_VGT)	+= i915/vgt/ops.o
+ obj-$(CONFIG_DRM_MGAG200) += mgag200/
+ obj-$(CONFIG_DRM_CIRRUS_QEMU) += cirrus/
+ obj-$(CONFIG_DRM_SIS)   += sis/
+diff --git a/drivers/gpu/drm/drm_irq.c b/drivers/gpu/drm/drm_irq.c
+index a4bb5d8..8bf1f72 100644
+--- a/drivers/gpu/drm/drm_irq.c
++++ b/drivers/gpu/drm/drm_irq.c
+@@ -43,10 +43,10 @@
+ #include <linux/export.h>
+ 
+ #ifdef CONFIG_I915_VGT
+-extern bool i915_host_mediate __read_mostly;
+-extern bool vgt_can_process_irq(void);
+-extern bool vgt_can_process_timer(void *timer);
+-extern void vgt_new_delay_event_timer(void *timer);
++bool (*tmp_vgt_can_process_timer)(void *timer) = NULL;
++void (*tmp_vgt_new_delay_event_timer)(void *timer) = NULL;
++EXPORT_SYMBOL(tmp_vgt_can_process_timer);
++EXPORT_SYMBOL(tmp_vgt_new_delay_event_timer);
+ #endif
+ 
+ /* Access macro for slots in vblank timestamp ringbuffer. */
+@@ -260,9 +260,9 @@ static void vblank_disable_fn(unsigned long arg)
+ 		return;
+ 
+ #ifdef CONFIG_I915_VGT
+-	if (i915_host_mediate)
+-		if (!vgt_can_process_timer(&vblank->disable_timer))
+-			return;
++	if (tmp_vgt_new_delay_event_timer &&
++			!tmp_vgt_can_process_timer(&vblank->disable_timer))
++		return;
+ #endif
+ 
+ 	spin_lock_irqsave(&dev->vbl_lock, irqflags);
+@@ -336,8 +336,8 @@ int drm_vblank_init(struct drm_device *dev, int num_crtcs)
+ 		setup_timer(&vblank->disable_timer, vblank_disable_fn,
+ 			    (unsigned long)vblank);
+ #ifdef CONFIG_I915_VGT
+-		if (i915_host_mediate)
+-			vgt_new_delay_event_timer(&vblank->disable_timer);
++		if (tmp_vgt_new_delay_event_timer)
++			tmp_vgt_new_delay_event_timer(&vblank->disable_timer);
+ #endif
+ 	}
+ 
+diff --git a/drivers/gpu/drm/i915/Kconfig b/drivers/gpu/drm/i915/Kconfig
+index b3cd776..210d297 100644
+--- a/drivers/gpu/drm/i915/Kconfig
++++ b/drivers/gpu/drm/i915/Kconfig
+@@ -71,7 +71,7 @@ config DRM_I915_PRELIMINARY_HW_SUPPORT
+ 	  If in doubt, say "N".
+ 
+ config I915_VGT
+-	tristate "iGVT-g vGT driver of i915"
++	bool "iGVT-g vGT driver of i915"
+ 	depends on DRM_I915
+ 	select IRQ_WORK
+ 	default y
+diff --git a/drivers/gpu/drm/i915/Makefile b/drivers/gpu/drm/i915/Makefile
+index 92a4e7f..c8d93a5 100644
+--- a/drivers/gpu/drm/i915/Makefile
++++ b/drivers/gpu/drm/i915/Makefile
+@@ -3,7 +3,6 @@
+ # Direct Rendering Infrastructure (DRI) in XFree86 4.1.0 and higher.
+ 
+ ccflags-y := -Iinclude/drm
+-ccflags-$(CONFIG_I915_VGT) += -I$(src)/vgt
+ 
+ # Please keep these build lists sorted!
+ 
+@@ -87,6 +86,30 @@ i915-y += i915_dma.o \
+ 	  i915_ums.o
+ 
+ obj-$(CONFIG_DRM_I915)  += i915.o
+-obj-$(CONFIG_I915_VGT)  += vgt/
++
++VGT := vgt
++ccflags-$(CONFIG_I915_VGT) += -I$(src)/$(VGT) -I$(src) -Wall
++i915-$(CONFIG_I915_VGT)  += $(VGT)/vgt.o	\
++			   $(VGT)/render.o \
++			   $(VGT)/mmio.o \
++			   $(VGT)/handlers.o \
++			   $(VGT)/interrupt.o \
++			   $(VGT)/sysfs.o \
++			   $(VGT)/display.o \
++			   $(VGT)/debugfs.o \
++			   $(VGT)/edid.o \
++			   $(VGT)/gtt.o \
++			   $(VGT)/aperture_gm.o \
++			   $(VGT)/utility.o \
++			   $(VGT)/klog.o \
++			   $(VGT)/dev.o \
++			   $(VGT)/cmd_parser.o \
++			   $(VGT)/sched.o \
++			   $(VGT)/instance.o \
++			   $(VGT)/cfg_space.o \
++			   $(VGT)/fb_decoder.o \
++			   $(VGT)/vbios.o \
++			   $(VGT)/host.o \
++			   $(VGT)/execlists.o
+ 
+ CFLAGS_i915_trace_points.o := -I$(src)
+diff --git a/drivers/gpu/drm/i915/i915_dma.c b/drivers/gpu/drm/i915/i915_dma.c
+index 53a55f5..99f0110 100644
+--- a/drivers/gpu/drm/i915/i915_dma.c
++++ b/drivers/gpu/drm/i915/i915_dma.c
+@@ -706,10 +706,19 @@ int i915_driver_load(struct drm_device *dev, unsigned long flags)
+ 		i915_host_mediate = true;
+ 	printk("i915_start_vgt: %s\n", i915_host_mediate ? "success" : "fail");
+ 
++	if (i915_host_mediate) {
++		extern bool (*tmp_vgt_can_process_timer)(void *timer);
++		extern void (*tmp_vgt_new_delay_event_timer)(void *timer);
++
++		tmp_vgt_new_delay_event_timer = vgt_new_delay_event_timer;
++		tmp_vgt_can_process_timer = vgt_can_process_timer;
++	}
++
+ 	i915_check_vgt(dev_priv);
+-	if (USES_VGT(dev))
++	if (USES_VGT(dev)){
+ 		i915.enable_fbc = 0;
+-
++		i915.enable_ips = 0;
++	}
+ 	ret = i915_gem_gtt_init(dev);
+ 	if (ret)
+ 		goto out_regs;
+@@ -923,6 +932,10 @@ int i915_driver_unload(struct drm_device *dev)
+ 	if (drm_core_check_feature(dev, DRIVER_MODESET)) {
+ 		intel_modeset_cleanup(dev);
+ 
++		if (i915_host_mediate) {
++			i915_stop_vgt();
++			i915_host_mediate = false;
++		}
+ 		/*
+ 		 * free the memory space allocated for the child device
+ 		 * config parsed from VBT
+diff --git a/drivers/gpu/drm/i915/i915_gem.c b/drivers/gpu/drm/i915/i915_gem.c
+index b57fc33..48b76d9 100644
+--- a/drivers/gpu/drm/i915/i915_gem.c
++++ b/drivers/gpu/drm/i915/i915_gem.c
+@@ -5034,6 +5034,14 @@ i915_gem_cleanup_ringbuffer(struct drm_device *dev)
+ 
+ 	for_each_ring(ring, dev_priv, i)
+ 		dev_priv->gt.cleanup_ring(ring);
++
++	if (i915.enable_execlists)
++		/*
++		 * Neither the BIOS, ourselves or any other kernel
++		 * expects the system to be in execlists mode on startup,
++		 * so we need to reset the GPU back to legacy mode.
++		 */
++		intel_gpu_reset(dev);
+ }
+ 
+ static void
+diff --git a/drivers/gpu/drm/i915/i915_gem_gtt.c b/drivers/gpu/drm/i915/i915_gem_gtt.c
+index e84685b..ec1fbdd 100644
+--- a/drivers/gpu/drm/i915/i915_gem_gtt.c
++++ b/drivers/gpu/drm/i915/i915_gem_gtt.c
+@@ -2174,6 +2174,8 @@ void i915_global_gtt_cleanup(struct drm_device *dev)
+ 	}
+ 
+ 	if (drm_mm_initialized(&vm->mm)) {
++		if (USES_VGT(dev))
++			i915_deballoon(dev_priv);
+ 		drm_mm_takedown(&vm->mm);
+ 		list_del(&vm->global_link);
+ 	}
+diff --git a/drivers/gpu/drm/i915/i915_irq.c b/drivers/gpu/drm/i915/i915_irq.c
+index 344cd90..db73f51 100644
+--- a/drivers/gpu/drm/i915/i915_irq.c
++++ b/drivers/gpu/drm/i915/i915_irq.c
+@@ -4397,6 +4397,7 @@ static void vgt_irq_uninstall(struct drm_device *dev)
+ 	irq_work_sync(&dev_priv->irq_work);
+ 
+ 	dev_priv->irq_ops.irq_uninstall(dev);
++
+ 	vgt_fini_irq(dev->pdev);
+ }
+ #endif
+diff --git a/drivers/gpu/drm/i915/i915_vgt.h b/drivers/gpu/drm/i915/i915_vgt.h
+index e896266..262fc8e 100644
+--- a/drivers/gpu/drm/i915/i915_vgt.h
++++ b/drivers/gpu/drm/i915/i915_vgt.h
+@@ -1,3 +1,26 @@
++/*
++ * Copyright(c) 2011-2015 Intel Corporation. All rights reserved.
++ *
++ * Permission is hereby granted, free of charge, to any person obtaining a
++ * copy of this software and associated documentation files (the "Software"),
++ * to deal in the Software without restriction, including without limitation
++ * the rights to use, copy, modify, merge, publish, distribute, sublicense,
++ * and/or sell copies of the Software, and to permit persons to whom the
++ * Software is furnished to do so, subject to the following conditions:
++ *
++ * The above copyright notice and this permission notice (including the next
++ * paragraph) shall be included in all copies or substantial portions of the
++ * Software.
++ *
++ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
++ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
++ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
++ * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
++ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
++ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
++ * SOFTWARE.
++ */
++
+ #ifndef _I915_VGT_H_
+ #define _I915_VGT_H_
+ 
+@@ -9,6 +32,7 @@ struct drm_i915_private;
+ #if IS_ENABLED(CONFIG_I915_VGT)
+ 
+ bool i915_start_vgt(struct pci_dev *);
++void i915_stop_vgt(void);
+ void i915_vgt_record_priv(struct drm_i915_private *priv);
+ bool vgt_host_read(u32, void *, int, bool, bool);
+ bool vgt_host_write(u32, void *, int, bool, bool);
+@@ -27,6 +51,8 @@ static inline bool i915_start_vgt(struct pci_dev *pdev)
+ 	return false;
+ }
+ 
++static inline void i915_stop_vgt(void) {};
++
+ static inline void i915_vgt_record_priv(struct drm_i915_private *priv)
+ {
+ }
+diff --git a/drivers/gpu/drm/i915/intel_drv.h b/drivers/gpu/drm/i915/intel_drv.h
+index 25fdbb1..81b9c40 100644
+--- a/drivers/gpu/drm/i915/intel_drv.h
++++ b/drivers/gpu/drm/i915/intel_drv.h
+@@ -65,10 +65,24 @@
+ 	ret__;								\
+ })
+ 
++/* invoked likely in irq disabled condition */
++#define _wait_for2(COND, MS) ({						\
++	unsigned long cnt = MS*100;					\
++	int ret__ = 0;							\
++	while (!(COND)) {						\
++		if (!(--cnt)) {						\
++			ret__ = -ETIMEDOUT;				\
++			break;						\
++		}							\
++		udelay(10);						\
++	}								\
++	ret__;								\
++})
++
+ #define wait_for(COND, MS) _wait_for(COND, MS, 1)
+-#define wait_for_atomic(COND, MS) _wait_for(COND, MS, 0)
+-#define wait_for_atomic_us(COND, US) _wait_for((COND), \
+-					       DIV_ROUND_UP((US), 1000), 0)
++#define wait_for_atomic(COND, MS) _wait_for2(COND, MS)
++#define wait_for_atomic_us(COND, US) _wait_for2((COND), \
++					       DIV_ROUND_UP((US), 1000))
+ 
+ #define KHz(x) (1000 * (x))
+ #define MHz(x) KHz(1000 * (x))
+diff --git a/drivers/gpu/drm/i915/intel_lrc.c b/drivers/gpu/drm/i915/intel_lrc.c
+index dff1491..c314122 100644
+--- a/drivers/gpu/drm/i915/intel_lrc.c
++++ b/drivers/gpu/drm/i915/intel_lrc.c
+@@ -534,7 +534,7 @@ void intel_execlists_handle_ctx_events(struct intel_engine_cs *ring)
+ 	ring->next_context_status_buffer = write_pointer % 6;
+ 
+ 	I915_WRITE(RING_CONTEXT_STATUS_PTR(ring),
+-		   ((u32)ring->next_context_status_buffer & 0x07) << 8);
++		   (((u32)ring->next_context_status_buffer & 0x07) << 8) | 0x07000000);
+ }
+ 
+ static int execlists_context_queue(struct intel_engine_cs *ring,
+diff --git a/drivers/gpu/drm/i915/vgt/Makefile b/drivers/gpu/drm/i915/vgt/Makefile
+deleted file mode 100644
+index 51327eb..0000000
+--- a/drivers/gpu/drm/i915/vgt/Makefile
++++ /dev/null
+@@ -1,8 +0,0 @@
+-VGT_SOURCE := vgt.o render.o mmio.o handlers.o interrupt.o  \
+-	sysfs.o display.o debugfs.o edid.o gtt.o aperture_gm.o utility.o \
+-	klog.o dev.o cmd_parser.o sched.o instance.o cfg_space.o \
+-	fb_decoder.o vbios.o host.o execlists.o
+-
+-ccflags-y				+= -I$(src) -I$(src)/.. -Wall
+-xen_vgt-y				:= $(VGT_SOURCE)
+-obj-$(CONFIG_I915_VGT)			+= xen_vgt.o
+diff --git a/drivers/gpu/drm/i915/vgt/cfg_space.c b/drivers/gpu/drm/i915/vgt/cfg_space.c
+index 18ed7be..c852fe6 100644
+--- a/drivers/gpu/drm/i915/vgt/cfg_space.c
++++ b/drivers/gpu/drm/i915/vgt/cfg_space.c
+@@ -366,33 +366,3 @@ bool vgt_emulate_cfg_write(struct vgt_device *vgt, unsigned int off,
+ 	 */
+ 	return rc;
+ }
+-
+-bool vgt_hvm_write_cfg_space(struct vgt_device *vgt,
+-	uint64_t addr, unsigned int bytes, unsigned long val)
+-{
+-	/* Low 32 bit of addr is real address, high 32 bit is bdf */
+-	unsigned int port = addr & 0xffffffff;
+-
+-	vgt_dbg(VGT_DBG_GENERIC, "vgt_hvm_write_cfg_space %x %d %lx\n", port, bytes, val);
+-	ASSERT(((bytes == 4) && ((port & 3) == 0)) ||
+-		((bytes == 2) && ((port & 1) == 0)) || (bytes == 1));
+-	vgt_emulate_cfg_write (vgt, port, &val, bytes);
+-
+-	return true;
+-}
+-
+-bool vgt_hvm_read_cfg_space(struct vgt_device *vgt,
+-	uint64_t addr, unsigned int bytes, unsigned long *val)
+-{
+-	unsigned long data;
+-	/* Low 32 bit of addr is real address, high 32 bit is bdf */
+-	unsigned int port = addr & 0xffffffff;
+-
+-	ASSERT (((bytes == 4) && ((port & 3) == 0)) ||
+-		((bytes == 2) && ((port & 1) == 0)) || (bytes == 1));
+-	vgt_emulate_cfg_read(vgt, port, &data, bytes);
+-	memcpy(val, &data, bytes);
+-	vgt_dbg(VGT_DBG_GENERIC, "VGT: vgt_hvm_read_cfg_space port %x bytes %x got %lx\n",
+-			port, bytes, *val);
+-	return true;
+-}
+diff --git a/drivers/gpu/drm/i915/vgt/display.c b/drivers/gpu/drm/i915/vgt/display.c
+index 0599c72..a89abec 100644
+--- a/drivers/gpu/drm/i915/vgt/display.c
++++ b/drivers/gpu/drm/i915/vgt/display.c
+@@ -364,8 +364,13 @@ void vgt_update_monitor_status(struct vgt_device *vgt)
+ 		vgt_dbg(VGT_DBG_DPY, "enable D port monitor\n");
+ 		__vreg(vgt, _REG_SDEISR) |= _REGBIT_DP_D_HOTPLUG;
+ 	}
+-	if (dpy_has_monitor_on_port(vgt, PORT_A))
++	if (dpy_has_monitor_on_port(vgt, PORT_A)) {
+ 		__vreg(vgt, _REG_DDI_BUF_CTL_A) |= _DDI_BUFCTL_DETECT_MASK;
++		if (IS_PREBDW(vgt->pdev))
++			__vreg(vgt, _REG_DEISR) |= _REGBIT_DP_A_HOTPLUG_IVB;
++		else
++			__vreg(vgt, _REG_DE_PORT_ISR) |= _REGBIT_PORT_DP_A_HOTPLUG; 
++	}
+ }
+ 
+ enum vgt_pipe get_edp_input(uint32_t wr_data)
+diff --git a/drivers/gpu/drm/i915/vgt/execlists.c b/drivers/gpu/drm/i915/vgt/execlists.c
+index 1ac14a9..717f436 100644
+--- a/drivers/gpu/drm/i915/vgt/execlists.c
++++ b/drivers/gpu/drm/i915/vgt/execlists.c
+@@ -806,7 +806,7 @@ static bool vgt_el_create_shadow_ppgtt(struct vgt_device *vgt,
+ 				struct execlist_context *el_ctx)
+ {
+ 	struct vgt_mm *mm;
+-	u32 pdp[8];
++	u32 pdp[8] = {0};
+ 	uint32_t *s_rootp;
+ 
+ 	struct reg_state_ctx_header *reg_state;
+@@ -1469,15 +1469,17 @@ bool vgt_idle_execlist(struct pgt_device *pdev, enum vgt_ring_id ring_id)
+ 	struct execlist_status_format el_status;
+ 	uint32_t ctx_ptr_reg;
+ 	struct ctx_st_ptr_format ctx_st_ptr;
++	struct ctx_st_ptr_format guest_ctx_st_ptr;
+ 	struct context_status_format ctx_status;
+ 	uint32_t ctx_status_reg = el_ring_mmio(ring_id, _EL_OFFSET_STATUS_BUF);
+ 	unsigned long last_csb_reg_offset;
++	struct vgt_device* vgt = current_render_owner(pdev);
+ 
+ 	el_ring_base = vgt_ring_id_to_EL_base(ring_id);
+ 	el_status_reg = el_ring_base + _EL_OFFSET_STATUS;
+ 	el_status.ldw = VGT_MMIO_READ(pdev, el_status_reg);
+ 	if (el_status.execlist_0_valid || el_status.execlist_1_valid) {
+-		vgt_info("EXECLIST still have valid items in context switch!\n");
++		//vgt_info("EXECLIST still have valid items in context switch!\n");
+ 		return false;
+ 	}
+ 
+@@ -1496,12 +1498,18 @@ bool vgt_idle_execlist(struct pgt_device *pdev, enum vgt_ring_id ring_id)
+ 	if (!ctx_status.active_to_idle)
+ 		return false;
+ 
++	/* check Guest ctx status pointers, make sure guest already received last irq update */
++	guest_ctx_st_ptr.dw = __vreg(vgt, ctx_ptr_reg);
++	if (guest_ctx_st_ptr.status_buf_write_ptr != vgt->rb[ring_id].csb_write_ptr) {
++		return false;
++	}
++
+ 	return true;
+ }
+ 
+ void vgt_submit_execlist(struct vgt_device *vgt, enum vgt_ring_id ring_id)
+ {
+-	int i;
++	int i, j = 0;
+ 	struct ctx_desc_format context_descs[2];
+ 	uint32_t elsp_reg;
+ 	int el_slot_idx;
+@@ -1526,17 +1534,36 @@ void vgt_submit_execlist(struct vgt_device *vgt, enum vgt_ring_id ring_id)
+ 
+ 	ASSERT (execlist->el_ctxs[0] != NULL);
+ 
++	memset(context_descs, 0, sizeof(context_descs));
++
+ 	for (i = 0; i < 2; ++ i) {
+ 		struct execlist_context *ctx = execlist->el_ctxs[i];
+-		if (ctx == NULL) {
+-			memset(&context_descs[i], 0,
+-				sizeof(struct ctx_desc_format));
++		struct reg_state_ctx_header *guest_state;
++
++		if (ctx == NULL)
+ 			continue;
++
++		if (vgt_require_shadow_context(vgt)) {
++			guest_state = (struct reg_state_ctx_header *)
++				ctx->ctx_pages[1].guest_page.vaddr;
+ 		} else {
+-			memcpy(&context_descs[i], &ctx->guest_context,
+-				sizeof(struct ctx_desc_format));
++			ASSERT(vgt->vm_id == 0);
++			guest_state = vgt_get_reg_state_from_lrca(vgt,
++					ctx->guest_context.lrca);
+ 		}
+ 
++		if ((guest_state->ring_tail.val & RB_TAIL_OFF_MASK)
++				== (guest_state->ring_header.val & RB_HEAD_OFF_MASK)) {
++			if ((!guest_state->bb_cur_head_UDW.val
++				&& !guest_state->bb_cur_head_LDW.val) &&
++				(!guest_state->second_bb_addr_UDW.val &&
++				!guest_state->second_bb_addr_LDW.val))
++				continue;
++		}
++
++		memcpy(&context_descs[j++], &ctx->guest_context,
++				sizeof(struct ctx_desc_format));
++
+ 		ASSERT_VM(ring_id == ctx->ring_id, vgt);
+ 		vgt_update_shadow_ctx_from_guest(vgt, ctx);
+ 		vgt_update_ring_info(vgt, ctx);
+@@ -1557,11 +1584,15 @@ void vgt_submit_execlist(struct vgt_device *vgt, enum vgt_ring_id ring_id)
+ #endif
+ 	}
+ 
++	if (context_descs[0].elm_low == context_descs[1].elm_low &&
++		context_descs[0].elm_high == context_descs[1].elm_high)
++		memset(&context_descs[1], 0, sizeof(context_descs[1]));
++
+ 	elsp_reg = el_ring_mmio(ring_id, _EL_OFFSET_SUBMITPORT);
+ 	/* mark it submitted even if it failed the validation */
+ 	execlist->status = EL_SUBMITTED;
+ 
+-	if (vgt_validate_elsp_descs(vgt, &context_descs[0], &context_descs[1])) {
++	if (vgt_validate_elsp_descs(vgt, &context_descs[0], &context_descs[1]) && j) {
+ #ifdef EL_SLOW_DEBUG
+ 		struct execlist_status_format status;
+ 		uint32_t status_reg = el_ring_mmio(ring_id, _EL_OFFSET_STATUS);
+@@ -1759,6 +1790,8 @@ void vgt_reset_execlist(struct vgt_device *vgt, unsigned long ring_bitmap)
+ {
+ 	vgt_state_ring_t *rb;
+ 	int bit, i;
++	uint32_t ctx_ptr_reg;
++	struct ctx_st_ptr_format ctx_ptr_val;
+ 
+ 	for_each_set_bit(bit, &ring_bitmap, sizeof(ring_bitmap)) {
+ 		if (bit >= vgt->pdev->max_engines)
+@@ -1778,6 +1811,12 @@ void vgt_reset_execlist(struct vgt_device *vgt, unsigned long ring_bitmap)
+ 			memset(&rb->execlist_slots[i], 0,
+ 					sizeof(struct vgt_exec_list));
+ 
++		ctx_ptr_reg = el_ring_mmio(bit, _EL_OFFSET_STATUS_PTR);
++		ctx_ptr_val.dw = __vreg(vgt, ctx_ptr_reg);
++		ctx_ptr_val.status_buf_write_ptr = DEFAULT_INV_SR_PTR;
++
+ 		rb->csb_write_ptr = DEFAULT_INV_SR_PTR;
++
++		__vreg(vgt, ctx_ptr_reg) = ctx_ptr_val.dw;
+ 	}
+ }
+diff --git a/drivers/gpu/drm/i915/vgt/fb_decoder.c b/drivers/gpu/drm/i915/vgt/fb_decoder.c
+index 0b4bef2..d5a2a53 100644
+--- a/drivers/gpu/drm/i915/vgt/fb_decoder.c
++++ b/drivers/gpu/drm/i915/vgt/fb_decoder.c
+@@ -446,7 +446,6 @@ int vgt_decode_fb_format(int vmid, struct vgt_fb_format *fb)
+ 	  vgt_show_fb_format(vmid, fb);
+ 	return ret;
+ }
+-EXPORT_SYMBOL_GPL(vgt_decode_fb_format);
+ 
+ static ATOMIC_NOTIFIER_HEAD(vgt_fb_notifier_list);
+ 
+@@ -454,19 +453,16 @@ int vgt_register_fb_notifier(struct notifier_block *nb)
+ {
+ 	return atomic_notifier_chain_register(&vgt_fb_notifier_list, nb);
+ }
+-EXPORT_SYMBOL_GPL(vgt_register_fb_notifier);
+ 
+ int vgt_unregister_fb_notifier(struct notifier_block *nb)
+ {
+ 	return atomic_notifier_chain_unregister(&vgt_fb_notifier_list, nb);
+ }
+-EXPORT_SYMBOL_GPL(vgt_unregister_fb_notifier);
+ 
+ int vgt_fb_notifier_call_chain(unsigned long val, void *data)
+ {
+ 	return atomic_notifier_call_chain(&vgt_fb_notifier_list, val, data);
+ }
+-EXPORT_SYMBOL_GPL(vgt_fb_notifier_call_chain);
+ 
+ static int vgt_plane_to_i915_plane(unsigned vgt_plane)
+ {
+diff --git a/drivers/gpu/drm/i915/vgt/handlers.c b/drivers/gpu/drm/i915/vgt/handlers.c
+index d78f209..a06e928 100644
+--- a/drivers/gpu/drm/i915/vgt/handlers.c
++++ b/drivers/gpu/drm/i915/vgt/handlers.c
+@@ -563,29 +563,34 @@ static int mmio_to_ring_id(unsigned int reg)
+ 	case _REG_RCS_GFX_MODE_IVB:
+ 	case _REG_RCS_EXECLIST_SUBMITPORT:
+ 	case _REG_RCS_EXECLIST_STATUS:
++	case _REG_RCS_CTX_STATUS_PTR:
+ 		ring_id = RING_BUFFER_RCS;
+ 		break;
+ 	case _REG_BCS_PP_DIR_BASE:
+ 	case _REG_BCS_BLT_MODE_IVB:
+ 	case _REG_BCS_EXECLIST_SUBMITPORT:
+ 	case _REG_BCS_EXECLIST_STATUS:
++	case _REG_BCS_CTX_STATUS_PTR:
+ 		ring_id = RING_BUFFER_BCS;
+ 		break;
+ 	case _REG_VCS_PP_DIR_BASE:
+ 	case _REG_VCS_MFX_MODE_IVB:
+ 	case _REG_VCS_EXECLIST_SUBMITPORT:
+ 	case _REG_VCS_EXECLIST_STATUS:
++	case _REG_VCS_CTX_STATUS_PTR:
+ 		ring_id = RING_BUFFER_VCS;
+ 		break;
+ 	case _REG_VECS_PP_DIR_BASE:
+ 	case _REG_VEBOX_MODE:
+ 	case _REG_VECS_EXECLIST_SUBMITPORT:
+ 	case _REG_VECS_EXECLIST_STATUS:
++	case _REG_VECS_CTX_STATUS_PTR:
+ 		ring_id = RING_BUFFER_VECS;
+ 		break;
+ 	case _REG_VCS2_MFX_MODE_BDW:
+ 	case _REG_VCS2_EXECLIST_SUBMITPORT:
+ 	case _REG_VCS2_EXECLIST_STATUS:
++	case _REG_VCS2_CTX_STATUS_PTR:
+ 		ring_id = RING_BUFFER_VCS2;
+ 		break;
+ 	default:
+@@ -2358,6 +2363,53 @@ static bool vgt_write_submitport(struct vgt_device *vgt, unsigned int offset,
+ 	return rc;
+ }
+ 
++
++static bool vgt_read_ctx_status_ptr(struct vgt_device *vgt, unsigned int offset,
++	void *p_data, unsigned int bytes)
++{
++	int ring_id = mmio_to_ring_id(offset);
++
++	if (vgt == current_render_owner(vgt->pdev)) {
++		/* update HW CSB status to guest if we are render owner
++		 * this is to make sure that guest always can get latest HW status,
++		 * even if we delay/did not send ctx switch events to guest.
++		 */
++		vgt_emulate_context_switch_event(vgt->pdev, ring_id);
++	}
++
++	return default_mmio_read(vgt, offset, p_data, bytes);
++}
++
++static bool vgt_write_ctx_status_ptr(struct vgt_device *vgt, unsigned int offset,
++	void *p_data, unsigned int bytes)
++{
++#if 0
++	int ring_id = mmio_to_ring_id(offset);
++	uint32_t ctx_ptr_reg;
++	struct ctx_st_ptr_format ctx_ptr_val;
++	struct ctx_st_ptr_format* guest_ctx_st = (struct ctx_st_ptr_format*)p_data;
++
++	ASSERT(bytes == 4);
++
++	ctx_ptr_reg = el_ring_mmio(ring_id, _EL_OFFSET_STATUS_PTR);
++	ctx_ptr_val.dw = __vreg(vgt, ctx_ptr_reg);
++
++	/* Guest modify write_ptr as long as mask bits not zero */
++	if ((guest_ctx_st->mask & _CTXBUF_WRITE_PTR_MASK) == _CTXBUF_WRITE_PTR_MASK) {
++		ctx_ptr_val.status_buf_write_ptr = guest_ctx_st->status_buf_write_ptr;
++	}
++
++	/* Guest modify read_ptr as long as not zero */
++	if ((guest_ctx_st->mask & _CTXBUF_READ_PTR_MASK) == _CTXBUF_READ_PTR_MASK) {
++		ctx_ptr_val.status_buf_read_ptr = guest_ctx_st->status_buf_read_ptr;
++	}
++
++	/* update into vreg */
++	guest_ctx_st->dw = ctx_ptr_val.dw;
++#endif
++	return default_mmio_write(vgt, offset, p_data, bytes);
++}
++
+ /*
+  * Track policies of all captured registers
+  *
+@@ -2683,11 +2735,16 @@ reg_attr_t vgt_base_reg_info[] = {
+ {_REG_BCS_CTX_STATUS_BUF, 48, F_VIRT, 0, D_BDW_PLUS, NULL,
+ 					vgt_not_allowed_mmio_write},
+ 
+-{_REG_RCS_CTX_STATUS_PTR, 4, F_VIRT | VGT_REG_MODE_CTL, 0, D_BDW_PLUS, NULL, NULL},
+-{_REG_VCS_CTX_STATUS_PTR, 4, F_VIRT | VGT_REG_MODE_CTL, 0, D_BDW_PLUS, NULL, NULL},
+-{_REG_VECS_CTX_STATUS_PTR, 4, F_VIRT | VGT_REG_MODE_CTL, 0, D_BDW_PLUS, NULL, NULL},
+-{_REG_VCS2_CTX_STATUS_PTR, 4, F_VIRT | VGT_REG_MODE_CTL, 0, D_BDW_PLUS, NULL, NULL},
+-{_REG_BCS_CTX_STATUS_PTR, 4, F_VIRT | VGT_REG_MODE_CTL, 0, D_BDW_PLUS, NULL, NULL},
++{_REG_RCS_CTX_STATUS_PTR, 4, F_VIRT | VGT_REG_MODE_CTL, 0, D_BDW_PLUS, vgt_read_ctx_status_ptr,
++	vgt_write_ctx_status_ptr},
++{_REG_VCS_CTX_STATUS_PTR, 4, F_VIRT | VGT_REG_MODE_CTL, 0, D_BDW_PLUS, vgt_read_ctx_status_ptr,
++	vgt_write_ctx_status_ptr},
++{_REG_VECS_CTX_STATUS_PTR, 4, F_VIRT | VGT_REG_MODE_CTL, 0, D_BDW_PLUS, vgt_read_ctx_status_ptr,
++	vgt_write_ctx_status_ptr},
++{_REG_VCS2_CTX_STATUS_PTR, 4, F_VIRT | VGT_REG_MODE_CTL, 0, D_BDW_PLUS, vgt_read_ctx_status_ptr,
++	vgt_write_ctx_status_ptr},
++{_REG_BCS_CTX_STATUS_PTR, 4, F_VIRT | VGT_REG_MODE_CTL, 0, D_BDW_PLUS, vgt_read_ctx_status_ptr,
++	vgt_write_ctx_status_ptr},
+ 
+ 	/* -------display regs---------- */
+ 
+@@ -3121,6 +3178,8 @@ reg_attr_t vgt_base_reg_info[] = {
+ {_REG_DPFC_CONTROL_SA, 4, F_VIRT, 0, D_ALL, NULL, NULL},
+ {_REG_DPFC_CPU_FENCE_OFFSET_SA, 4, F_VIRT, 0, D_ALL, NULL, NULL},
+ 
++{_REG_IPS_CTL, 4, F_DOM0, 0, D_HSW_PLUS, NULL, NULL},
++
+ {_REG_CSC_A_COEFFICIENTS, 4*6, F_DPY, 0, D_ALL, NULL, NULL},
+ {_REG_CSC_A_MODE, 4, F_DPY, 0, D_ALL, NULL, NULL},
+ {_REG_PRECSC_A_HIGH_COLOR_CHANNEL_OFFSET, 4, F_DPY, 0, D_ALL, NULL, NULL},
+@@ -3446,8 +3505,8 @@ reg_attr_t vgt_base_reg_info[] = {
+ 
+ 
+ /* BDW */
+-{_REG_GEN8_PRIVATE_PAT, 4, F_RDR, 0, D_BDW_PLUS, NULL, NULL},
+-{_REG_GEN8_PRIVATE_PAT + 4, 4, F_RDR, 0, D_BDW_PLUS, NULL, NULL},
++{_REG_GEN8_PRIVATE_PAT, 4, F_PT, 0, D_BDW_PLUS, NULL, NULL},
++{_REG_GEN8_PRIVATE_PAT + 4, 4, F_PT, 0, D_BDW_PLUS, NULL, NULL},
+ 
+ {_REG_GAMTARBMODE, 4, F_DOM0, 0, D_BDW_PLUS, NULL, NULL},
+ 
+@@ -3557,7 +3616,7 @@ reg_attr_t vgt_base_reg_info[] = {
+ {0x24dc, 4, F_RDR, 0, D_BDW, NULL, NULL},
+ 
+ {0x83a4, 4, F_RDR, 0, D_BDW, NULL, NULL},
+-{0x4dd4, 4, F_RDR, 0, D_BDW, NULL, NULL},
++{0x4dd4, 4, F_PT, 0, D_BDW, NULL, NULL},
+ 
+ /* UCG */
+ {0x8430, 4, F_PT, 0, D_BDW, NULL, NULL},
+diff --git a/drivers/gpu/drm/i915/vgt/host.c b/drivers/gpu/drm/i915/vgt/host.c
+index f69c35b..746fa2b 100644
+--- a/drivers/gpu/drm/i915/vgt/host.c
++++ b/drivers/gpu/drm/i915/vgt/host.c
+@@ -1,3 +1,26 @@
++/*
++ * Copyright(c) 2011-2015 Intel Corporation. All rights reserved.
++ *
++ * Permission is hereby granted, free of charge, to any person obtaining a
++ * copy of this software and associated documentation files (the "Software"),
++ * to deal in the Software without restriction, including without limitation
++ * the rights to use, copy, modify, merge, publish, distribute, sublicense,
++ * and/or sell copies of the Software, and to permit persons to whom the
++ * Software is furnished to do so, subject to the following conditions:
++ *
++ * The above copyright notice and this permission notice (including the next
++ * paragraph) shall be included in all copies or substantial portions of the
++ * Software.
++ *
++ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
++ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
++ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
++ * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
++ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
++ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
++ * SOFTWARE.
++ */
++
+ #include <linux/io.h>
+ #include <drm/drmP.h>
+ 
+@@ -68,25 +91,7 @@ bool vgt_native_mmio_write(u32 reg, void *val, int len, bool trace)
+ bool vgt_native_gtt_read(u32 reg, void *val, int len)
+ {
+ 	void *va = (void *)vgt_gttmmio_va(pdev_default, reg + gtt_offset);
+-
+-#if 0
+-	if (dev_priv && vgt_ops && vgt_ops->initialized) {
+-		switch (len) {
+-		case 4:
+-			*(u32 *)val = readl(reg + dev_priv->gtt.gsm);
+-			break;
+-		case 8:
+-			*(u64 *)val = readq(reg + dev_priv->gtt.gsm);
+-			break;
+-		default:
+-			vgt_err("your len is wrong: %d\n", len);
+-			return false;
+-		}
+-		return true;
+-	} else
+-#endif
+-	{
+-		switch (len) {
++	switch (len) {
+ 		case 4:
+ 			*(u32 *)val = readl(va);
+ 			break;
+@@ -96,33 +101,14 @@ bool vgt_native_gtt_read(u32 reg, void *val, int len)
+ 		default:
+ 			vgt_err("your len is wrong: %d\n", len);
+ 			return false;
+-		}
+-		return true;
+ 	}
++	return true;
+ }
+ 
+ bool vgt_native_gtt_write(u32 reg, void *val, int len)
+ {
+ 	void *va = (void *)vgt_gttmmio_va(pdev_default, reg + gtt_offset);
+-
+-#if 0
+-	if (dev_priv) {
+-		switch (len) {
+-		case 4:
+-			writel(*(u32 *)val, reg + dev_priv->gtt.gsm);
+-			break;
+-		case 8:
+-			writeq(*(u64 *)val, reg + dev_priv->gtt.gsm);
+-			break;
+-		default:
+-			vgt_err("your len is wrong: %d\n", len);
+-			return false;
+-		}
+-		return true;
+-	} else
+-#endif
+-	{
+-		switch (len) {
++	switch (len) {
+ 		case 4:
+ 			writel(*(u32 *)val, va);
+ 			break;
+@@ -132,9 +118,8 @@ bool vgt_native_gtt_write(u32 reg, void *val, int len)
+ 		default:
+ 			vgt_err("your len is wrong: %d\n", len);
+ 			return false;
+-		}
+-		return true;
+ 	}
++	return true;
+ }
+ 
+ bool vgt_host_read(u32 reg, void *val, int len, bool is_gtt, bool trace)
+@@ -146,7 +131,7 @@ bool vgt_host_read(u32 reg, void *val, int len, bool is_gtt, bool trace)
+ 	pa = is_gtt ?
+ 		vgt_gttmmio_pa(pdev_default, reg + gtt_offset) :
+ 		vgt_gttmmio_pa(pdev_default, reg);
+-	return vgt_ops->mem_read(vgt_dom0, pa, val, len);
++	return vgt_ops->emulate_read(vgt_dom0, pa, val, len);
+ }
+ 
+ bool vgt_host_write(u32 reg, void *val, int len, bool is_gtt, bool trace)
+@@ -158,7 +143,12 @@ bool vgt_host_write(u32 reg, void *val, int len, bool is_gtt, bool trace)
+ 	pa = is_gtt ?
+ 		vgt_gttmmio_pa(pdev_default, reg + gtt_offset) :
+ 		vgt_gttmmio_pa(pdev_default, reg);
+-	return vgt_ops->mem_write(vgt_dom0, pa, val, len);
++	return vgt_ops->emulate_write(vgt_dom0, pa, val, len);
++}
++
++void tmp_vgt_clear_gtt(unsigned int gtt_size)
++{
++	memset_io(dev_priv->gtt.gsm, 0, gtt_size);
+ }
+ 
+ void vgt_host_irq_sync(void)
+@@ -181,3 +171,4 @@ void vgt_force_wake_put(void)
+ {
+ 	gen6_gt_force_wake_put(dev_priv, FORCEWAKE_ALL);
+ }
++
+diff --git a/drivers/gpu/drm/i915/vgt/host.h b/drivers/gpu/drm/i915/vgt/host.h
+index 2b05c89..eb50c9a 100644
+--- a/drivers/gpu/drm/i915/vgt/host.h
++++ b/drivers/gpu/drm/i915/vgt/host.h
+@@ -1,3 +1,26 @@
++/*
++ * Copyright(c) 2011-2015 Intel Corporation. All rights reserved.
++ *
++ * Permission is hereby granted, free of charge, to any person obtaining a
++ * copy of this software and associated documentation files (the "Software"),
++ * to deal in the Software without restriction, including without limitation
++ * the rights to use, copy, modify, merge, publish, distribute, sublicense,
++ * and/or sell copies of the Software, and to permit persons to whom the
++ * Software is furnished to do so, subject to the following conditions:
++ *
++ * The above copyright notice and this permission notice (including the next
++ * paragraph) shall be included in all copies or substantial portions of the
++ * Software.
++ *
++ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
++ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
++ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
++ * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
++ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
++ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
++ * SOFTWARE.
++ */
++
+ #ifndef _VGT_HOST_MEDIATE_H_
+ #define _VGT_HOST_MEDIATE_H_
+ 
+@@ -12,17 +35,8 @@
+ 
+ struct pgt_device;
+ struct vgt_device;
+-struct vgt_ops;
+-typedef struct {
+-    bool (*mem_read)(struct vgt_device *vgt, uint64_t pa, void *p_data, int bytes);
+-    bool (*mem_write)(struct vgt_device *vgt, uint64_t pa, void *p_data, int bytes);
+-    bool (*cfg_read)(struct vgt_device *vgt, unsigned int off, void *p_data, int bytes);
+-    bool (*cfg_write)(struct vgt_device *vgt, unsigned int off, void *p_data, int bytes);
+-    bool initialized;	/* whether vgt_ops can be referenced */
+-} vgt_ops_t;
+ extern struct pgt_device *pdev_default;
+ extern struct vgt_device *vgt_dom0;
+-extern vgt_ops_t *vgt_ops;
+ 
+ bool vgt_native_mmio_read(u32 reg, void *val, int len, bool trace);
+ bool vgt_native_mmio_write(u32 reg, void *val, int len, bool trace);
+@@ -30,6 +44,7 @@ bool vgt_native_gtt_read(u32 reg, void *val, int len);
+ bool vgt_native_gtt_write(u32 reg, void *val, int len);
+ void vgt_host_irq(int);
+ void vgt_host_irq_sync(void);
++void tmp_vgt_clear_gtt(unsigned int);
+ 
+ void vgt_force_wake_get(void);
+ void vgt_force_wake_put(void);
+diff --git a/drivers/gpu/drm/i915/vgt/hypercall.h b/drivers/gpu/drm/i915/vgt/hypercall.h
+index 6f83bc4..edd8bd6 100644
+--- a/drivers/gpu/drm/i915/vgt/hypercall.h
++++ b/drivers/gpu/drm/i915/vgt/hypercall.h
+@@ -1,20 +1,26 @@
+ /*
+  * Interface abstraction for hypervisor services
+  *
+- * Copyright(c) 2014 Intel Corporation. All rights reserved.
++ * Copyright(c) 2011-2015 Intel Corporation. All rights reserved.
+  *
+- * This program is free software; you can redistribute it and/or modify
+- * it under the terms of Version 2 of the GNU General Public License as
+- * published by the Free Software Foundation.
++ * Permission is hereby granted, free of charge, to any person obtaining a
++ * copy of this software and associated documentation files (the "Software"),
++ * to deal in the Software without restriction, including without limitation
++ * the rights to use, copy, modify, merge, publish, distribute, sublicense,
++ * and/or sell copies of the Software, and to permit persons to whom the
++ * Software is furnished to do so, subject to the following conditions:
+  *
+- * This program is distributed in the hope that it will be useful, but
+- * WITHOUT ANY WARRANTY; without even the implied warranty of
+- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+- * General Public License for more details.
++ * The above copyright notice and this permission notice (including the next
++ * paragraph) shall be included in all copies or substantial portions of the
++ * Software.
+  *
+- * You should have received a copy of the GNU General Public License
+- * along with this program; if not, write to the Free Software
+- * Foundation, Inc., 51 Franklin St - Fifth Floor, Boston, MA 02110-1301 USA.
++ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
++ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
++ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
++ * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
++ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
++ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
++ * SOFTWARE.
+  */
+ 
+ #ifndef _VGT_HYPERCALL_H_
+diff --git a/drivers/gpu/drm/i915/vgt/instance.c b/drivers/gpu/drm/i915/vgt/instance.c
+index 2ac45b1..9a3577f 100644
+--- a/drivers/gpu/drm/i915/vgt/instance.c
++++ b/drivers/gpu/drm/i915/vgt/instance.c
+@@ -348,7 +348,6 @@ void vgt_release_instance(struct vgt_device *vgt)
+ {
+ 	int i;
+ 	struct pgt_device *pdev = vgt->pdev;
+-	struct list_head *pos;
+ 	struct vgt_device *v = NULL;
+ 	int cpu;
+ 
+@@ -362,8 +361,7 @@ void vgt_release_instance(struct vgt_device *vgt)
+ 	vgt_lock_dev(pdev, cpu);
+ 
+ 	printk("check render ownership...\n");
+-	list_for_each (pos, &pdev->rendering_runq_head) {
+-		v = list_entry (pos, struct vgt_device, list);
++	list_for_each_entry(v, &pdev->rendering_runq_head, list) {
+ 		if (v == vgt)
+ 			break;
+ 	}
+@@ -395,7 +393,7 @@ void vgt_release_instance(struct vgt_device *vgt)
+ 	vgt_unlock_dev(pdev, cpu);
+ 	if (vgt->force_removal)
+ 		/* wait for removal completion */
+-		wait_event(pdev->destroy_wq, !vgt->force_removal);
++		wait_event_killable(pdev->destroy_wq, !vgt->force_removal);
+ 
+ 	printk("release display/render ownership... done\n");
+ 
+@@ -404,7 +402,6 @@ void vgt_release_instance(struct vgt_device *vgt)
+ 		vgt_destroy_rb_tailq(vgt);
+ 
+ 	vgt_clean_vgtt(vgt);
+-	hypervisor_hvm_exit(vgt);
+ 
+ 	if (vgt->state.opregion_va) {
+ 		vgt_hvm_opregion_map(vgt, 0);
+@@ -412,6 +409,7 @@ void vgt_release_instance(struct vgt_device *vgt)
+ 				VGT_OPREGION_PORDER);
+ 	}
+ 
++	hypervisor_hvm_exit(vgt);
+ 	vgt_lock_dev(pdev, cpu);
+ 
+ 	vgt->pdev->device[vgt->vgt_id] = NULL;
+diff --git a/drivers/gpu/drm/i915/vgt/interrupt.c b/drivers/gpu/drm/i915/vgt/interrupt.c
+index b8658fa..e31595d 100644
+--- a/drivers/gpu/drm/i915/vgt/interrupt.c
++++ b/drivers/gpu/drm/i915/vgt/interrupt.c
+@@ -1131,6 +1131,15 @@ static void vgt_handle_ctx_switch_virt(struct vgt_irq_host_state *hstate,
+ 		csb_has_new_updates = true;
+ 
+ 	if (hvm_render_owner || csb_has_new_updates) {
++
++		if (current_render_owner(vgt->pdev) != vgt) {
++			/* In any case, we should not go here! */
++			vgt_err("ERROR VM inject irq without ownership"
++			" VM%d owner=%d, csb=%04x, s=%x\n",
++			vgt->vm_id, current_render_owner(vgt->pdev)->vm_id,
++			ctx_ptr_val.dw, s_write_ptr);
++		}
++
+ 		ctx_ptr_val.status_buf_write_ptr = s_write_ptr;
+ 		__vreg(vgt, ctx_ptr_reg) = ctx_ptr_val.dw;
+ 		vgt_handle_default_event_virt(hstate, event, vgt);
+@@ -1322,15 +1331,9 @@ static void vgt_handle_port_hotplug_phys(struct vgt_irq_host_state *hstate,
+ static void vgt_handle_ctx_switch_phys(struct vgt_irq_host_state *hstate,
+ 	enum vgt_event_type event)
+ {
+-	uint32_t ctx_ptr_reg;
+-	struct ctx_st_ptr_format ctx_st_ptr;
+ 	struct pgt_device *pdev = hstate->pdev;
+ 	enum vgt_ring_id ring_id = event_to_ring_id(event);
+ 
+-	ctx_ptr_reg = el_ring_mmio(ring_id, _EL_OFFSET_STATUS_PTR);
+-	ctx_st_ptr.dw = VGT_MMIO_READ(pdev, ctx_ptr_reg);
+-	el_write_ptr(pdev, ring_id) = ctx_st_ptr.status_buf_write_ptr;
+-
+ 	vgt_raise_request(pdev, VGT_REQUEST_CTX_EMULATION_RCS + ring_id);
+ 
+ 	vgt_handle_default_event_phys(hstate, event);
+@@ -1512,8 +1515,6 @@ static void vgt_base_disable_irq(struct vgt_irq_host_state *hstate)
+ {
+ 	struct pgt_device *pdev = hstate->pdev;
+ 
+-	ASSERT(spin_is_locked(&pdev->irq_lock));
+-
+ 	VGT_MMIO_WRITE(pdev, _REG_DEIER,
+ 			VGT_MMIO_READ(pdev, _REG_DEIER) & ~_REGBIT_MASTER_INTERRUPT);
+ }
+@@ -1522,8 +1523,6 @@ static void vgt_base_enable_irq(struct vgt_irq_host_state *hstate)
+ {
+ 	struct pgt_device *pdev = hstate->pdev;
+ 
+-	ASSERT(spin_is_locked(&pdev->irq_lock));
+-
+ 	VGT_MMIO_WRITE(pdev, _REG_DEIER,
+ 			VGT_MMIO_READ(pdev, _REG_DEIER) | _REGBIT_MASTER_INTERRUPT);
+ }
+@@ -1697,8 +1696,6 @@ static void vgt_gen8_disable_irq(struct vgt_irq_host_state *hstate)
+ {
+ 	struct pgt_device *pdev = hstate->pdev;
+ 
+-	ASSERT(spin_is_locked(&pdev->irq_lock));
+-
+ 	VGT_MMIO_WRITE(pdev, _REG_MASTER_IRQ,
+ 			(VGT_MMIO_READ(pdev, _REG_MASTER_IRQ)
+ 			 & ~_REGBIT_MASTER_IRQ_CONTROL));
+@@ -1709,8 +1706,6 @@ static void vgt_gen8_enable_irq(struct vgt_irq_host_state *hstate)
+ {
+ 	struct pgt_device *pdev = hstate->pdev;
+ 
+-	ASSERT(spin_is_locked(&pdev->irq_lock));
+-
+ 	VGT_MMIO_WRITE(pdev, _REG_MASTER_IRQ,
+ 			(VGT_MMIO_READ(pdev, _REG_MASTER_IRQ)
+ 			 | _REGBIT_MASTER_IRQ_CONTROL));
+@@ -1919,18 +1914,19 @@ irqreturn_t vgt_interrupt(int irq, void *data)
+ 	struct pgt_device *pdev = i915_drm_to_pgt(data);
+ 	struct vgt_irq_host_state *hstate = pdev->irq_hstate;
+ 	irqreturn_t ret;
+-	int cpu;
+-
+-	cpu = vgt_enter();
+ 
++	/******************  PLEASE NOTE!!! **********************
++	 * we should not try to hold any pdev->lock in irq env   *
++	 *********************************************************/
+ 	pdev->stat.irq_num++;
+ 	pdev->stat.last_pirq = get_cycles();
+ 
+-	spin_lock(&pdev->irq_lock);
+ 
+ 	/* avoid nested handling by disabling master interrupt */
+ 	hstate->ops->disable_irq(hstate);
+ 
++	spin_lock(&pdev->irq_lock);
++
+ 	ret = hstate->ops->irq_handler(hstate);
+ 	if (ret == IRQ_NONE) {
+ 		vgt_dbg(VGT_DBG_IRQ, "Spurious interrupt received (or shared vector)\n");
+@@ -1940,14 +1936,13 @@ irqreturn_t vgt_interrupt(int irq, void *data)
+ 	vgt_raise_request(pdev, VGT_REQUEST_IRQ);
+ 
+ out:
++	spin_unlock(&pdev->irq_lock);
++
+ 	/* re-enable master interrupt */
+ 	hstate->ops->enable_irq(hstate);
+ 
+-	spin_unlock(&pdev->irq_lock);
+-
+ 	pdev->stat.pirq_cycles += get_cycles() - pdev->stat.last_pirq;
+ 
+-	vgt_exit(cpu);
+ 	return IRQ_HANDLED;
+ }
+ 
+@@ -2122,12 +2117,7 @@ int vgt_irq_init(struct pgt_device *pdev)
+ 
+ void vgt_irq_exit(struct pgt_device *pdev)
+ {
+-	free_irq(pdev->irq_hstate->pirq, pdev);
+ 	hrtimer_cancel(&pdev->irq_hstate->dpy_timer.timer);
+-
+-	/* TODO: recover i915 handler? */
+-	//unbind_from_irq(vgt_i915_irq(pdev));
+-
+ 	kfree(pdev->irq_hstate);
+ }
+ 
+diff --git a/drivers/gpu/drm/i915/vgt/klog.c b/drivers/gpu/drm/i915/vgt/klog.c
+index 9b94f57..c5dc94d 100644
+--- a/drivers/gpu/drm/i915/vgt/klog.c
++++ b/drivers/gpu/drm/i915/vgt/klog.c
+@@ -35,7 +35,7 @@ static char klog_buf[NR_CPUS][KLOG_TMPBUF_SIZE];
+ /* This app's channel/control files will appear in /debug/klog */
+ #define APP_DIR		"klog"
+ 
+-static struct rchan *	chan;
++static struct rchan *chan = NULL;
+ 
+ /* app data */
+ static struct dentry *	dir;
+@@ -695,8 +695,6 @@ void klog_printk(const char *fmt, ...)
+ 	local_irq_restore(flags);
+ }
+ 
+-EXPORT_SYMBOL_GPL(klog_printk);
+-
+ /*
+  * 'consumed' file operations - r/w, binary
+  *
+diff --git a/drivers/gpu/drm/i915/vgt/ops.c b/drivers/gpu/drm/i915/vgt/ops.c
+new file mode 100644
+index 0000000..6840c58
+--- /dev/null
++++ b/drivers/gpu/drm/i915/vgt/ops.c
+@@ -0,0 +1,30 @@
++/*
++ * vGT builtin symbol
++ *
++ * Copyright(c) 2011-2013 Intel Corporation. All rights reserved.
++ *
++ * Permission is hereby granted, free of charge, to any person obtaining a
++ * copy of this software and associated documentation files (the "Software"),
++ * to deal in the Software without restriction, including without limitation
++ * the rights to use, copy, modify, merge, publish, distribute, sublicense,
++ * and/or sell copies of the Software, and to permit persons to whom the
++ * Software is furnished to do so, subject to the following conditions:
++ *
++ * The above copyright notice and this permission notice (including the next
++ * paragraph) shall be included in all copies or substantial portions of the
++ * Software.
++ *
++ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
++ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
++ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
++ * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
++ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
++ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
++ * SOFTWARE.
++ */
++#include <linux/kernel.h>
++#include "vgt.h"
++
++struct vgt_ops *vgt_ops = NULL;
++EXPORT_SYMBOL(vgt_ops);
++
+diff --git a/drivers/gpu/drm/i915/vgt/reg.h b/drivers/gpu/drm/i915/vgt/reg.h
+index 1a3ee48..b559f81 100644
+--- a/drivers/gpu/drm/i915/vgt/reg.h
++++ b/drivers/gpu/drm/i915/vgt/reg.h
+@@ -1069,6 +1069,9 @@ static inline uint32_t __RING_REG(int32_t ring_id, uint32_t rcs_reg)
+ #define DISPLAY_MAXWM	0x7f	/* bit 16:22 */
+ #define CURSOR_MAXWM	0x1f	/* bit 4:0 */
+ 
++/*Intermediate Pixel Storage*/
++#define _REG_IPS_CTL		0x43408
++
+ union PCH_PP_CONTROL
+ {
+ 	uint32_t data;
+@@ -1620,6 +1623,7 @@ static inline int port_type_to_port(int port_sel)
+ #define        _REGSHIFT_MASTER_INTERRUPT	31
+ #define        _REGBIT_MASTER_INTERRUPT	(1 << 31)
+ #define        _REGBIT_DP_A_HOTPLUG		(1 << 19)
++#define        _REGBIT_DP_A_HOTPLUG_IVB		(1 << 27)
+ #define        _REGBIT_PIPE_A_VBLANK		(1 << 7)
+ #define        _REGSHIFT_PCH			21
+ #define        _REGBIT_PCH			(1 << 21)
+diff --git a/drivers/gpu/drm/i915/vgt/render.c b/drivers/gpu/drm/i915/vgt/render.c
+index ee3db4e..19555eb 100644
+--- a/drivers/gpu/drm/i915/vgt/render.c
++++ b/drivers/gpu/drm/i915/vgt/render.c
+@@ -570,8 +570,8 @@ vgt_reg_t vgt_gen8_render_regs[] = {
+ 	0x1c080,
+ 	0x22080,
+ 
+-	_REG_GEN8_PRIVATE_PAT,
+-	_REG_GEN8_PRIVATE_PAT + 4,
++//	_REG_GEN8_PRIVATE_PAT,
++//	_REG_GEN8_PRIVATE_PAT + 4,
+ 
+ 	_REG_BCS_MI_MODE,
+ 	_REG_BCS_BLT_MODE_IVB,
+@@ -1863,7 +1863,7 @@ bool vgt_do_render_context_switch(struct pgt_device *pdev)
+ 	ASSERT(next != prev);
+ 
+ 	t0 = vgt_get_cycles();
+-	if (!idle_rendering_engines(pdev, &i)) {
++	if (!pdev->enable_execlist && !idle_rendering_engines(pdev, &i)) {
+ 		int j;
+ 		vgt_err("vGT: (%lldth switch<%d>)...ring(%d) is busy\n",
+ 			vgt_ctx_switch(pdev),
+@@ -1876,6 +1876,7 @@ bool vgt_do_render_context_switch(struct pgt_device *pdev)
+ 	}
+ 
+ 	if (pdev->enable_execlist) {
++		static int check_cnt = 0;
+ 		int ring_id;
+ 		for (ring_id = 0; ring_id < pdev->max_engines; ++ ring_id) {
+ 			if (!pdev->ring_buffer[ring_id].need_switch)
+@@ -1883,11 +1884,22 @@ bool vgt_do_render_context_switch(struct pgt_device *pdev)
+ 			if (!vgt_idle_execlist(pdev, ring_id)) {
+ 				vgt_dbg(VGT_DBG_EXECLIST, "rendering ring is not idle. "
+ 					"Ignore the context switch!\n");
++				check_cnt++;
+ 				vgt_force_wake_put();
++
++				if (check_cnt > 500 && !idle_rendering_engines(pdev, &i)) {
++					vgt_err("vGT: (%lldth switch<%d>)...ring(%d) is busy\n",
++						vgt_ctx_switch(pdev),
++					current_render_owner(pdev)->vgt_id, i);
++					goto err;
++				}
++
+ 				goto out;
+ 			}
+ 			vgt_clear_submitted_el_record(pdev, ring_id);
+ 		}
++
++		check_cnt = 0;
+ 	}
+ 
+ 	vgt_dbg(VGT_DBG_RENDER, "vGT: next vgt (%d)\n", next->vgt_id);
+diff --git a/drivers/gpu/drm/i915/vgt/utility.c b/drivers/gpu/drm/i915/vgt/utility.c
+index 87074cb..b5232eb 100644
+--- a/drivers/gpu/drm/i915/vgt/utility.c
++++ b/drivers/gpu/drm/i915/vgt/utility.c
+@@ -835,9 +835,8 @@ err_out:
+ 
+ void free_gtt(struct pgt_device *pdev)
+ {
+-	intel_gtt_clear_range(0,
+-		(phys_aperture_sz(pdev) - GTT_PAGE_SIZE)/PAGE_SIZE);
+-
++	/* TODO: move this to host i915, when it is GVT-g aware */
++	tmp_vgt_clear_gtt(pdev->gtt_size);
+ 	vgt_free_gtt_pages(pdev);
+ }
+ 
+diff --git a/drivers/gpu/drm/i915/vgt/vgt-if.h b/drivers/gpu/drm/i915/vgt/vgt-if.h
+index 410d92e..6ff8673 100644
+--- a/drivers/gpu/drm/i915/vgt/vgt-if.h
++++ b/drivers/gpu/drm/i915/vgt/vgt-if.h
+@@ -180,11 +180,25 @@ struct vgt_if {
+ 
+ 
+ struct vgt_device;
++struct pgt_device;
++struct kernel_dm;
+ bool vgt_emulate_write(struct vgt_device *vgt, uint64_t pa, void *p_data, int bytes);
+ bool vgt_emulate_read(struct vgt_device *vgt, uint64_t pa, void *p_data, int bytes);
+ bool vgt_emulate_cfg_write(struct vgt_device *vgt, unsigned int off, void *p_data, int bytes);
+ bool vgt_emulate_cfg_read(struct vgt_device *vgt, unsigned int off, void *p_data, int bytes);
+ 
++struct vgt_ops {
++	bool (*emulate_read)(struct vgt_device *, uint64_t, void *, int);
++	bool (*emulate_write)(struct vgt_device *, uint64_t, void *, int);
++	bool (*emulate_cfg_read)(struct vgt_device *, unsigned int, void *, int);
++	bool (*emulate_cfg_write)(struct vgt_device *, unsigned int, void *, int);
++	/* misc symbols needed by MPT module */
++	void (*panic)(void);
++	unsigned int (*pa_to_mmio_offset)(struct vgt_device *, uint64_t);
++	bool (*expand_shadow_page_mempool)(struct pgt_device *);
++};
++extern struct vgt_ops *vgt_ops;
++
+ /* save the fixed/translated guest address
+  * restore the address after the command is executed
+ */
+diff --git a/drivers/gpu/drm/i915/vgt/vgt.c b/drivers/gpu/drm/i915/vgt/vgt.c
+index 38440f7..8ffcf29 100644
+--- a/drivers/gpu/drm/i915/vgt/vgt.c
++++ b/drivers/gpu/drm/i915/vgt/vgt.c
+@@ -32,9 +32,12 @@
+ 
+ MODULE_AUTHOR("Intel Corporation");
+ MODULE_DESCRIPTION("Virtual GPU device model for Intel Processor Graphics");
+-MODULE_LICENSE("GPL");
++MODULE_LICENSE("GPL and additional rights");
+ MODULE_VERSION("0.1");
+ 
++extern struct kernel_dm xengt_kdm;
++struct kernel_dm *vgt_pkdm = NULL;
++
+ bool hvm_render_owner = false;
+ module_param_named(hvm_render_owner, hvm_render_owner, bool, 0600);
+ MODULE_PARM_DESC(hvm_render_owner, "Make HVM to be render owner after create (default: false)");
+@@ -174,16 +177,15 @@ module_param_named(shadow_execlist_context, shadow_execlist_context, int, 0400);
+ bool wp_submitted_ctx = false;
+ module_param_named(wp_submitted_ctx, wp_submitted_ctx, bool, 0400);
+ 
+-struct kernel_dm *vgt_pkdm __weak = NULL;
+-
+-static vgt_ops_t vgt_xops = {
+-	.mem_read = vgt_emulate_read,
+-	.mem_write = vgt_emulate_write,
+-	.cfg_read = vgt_emulate_cfg_read,
+-	.cfg_write = vgt_emulate_cfg_write,
+-	.initialized = false,
++static struct vgt_ops __vgt_ops = {
++	.emulate_read = vgt_emulate_read,
++	.emulate_write = vgt_emulate_write,
++	.emulate_cfg_read = vgt_emulate_cfg_read,
++	.emulate_cfg_write = vgt_emulate_cfg_write,
++	.panic = vgt_panic,
++	.pa_to_mmio_offset = vgt_pa_to_mmio_offset,
++	.expand_shadow_page_mempool = vgt_expand_shadow_page_mempool,
+ };
+-vgt_ops_t *vgt_ops = NULL;
+ 
+ LIST_HEAD(pgt_devices);
+ struct pgt_device default_device = {
+@@ -193,7 +195,6 @@ struct pgt_device default_device = {
+ 
+ struct vgt_device *vgt_dom0;
+ struct pgt_device *pdev_default = &default_device;
+-struct drm_i915_private *dev_priv = NULL;
+ DEFINE_PER_CPU(u8, in_vgt);
+ 
+ uint64_t vgt_gttmmio_va(struct pgt_device *pdev, off_t reg)
+@@ -246,6 +247,122 @@ struct pci_dev *pgt_to_pci(struct pgt_device *pdev)
+  * vreg/sreg/ hwreg. In the future we can futher tune this part on
+  * a necessary base.
+  */
++static void vgt_processe_lo_priority_request(struct pgt_device *pdev)
++{
++	int cpu;
++
++	/* Send uevent to userspace */
++	if (test_and_clear_bit(VGT_REQUEST_UEVENT,
++				(void *)&pdev->request)) {
++		vgt_signal_uevent(pdev);
++	}
++
++	if (test_and_clear_bit(VGT_REQUEST_DPY_SWITCH,
++				(void *)&pdev->request)) {
++		vgt_lock_dev(pdev, cpu);
++		if (prepare_for_display_switch(pdev) == 0)
++			do_vgt_fast_display_switch(pdev);
++		vgt_unlock_dev(pdev, cpu);
++	}
++
++	/* Handle render engine scheduling */
++	if (vgt_ctx_switch &&
++	    test_and_clear_bit(VGT_REQUEST_SCHED,
++			(void *)&pdev->request)) {
++		if (!vgt_do_render_sched(pdev)) {
++			if (enable_reset) {
++				vgt_err("Hang in render sched, try to reset device.\n");
++
++				vgt_reset_device(pdev);
++			} else {
++				vgt_err("Hang in render sched, panic the system.\n");
++				ASSERT(0);
++			}
++		}
++	}
++
++	/* Handle render context switch */
++	if (vgt_ctx_switch &&
++	    test_and_clear_bit(VGT_REQUEST_CTX_SWITCH,
++			(void *)&pdev->request)) {
++		if (!vgt_do_render_context_switch(pdev)) {
++			if (enable_reset) {
++				vgt_err("Hang in context switch, try to reset device.\n");
++
++				vgt_reset_device(pdev);
++			} else {
++				vgt_err("Hang in context switch, panic the system.\n");
++				ASSERT(0);
++			}
++		}
++	}
++
++	if (test_and_clear_bit(VGT_REQUEST_EMUL_DPY_EVENTS,
++			(void *)&pdev->request)) {
++		vgt_lock_dev(pdev, cpu);
++		vgt_emulate_dpy_events(pdev);
++		vgt_unlock_dev(pdev, cpu);
++	}
++
++	return;
++}
++
++static void vgt_processe_hi_priority_request(struct pgt_device *pdev)
++{
++	int cpu;
++	enum vgt_ring_id ring_id;
++	bool ctx_irq_received = false;
++
++	if (test_and_clear_bit(VGT_REQUEST_DEVICE_RESET,
++				(void *)&pdev->request)) {
++		vgt_reset_device(pdev);
++	}
++
++	for (ring_id = 0; ring_id < MAX_ENGINES; ++ ring_id) {
++		if (test_and_clear_bit(
++			VGT_REQUEST_CTX_EMULATION_RCS + ring_id,
++			(void *)&pdev->request)) {
++			vgt_lock_dev(pdev, cpu);
++			vgt_emulate_context_switch_event(pdev, ring_id);
++			vgt_unlock_dev(pdev, cpu);
++			ctx_irq_received = true;
++		}
++	}
++
++	if (ctx_irq_received && ctx_switch_requested(pdev)) {
++		bool all_rings_empty = true;
++		for (ring_id = 0; ring_id < MAX_ENGINES; ++ ring_id) {
++			if(!vgt_idle_execlist(pdev, ring_id)) {
++				all_rings_empty = false;
++				break;
++			}
++		}
++		if (all_rings_empty)
++			vgt_raise_request(pdev, VGT_REQUEST_CTX_SWITCH);
++	}
++
++	/* forward physical GPU events to VMs */
++	if (test_and_clear_bit(VGT_REQUEST_IRQ,
++				(void *)&pdev->request)) {
++		unsigned long flags;
++		vgt_lock_dev(pdev, cpu);
++		vgt_get_irq_lock(pdev, flags);
++		vgt_forward_events(pdev);
++		vgt_put_irq_lock(pdev, flags);
++		vgt_unlock_dev(pdev, cpu);
++	}
++
++	return;
++}
++
++#define REQUEST_LOOP(pdev)	((pdev)->request & 	\
++	((1<<VGT_REQUEST_IRQ) | 			\
++	(1<<VGT_REQUEST_CTX_EMULATION_RCS) |		\
++	(1<<VGT_REQUEST_CTX_EMULATION_VCS) |		\
++	(1<<VGT_REQUEST_CTX_EMULATION_BCS) |		\
++	(1<<VGT_REQUEST_CTX_EMULATION_VECS) |		\
++	(1<<VGT_REQUEST_CTX_EMULATION_VCS2)))
++
+ static int vgt_thread(void *priv)
+ {
+ 	struct pgt_device *pdev = (struct pgt_device *)priv;
+@@ -257,14 +374,15 @@ static int vgt_thread(void *priv)
+ 
+ 	set_freezable();
+ 	while (!kthread_should_stop()) {
+-		enum vgt_ring_id ring_id;
+-		bool ctx_irq_received = false;
+-		ret = wait_event_interruptible(pdev->event_wq,
+-			pdev->request || freezing(current));
++		ret = wait_event_interruptible(pdev->event_wq, kthread_should_stop() ||
++					pdev->request || freezing(current));
+ 
+ 		if (ret)
+ 			vgt_warn("Main thread waken up by unexpected signal!\n");
+ 
++		if (kthread_should_stop())
++			break;
++
+ 		if (!pdev->request && !freezing(current)) {
+ 			vgt_warn("Main thread waken up by unknown reasons!\n");
+ 			continue;
+@@ -282,97 +400,13 @@ static int vgt_thread(void *priv)
+ 			}
+ 		}
+ 
+-		if (test_and_clear_bit(VGT_REQUEST_DEVICE_RESET,
+-					(void *)&pdev->request)) {
+-			vgt_reset_device(pdev);
+-		}
+-
+-		for (ring_id = 0; ring_id < MAX_ENGINES; ++ ring_id) {
+-			if (test_and_clear_bit(
+-				VGT_REQUEST_CTX_EMULATION_RCS + ring_id,
+-				(void *)&pdev->request)) {
+-				vgt_lock_dev(pdev, cpu);
+-				vgt_emulate_context_switch_event(pdev, ring_id);
+-				vgt_unlock_dev(pdev, cpu);
+-				ctx_irq_received = true;
+-			}
+-		}
+-
+-		if (ctx_irq_received && ctx_switch_requested(pdev)) {
+-			bool all_rings_empty = true;
+-			for (ring_id = 0; ring_id < MAX_ENGINES; ++ ring_id) {
+-				if(!vgt_idle_execlist(pdev, ring_id)) {
+-					all_rings_empty = false;
+-					break;
+-				}
+-			}
+-			if (all_rings_empty)
+-				vgt_raise_request(pdev, VGT_REQUEST_CTX_SWITCH);
+-		}
+-
+-		/* forward physical GPU events to VMs */
+-		if (test_and_clear_bit(VGT_REQUEST_IRQ,
+-					(void *)&pdev->request)) {
+-			unsigned long flags;
+-			vgt_lock_dev(pdev, cpu);
+-			vgt_get_irq_lock(pdev, flags);
+-			vgt_forward_events(pdev);
+-			vgt_put_irq_lock(pdev, flags);
+-			vgt_unlock_dev(pdev, cpu);
+-		}
+-
+-		/* Send uevent to userspace */
+-		if (test_and_clear_bit(VGT_REQUEST_UEVENT,
+-					(void *)&pdev->request)) {
+-			vgt_signal_uevent(pdev);
+-		}
+-
+-		if (test_and_clear_bit(VGT_REQUEST_DPY_SWITCH,
+-					(void *)&pdev->request)) {
+-			vgt_lock_dev(pdev, cpu);
+-			if (prepare_for_display_switch(pdev) == 0)
+-				do_vgt_fast_display_switch(pdev);
+-			vgt_unlock_dev(pdev, cpu);
+-		}
+-
+-		/* Handle render engine scheduling */
+-		if (vgt_ctx_switch &&
+-		    test_and_clear_bit(VGT_REQUEST_SCHED,
+-				(void *)&pdev->request)) {
+-			if (!vgt_do_render_sched(pdev)) {
+-				if (enable_reset) {
+-					vgt_err("Hang in render sched, try to reset device.\n");
+-
+-					vgt_reset_device(pdev);
+-				} else {
+-					vgt_err("Hang in render sched, panic the system.\n");
+-					ASSERT(0);
+-				}
+-			}
+-		}
+-
+-		/* Handle render context switch */
+-		if (vgt_ctx_switch &&
+-		    test_and_clear_bit(VGT_REQUEST_CTX_SWITCH,
+-				(void *)&pdev->request)) {
+-			if (!vgt_do_render_context_switch(pdev)) {
+-				if (enable_reset) {
+-					vgt_err("Hang in context switch, try to reset device.\n");
+-
+-					vgt_reset_device(pdev);
+-				} else {
+-					vgt_err("Hang in context switch, panic the system.\n");
+-					ASSERT(0);
+-				}
+-			}
++		do {
++			/* give another chance for high priority request */
++			vgt_processe_hi_priority_request(pdev);
+ 		}
++		while(REQUEST_LOOP(pdev));
+ 
+-		if (test_and_clear_bit(VGT_REQUEST_EMUL_DPY_EVENTS,
+-				(void *)&pdev->request)) {
+-			vgt_lock_dev(pdev, cpu);
+-			vgt_emulate_dpy_events(pdev);
+-			vgt_unlock_dev(pdev, cpu);
+-		}
++		vgt_processe_lo_priority_request(pdev);
+ 	}
+ 	return 0;
+ }
+@@ -470,7 +504,6 @@ bool initial_phys_states(struct pgt_device *pdev)
+ 
+ 	for (i = 0; i < MAX_ENGINES; ++ i) {
+ 		pdev->el_read_ptr[i] = DEFAULT_INV_SR_PTR;
+-		pdev->el_cache_write_ptr[i] = DEFAULT_INV_SR_PTR;
+ 	}
+ 
+ 	return true;
+@@ -702,11 +735,77 @@ static bool vgt_initialize_pgt_device(struct pci_dev *dev, struct pgt_device *pd
+ 	return true;
+ }
+ 
+-/*
+- * Initialize the vgt driver.
+- *  return 0: success
+- *	-1: error
+- */
++void vgt_destroy(void)
++{
++	struct vgt_device *vgt, *tmp;
++	struct pgt_device *pdev = &default_device;
++	int i;
++	unsigned long flags;
++
++	vgt_cleanup_mmio_dev(pdev);
++
++	perf_pgt = NULL;
++	list_del(&pdev->list);
++
++	vgt_cleanup_ctx_scheduler(pdev);
++
++	cancel_work_sync(&pdev->hpd_work.work);
++
++	/* do we need the thread actually stopped? */
++	kthread_stop(pdev->p_thread);
++
++	vgt_irq_exit(pdev);
++
++	/* Deactive all VGTs */
++	spin_lock_irqsave(&pdev->lock, flags);
++
++	list_for_each_entry_safe(vgt, tmp, &pdev->rendering_runq_head, list)
++		vgt_disable_render(vgt);
++
++	/* Destruct all vgt_debugfs */
++	vgt_release_debugfs();
++
++	vgt_destroy_sysfs();
++
++	if (pdev->saved_gtt)
++		vfree(pdev->saved_gtt);
++	free_gtt(pdev);
++	vgt_gtt_clean(pdev);
++
++	if (pdev->gmadr_va)
++		iounmap(pdev->gmadr_va);
++	if (pdev->opregion_va)
++		iounmap(pdev->opregion_va);
++
++	spin_unlock_irqrestore(&pdev->lock, flags);
++
++	list_for_each_entry_safe(vgt, tmp, &pdev->rendering_idleq_head, list)
++		vgt_release_instance(vgt);
++
++	vgt_clear_mmio_table();
++	vfree(pdev->reg_info);
++	vfree(pdev->initial_mmio_state);
++
++	for (i = 0; i < I915_MAX_PORTS; ++ i) {
++		if (pdev->ports[i].edid) {
++			kfree(pdev->ports[i].edid);
++			pdev->ports[i].edid = NULL;
++		}
++
++		if (pdev->ports[i].dpcd) {
++			kfree(pdev->ports[i].dpcd);
++			pdev->ports[i].dpcd = NULL;
++		}
++
++		if (pdev->ports[i].cache.edid) {
++			kfree(pdev->ports[i].cache.edid);
++			pdev->ports[i].cache.edid = NULL;
++		}
++	}
++
++	vgt_cmd_parser_exit();
++}
++
+ static int vgt_initialize(struct pci_dev *dev)
+ {
+ 	struct pgt_device *pdev = &default_device;
+@@ -751,9 +850,6 @@ static int vgt_initialize(struct pci_dev *dev)
+ 	if (setup_gtt(pdev))
+ 		goto err;
+ 
+-	vgt_ops = &vgt_xops;
+-	vgt_ops->initialized = true;
+-
+ 	if (!hvm_render_owner)
+ 		current_render_owner(pdev) = vgt_dom0;
+ 	else
+@@ -807,79 +903,6 @@ err:
+ 	return -1;
+ }
+ 
+-void vgt_destroy(void)
+-{
+-	struct list_head *pos, *next;
+-	struct vgt_device *vgt;
+-	struct pgt_device *pdev = &default_device;
+-	int i;
+-
+-	vgt_cleanup_mmio_dev(pdev);
+-
+-	perf_pgt = NULL;
+-	list_del(&pdev->list);
+-
+-	vgt_cleanup_ctx_scheduler(pdev);
+-
+-	/* do we need the thread actually stopped? */
+-	kthread_stop(pdev->p_thread);
+-
+-	vgt_irq_exit(pdev);
+-
+-	/* Deactive all VGTs */
+-	while ( !list_empty(&pdev->rendering_runq_head) ) {
+-		list_for_each (pos, &pdev->rendering_runq_head) {
+-			vgt = list_entry (pos, struct vgt_device, list);
+-			vgt_disable_render(vgt);
+-		}
+-	};
+-
+-	/* Destruct all vgt_debugfs */
+-	vgt_release_debugfs();
+-
+-	vgt_destroy_sysfs();
+-
+-	if (pdev->saved_gtt)
+-		vfree(pdev->saved_gtt);
+-	free_gtt(pdev);
+-
+-	if (pdev->gmadr_va)
+-		iounmap(pdev->gmadr_va);
+-	if (pdev->opregion_va)
+-		iounmap(pdev->opregion_va);
+-
+-	while ( !list_empty(&pdev->rendering_idleq_head)) {
+-		for (pos = pdev->rendering_idleq_head.next;
+-			pos != &pdev->rendering_idleq_head; pos = next) {
+-			next = pos->next;
+-			vgt = list_entry (pos, struct vgt_device, list);
+-			vgt_release_instance(vgt);
+-		}
+-	}
+-	vgt_clear_mmio_table();
+-	vfree(pdev->reg_info);
+-	vfree(pdev->initial_mmio_state);
+-
+-	for (i = 0; i < I915_MAX_PORTS; ++ i) {
+-		if (pdev->ports[i].edid) {
+-			kfree(pdev->ports[i].edid);
+-			pdev->ports[i].edid = NULL;
+-		}
+-
+-		if (pdev->ports[i].dpcd) {
+-			kfree(pdev->ports[i].dpcd);
+-			pdev->ports[i].dpcd = NULL;
+-		}
+-
+-		if (pdev->ports[i].cache.edid) {
+-			kfree(pdev->ports[i].cache.edid);
+-			pdev->ports[i].cache.edid = NULL;
+-		}
+-	}
+-
+-	vgt_cmd_parser_exit();
+-}
+-
+ int vgt_suspend(struct pci_dev *pdev)
+ {
+ 	struct pgt_device *node, *pgt = NULL;
+@@ -998,6 +1021,22 @@ int vgt_resume(struct pci_dev *pdev)
+ 	return 0;
+ }
+ 
++/*
++ * Kernel BUG() doesn't work, because bust_spinlocks try to unblank screen
++ * which may call into i915 and thus cause undesired more errors on the
++ * screen
++ */
++void vgt_panic(void)
++{
++        struct pgt_device *pdev = &default_device;
++
++        show_debug(pdev);
++
++        dump_stack();
++        printk("________end of stack dump_________\n");
++        panic("FATAL VGT ERROR\n");
++}
++
+ static void do_device_reset(struct pgt_device *pdev)
+ {
+ 	struct drm_device *drm_dev = pci_get_drvdata(pdev->pdev);
+@@ -1177,33 +1216,6 @@ int vgt_reset_device(struct pgt_device *pdev)
+ 	return 0;
+ }
+ 
+-bool vgt_check_host(void)
+-{
+-	if (!vgt_enabled)
+-		return false;
+-
+-	if (!vgt_pkdm)
+-		return false;
+-
+-	if (!hypervisor_check_host())
+-		return false;
+-
+-	return true;
+-}
+-
+-bool i915_start_vgt(struct pci_dev *pdev)
+-{
+-	if (!vgt_check_host())
+-		return false;
+-
+-	if (vgt_xops.initialized) {
+-		vgt_info("VGT has been intialized?\n");
+-		return false;
+-	}
+-
+-	return vgt_initialize(pdev) == 0;
+-}
+-
+ static void vgt_param_check(void)
+ {
+ 	/* TODO: hvm_display/render_owner are broken */
+@@ -1233,27 +1245,45 @@ static void vgt_param_check(void)
+ 		dom0_fence_sz = VGT_MAX_NUM_FENCES;
+ }
+ 
+-static int __init vgt_init_module(void)
++bool vgt_check_host(void)
+ {
+-	if (!hypervisor_check_host())
+-		return 0;
++	if (!vgt_enabled)
++		return false;
+ 
+-	vgt_param_check();
++	if (!vgt_pkdm)
++		return false;
+ 
+-	vgt_klog_init();
++	if (!hypervisor_check_host())
++		return false;
+ 
+-	return 0;
++	return true;
+ }
+-module_init(vgt_init_module);
+ 
+-static void __exit vgt_exit_module(void)
++void i915_stop_vgt(void)
+ {
+-	if (!hypervisor_check_host())
+-		return;
+-
+-	// fill other exit works here
+ 	vgt_destroy();
+ 	vgt_klog_cleanup();
+-	return;
++	symbol_put(xengt_kdm);
++	vgt_pkdm = NULL;
++	vgt_ops = NULL;
++}
++
++bool i915_start_vgt(struct pci_dev *pdev)
++{
++	vgt_ops = &__vgt_ops;
++
++	vgt_pkdm = try_then_request_module(symbol_get(xengt_kdm), "xengt");
++	if (vgt_pkdm == NULL) {
++		printk("vgt: Could not load xengt MPT service\n");
++		return false;
++	} //TODO: request kvmgt here!
++
++	if (!vgt_check_host())
++		return false;
++
++	vgt_param_check();
++
++	vgt_klog_init();
++
++	return vgt_initialize(pdev) == 0;
+ }
+-module_exit(vgt_exit_module);
+diff --git a/drivers/gpu/drm/i915/vgt/vgt.h b/drivers/gpu/drm/i915/vgt/vgt.h
+index ad8e707..2d87b3e 100644
+--- a/drivers/gpu/drm/i915/vgt/vgt.h
++++ b/drivers/gpu/drm/i915/vgt/vgt.h
+@@ -61,6 +61,7 @@ extern void show_ring_debug(struct pgt_device *pdev, int ring_id);
+ extern void show_debug(struct pgt_device *pdev);
+ void show_virtual_interrupt_regs(struct vgt_device *vgt, struct seq_file *seq);
+ extern void show_interrupt_regs(struct pgt_device *pdev, struct seq_file *seq);
++void vgt_panic(void);
+ 
+ extern bool ignore_hvm_forcewake_req;
+ extern bool hvm_render_owner;
+@@ -740,7 +741,6 @@ extern bool idle_rendering_engines(struct pgt_device *pdev, int *id);
+ extern bool idle_render_engine(struct pgt_device *pdev, int id);
+ extern bool vgt_do_render_context_switch(struct pgt_device *pdev);
+ extern bool vgt_do_render_sched(struct pgt_device *pdev);
+-extern void vgt_destroy(void);
+ extern void vgt_destroy_debugfs(struct vgt_device *vgt);
+ extern void vgt_release_debugfs(void);
+ extern bool vgt_register_mmio_handler(unsigned int start, int bytes,
+@@ -1310,7 +1310,6 @@ struct pgt_device {
+ 
+ 	bool ctx_switch_pending;
+ 
+-	uint32_t el_cache_write_ptr[MAX_ENGINES];
+ 	uint32_t el_read_ptr[MAX_ENGINES];
+ };
+ 
+@@ -1393,29 +1392,14 @@ extern void do_vgt_fast_display_switch(struct pgt_device *pdev);
+ 	(pdev->vgt_aux_table[reg_aux_index(pdev, reg)].addr_fix.size)
+ 
+ #define el_read_ptr(pdev, ring_id) ((pdev)->el_read_ptr[ring_id])
+-#define el_write_ptr(pdev, ring_id) ((pdev)->el_cache_write_ptr[ring_id])
++#define el_write_ptr(pdev, ring_id) ((VGT_MMIO_READ((pdev), el_ring_mmio((ring_id), _EL_OFFSET_STATUS_PTR))) & 0x7 )
+ 
+-/*
+- * Kernel BUG() doesn't work, because bust_spinlocks try to unblank screen
+- * which may call into i915 and thus cause undesired more errors on the
+- * screen
+- */
+-static inline void vgt_panic(void)
+-{
+-	//struct pgt_device *pdev = &default_device;
+-
+-	//show_debug(pdev);
+-
+-	dump_stack();
+-	printk("________end of stack dump_________\n");
+-	panic("FATAL VGT ERROR\n");
+-}
+ #define ASSERT(x)							\
+ 	do {								\
+ 		if (!(x)) {						\
+ 			printk("Assert at %s line %d\n",		\
+ 				__FILE__, __LINE__);			\
+-			vgt_panic();					\
++			vgt_ops->panic();					\
+ 		}							\
+ 	} while (0);
+ #define ASSERT_NUM(x, y)						\
+@@ -1423,7 +1407,7 @@ static inline void vgt_panic(void)
+ 		if (!(x)) {						\
+ 			printk("Assert at %s line %d para 0x%llx\n",	\
+ 				__FILE__, __LINE__, (u64)y);		\
+-			vgt_panic();					\
++			vgt_ops->panic();				\
+ 		}							\
+ 	} while (0);
+ 
+@@ -2934,11 +2918,6 @@ extern int vgt_get_reg_addr_sz_num(void);
+ reg_list_t *vgt_get_sticky_regs(struct pgt_device *pdev);
+ extern int vgt_get_sticky_reg_num(struct pgt_device *pdev);
+ 
+-bool vgt_hvm_write_cfg_space(struct vgt_device *vgt,
+-       uint64_t addr, unsigned int bytes, unsigned long val);
+-bool vgt_hvm_read_cfg_space(struct vgt_device *vgt,
+-       uint64_t addr, unsigned int bytes, unsigned long *val);
+-
+ int vgt_hvm_opregion_map(struct vgt_device *vgt, int map);
+ int vgt_hvm_set_trap_area(struct vgt_device *vgt, int map);
+ int vgt_hvm_map_aperture (struct vgt_device *vgt, int map);
+@@ -2999,7 +2978,6 @@ static inline void reset_el_structure(struct pgt_device *pdev,
+ 				enum vgt_ring_id ring_id)
+ {
+ 	el_read_ptr(pdev, ring_id) = DEFAULT_INV_SR_PTR;
+-	el_write_ptr(pdev, ring_id) = DEFAULT_INV_SR_PTR;
+ 	vgt_clear_submitted_el_record(pdev, ring_id);
+ 	/* reset read ptr in MMIO as well */
+ 	VGT_MMIO_WRITE(pdev, el_ring_mmio(ring_id, _EL_OFFSET_STATUS_PTR),
+diff --git a/drivers/xen/Kconfig b/drivers/xen/Kconfig
+index 900bc94..f0a01e4 100644
+--- a/drivers/xen/Kconfig
++++ b/drivers/xen/Kconfig
+@@ -248,8 +248,8 @@ config XEN_EFI
+ 	depends on X86_64 && EFI
+ 
+ config XENGT
+-	bool "Xen Dom0 support for i915 vgt device model"
++	tristate "Xen Dom0 support for i915 vgt device model"
+ 	depends on XEN_DOM0 && I915_VGT
+-	default y
++	default m
+ 
+ endmenu
+diff --git a/drivers/xen/xengt.c b/drivers/xen/xengt.c
+index 8272fb7..aa2834a 100644
+--- a/drivers/xen/xengt.c
++++ b/drivers/xen/xengt.c
+@@ -84,6 +84,23 @@ struct vgt_hvm_info {
+ 	struct vm_struct **vmem_vma_4k;
+ };
+ 
++static int xen_pause_domain(int vm_id);
++static int xen_shutdown_domain(int vm_id);
++static void *xen_gpa_to_va(struct vgt_device *vgt, unsigned long gpa);
++
++#define XEN_ASSERT_VM(x, vgt)						\
++	do {								\
++		if (!(x)) {						\
++			printk("Assert at %s line %d\n",		\
++				__FILE__, __LINE__);			\
++			if (atomic_cmpxchg(&(vgt)->crashing, 0, 1))	\
++				break;					\
++			vgt_warn("Killing VM%d\n", (vgt)->vm_id);	\
++			if (!xen_pause_domain((vgt->vm_id)))		\
++				xen_shutdown_domain((vgt->vm_id));	\
++		}							\
++	} while (0)
++
+ /* Translate from VM's guest pfn to machine pfn */
+ static unsigned long xen_g2m_pfn(int vm_id, unsigned long g_pfn)
+ {
+@@ -522,7 +539,7 @@ static int vgt_hvm_vmem_init(struct vgt_device *vgt)
+ 
+ 		/* Don't warn on [0xa0000, 0x100000): a known non-RAM hole */
+ 		if (i < (0xa0000 >> PAGE_SHIFT))
+-			vgt_dbg(VGT_DBG_GENERIC, "vGT: VM%d: can't map GPFN %ld!\n",
++			printk(KERN_ERR "vGT: VM%d: can't map GPFN %ld!\n",
+ 				vgt->vm_id, i);
+ 	}
+ 
+@@ -551,7 +568,7 @@ static int vgt_hvm_vmem_init(struct vgt_device *vgt)
+ 
+ 			if (info->vmem_vma_4k[j]) {
+ 				count++;
+-				vgt_dbg(VGT_DBG_GENERIC, "map 4k gpa (%lx)\n", j << PAGE_SHIFT);
++				printk(KERN_ERR "map 4k gpa (%lx)\n", j << PAGE_SHIFT);
+ 			}
+ 		}
+ 
+@@ -560,7 +577,7 @@ static int vgt_hvm_vmem_init(struct vgt_device *vgt)
+ 		 * message if it's at every 64MB boundary or >4GB memory.
+ 		 */
+ 		if ((i % 64 == 0) || (i >= (1ULL << (32 - VMEM_BUCK_SHIFT))))
+-			vgt_dbg(VGT_DBG_GENERIC, "vGT: VM%d: can't map %ldKB\n",
++			printk(KERN_ERR "vGT: VM%d: can't map %ldKB\n",
+ 				vgt->vm_id, i);
+ 	}
+ 	printk("end vmem_map (%ld 4k mappings)\n", count);
+@@ -636,7 +653,7 @@ static int _hvm_mmio_emulation(struct vgt_device *vgt, struct ioreq *req)
+ 	struct vgt_hvm_info *info = vgt->hvm_info;
+ 
+ 	if (info->vmem_vma == NULL) {
+-		tmp = vgt_pa_to_mmio_offset(vgt, req->addr);
++		tmp = vgt_ops->pa_to_mmio_offset(vgt, req->addr);
+ 		pvinfo_page = (tmp >= VGT_PVINFO_PAGE
+ 				&& tmp < (VGT_PVINFO_PAGE + VGT_PVINFO_SIZE));
+ 		/*
+@@ -645,7 +662,7 @@ static int _hvm_mmio_emulation(struct vgt_device *vgt, struct ioreq *req)
+ 		 */
+ 		if (!pvinfo_page && vgt_hvm_vmem_init(vgt) < 0) {
+ 			vgt_err("can not map the memory of VM%d!!!\n", vgt->vm_id);
+-			ASSERT_VM(info->vmem_vma != NULL, vgt);
++			XEN_ASSERT_VM(info->vmem_vma != NULL, vgt);
+ 			return -EINVAL;
+ 		}
+ 	}
+@@ -660,7 +677,7 @@ static int _hvm_mmio_emulation(struct vgt_device *vgt, struct ioreq *req)
+ 
+ 			//vgt_dbg(VGT_DBG_GENERIC,"HVM_MMIO_read: target register (%lx).\n",
+ 			//	(unsigned long)req->addr);
+-			if (!vgt_emulate_read(vgt, req->addr, &req->data, req->size))
++			if (!vgt_ops->emulate_read(vgt, req->addr, &req->data, req->size))
+ 				return -EINVAL;
+ 		}
+ 		else {
+@@ -672,11 +689,14 @@ static int _hvm_mmio_emulation(struct vgt_device *vgt, struct ioreq *req)
+ 			//	req->count, (unsigned long)req->addr);
+ 
+ 			for (i = 0; i < req->count; i++) {
+-				if (!vgt_emulate_read(vgt, req->addr + sign * i * req->size,
++				if (!vgt_ops->emulate_read(vgt, req->addr + sign * i * req->size,
+ 					&tmp, req->size))
+ 					return -EINVAL;
+ 				gpa = req->data + sign * i * req->size;
+-				gva = hypervisor_gpa_to_va(vgt, gpa);
++				if(!vgt->vm_id)
++					gva = (char *)xen_mfn_to_virt(gpa >> PAGE_SHIFT) + offset_in_page(gpa);
++				else
++					gva = xen_gpa_to_va(vgt, gpa);
+ 				if (gva) {
+ 					if (!IS_SNB(vgt->pdev))
+ 						memcpy(gva, &tmp, req->size);
+@@ -695,7 +715,7 @@ static int _hvm_mmio_emulation(struct vgt_device *vgt, struct ioreq *req)
+ 			if (req->count != 1)
+ 				goto err_ioreq_count;
+ 			//vgt_dbg(VGT_DBG_GENERIC,"HVM_MMIO_write: target register (%lx).\n", (unsigned long)req->addr);
+-			if (!vgt_emulate_write(vgt, req->addr, &req->data, req->size))
++			if (!vgt_ops->emulate_write(vgt, req->addr, &req->data, req->size))
+ 				return -EINVAL;
+ 		}
+ 		else {
+@@ -708,14 +728,18 @@ static int _hvm_mmio_emulation(struct vgt_device *vgt, struct ioreq *req)
+ 
+ 			for (i = 0; i < req->count; i++) {
+ 				gpa = req->data + sign * i * req->size;
+-				gva = hypervisor_gpa_to_va(vgt, gpa);
++				if(!vgt->vm_id)
++					gva = (char *)xen_mfn_to_virt(gpa >> PAGE_SHIFT) + offset_in_page(gpa);
++				else
++					gva = xen_gpa_to_va(vgt, gpa);
++
+ 				if (gva != NULL)
+ 					memcpy(&tmp, gva, req->size);
+ 				else {
+ 					tmp = 0;
+-					vgt_dbg(VGT_DBG_GENERIC, "vGT: can not read gpa = 0x%lx!!!\n", gpa);
++					printk(KERN_ERR "vGT: can not read gpa = 0x%lx!!!\n", gpa);
+ 				}
+-				if (!vgt_emulate_write(vgt, req->addr + sign * i * req->size, &tmp, req->size))
++				if (!vgt_ops->emulate_write(vgt, req->addr + sign * i * req->size, &tmp, req->size))
+ 					return -EINVAL;
+ 			}
+ 		}
+@@ -736,6 +760,32 @@ err_ioreq_range:
+ 	return -ERANGE;
+ }
+ 
++static bool vgt_hvm_write_cfg_space(struct vgt_device *vgt,
++	uint64_t addr, unsigned int bytes, unsigned long val)
++{
++	/* Low 32 bit of addr is real address, high 32 bit is bdf */
++	unsigned int port = addr & 0xffffffff;
++
++	ASSERT(((bytes == 4) && ((port & 3) == 0)) ||
++		((bytes == 2) && ((port & 1) == 0)) || (bytes == 1));
++	vgt_ops->emulate_cfg_write(vgt, port, &val, bytes);
++	return true;
++}
++
++static bool vgt_hvm_read_cfg_space(struct vgt_device *vgt,
++	uint64_t addr, unsigned int bytes, unsigned long *val)
++{
++	unsigned long data;
++	/* Low 32 bit of addr is real address, high 32 bit is bdf */
++	unsigned int port = addr & 0xffffffff;
++
++	ASSERT (((bytes == 4) && ((port & 3) == 0)) ||
++		((bytes == 2) && ((port & 1) == 0)) || (bytes == 1));
++	vgt_ops->emulate_cfg_read(vgt, port, &data, bytes);
++	memcpy(val, &data, bytes);
++	return true;
++}
++
+ static int _hvm_pio_emulation(struct vgt_device *vgt, struct ioreq *ioreq)
+ {
+ 	int sign;
+@@ -751,7 +801,7 @@ static int _hvm_pio_emulation(struct vgt_device *vgt, struct ioreq *ioreq)
+ 				(unsigned long*)&ioreq->data))
+ 				return -EINVAL;
+ 		} else {
+-			vgt_dbg(VGT_DBG_GENERIC,"VGT: _hvm_pio_emulation read data_ptr %lx\n",
++			printk(KERN_ERR "VGT: _hvm_pio_emulation read data_ptr %lx\n",
+ 			(long)ioreq->data);
+ 			goto err_data_ptr;
+ 		}
+@@ -764,7 +814,7 @@ static int _hvm_pio_emulation(struct vgt_device *vgt, struct ioreq *ioreq)
+ 				(unsigned long)ioreq->data))
+ 				return -EINVAL;
+ 		} else {
+-			vgt_dbg(VGT_DBG_GENERIC,"VGT: _hvm_pio_emulation write data_ptr %lx\n",
++			printk(KERN_ERR "VGT: _hvm_pio_emulation write data_ptr %lx\n",
+ 			(long)ioreq->data);
+ 			goto err_data_ptr;
+ 		}
+@@ -846,13 +896,14 @@ static int vgt_emulation_thread(void *priv)
+ 		ret = wait_event_freezable(info->io_event_wq,
+ 			kthread_should_stop() ||
+ 			bitmap_weight(info->ioreq_pending, nr_vcpus));
+-		if (ret)
+-			vgt_warn("Emulation thread(%d) waken up"
+-				 "by unexpected signal!\n", vgt->vm_id);
+ 
+ 		if (kthread_should_stop())
+ 			return 0;
+ 
++		if (ret)
++			vgt_warn("Emulation thread(%d) waken up"
++				 "by unexpected signal!\n", vgt->vm_id);
++
+ 		for (vcpu = 0; vcpu < nr_vcpus; vcpu++) {
+ 			if (!test_and_clear_bit(vcpu, info->ioreq_pending))
+ 				continue;
+@@ -860,13 +911,19 @@ static int vgt_emulation_thread(void *priv)
+ 			ioreq = vgt_get_hvm_ioreq(vgt, vcpu);
+ 
+ 			if (vgt_hvm_do_ioreq(vgt, ioreq) ||
+-					!vgt_expand_shadow_page_mempool(vgt->pdev)) {
+-				hypervisor_pause_domain(vgt);
+-				hypervisor_shutdown_domain(vgt);
++					!vgt_ops->expand_shadow_page_mempool(vgt->pdev)) {
++				xen_pause_domain(vgt->vm_id);
++				xen_shutdown_domain(vgt->vm_id);
++			}
++
++			if (vgt->force_removal) {
++				wait_event(vgt->pdev->destroy_wq,
++						kthread_should_stop() ||
++						!vgt->force_removal);
++				if (kthread_should_stop())
++					return 0;
+ 			}
+ 
+-			if (vgt->force_removal)
+-				wait_event(vgt->pdev->destroy_wq, !vgt->force_removal);
+ 
+ 			ioreq->state = STATE_IORESP_READY;
+ 
+@@ -923,15 +980,15 @@ static void xen_hvm_exit(struct vgt_device *vgt)
+ 	if (info == NULL)
+ 		return;
+ 
+-	if (info->iosrv_id != 0)
+-		hvm_destroy_iorequest_server(vgt);
+-
+ 	if (info->emulation_thread != NULL)
+ 		kthread_stop(info->emulation_thread);
+ 
+ 	if (!info->nr_vcpu || info->evtchn_irq == NULL)
+ 		goto out1;
+ 
++	if (info->iosrv_id != 0)
++		hvm_destroy_iorequest_server(vgt);
++
+ 	for (vcpu = 0; vcpu < info->nr_vcpu; vcpu++){
+ 		if(info->evtchn_irq[vcpu] >= 0)
+ 			unbind_from_irqhandler(info->evtchn_irq[vcpu], vgt);
+@@ -1021,7 +1078,7 @@ static void *xen_gpa_to_va(struct vgt_device *vgt, unsigned long gpa)
+ 	struct vgt_hvm_info *info = vgt->hvm_info;
+ 
+ 	if (!vgt->vm_id)
+-		return (char*)hypervisor_mfn_to_virt(gpa>>PAGE_SHIFT) + (gpa & (PAGE_SIZE-1));
++		return (char*)xen_mfn_to_virt(gpa>>PAGE_SHIFT) + (gpa & (PAGE_SIZE-1));
+ 	/*
+ 	 * At the beginning of _hvm_mmio_emulation(), we already initialize
+ 	 * info->vmem_vma and info->vmem_vma_low_1mb.
+@@ -1073,7 +1130,7 @@ static bool xen_write_va(struct vgt_device *vgt, void *va, void *val,
+ 	return true;
+ }
+ 
+-static struct kernel_dm xen_kdm = {
++static struct kernel_dm xengt_kdm = {
+ 	.g2m_pfn = xen_g2m_pfn,
+ 	.pause_domain = xen_pause_domain,
+ 	.shutdown_domain = xen_shutdown_domain,
+@@ -1091,5 +1148,20 @@ static struct kernel_dm xen_kdm = {
+ 	.read_va = xen_read_va,
+ 	.write_va = xen_write_va,
+ };
++EXPORT_SYMBOL(xengt_kdm);
++
++static int __init xengt_init(void)
++{
++       if (!xen_initial_domain())
++               return -EINVAL;
++       printk(KERN_INFO "xengt: loaded\n");
++       return 0;
++}
++
++static void __exit xengt_exit(void)
++{
++	printk(KERN_INFO "xengt: unloaded\n");
++}
+ 
+-struct kernel_dm *vgt_pkdm = &xen_kdm;
++module_init(xengt_init);
++module_exit(xengt_exit);

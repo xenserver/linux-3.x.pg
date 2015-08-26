@@ -1,0 +1,390 @@
+From aee84be6896486d659dd4b38d21880f179156c87 Mon Sep 17 00:00:00 2001
+From: Jike Song <jike.song@intel.com>
+Date: Wed, 20 May 2015 16:54:34 +0800
+Subject: [PATCH 8/8] i915/vgt: make it unloadable
+
+If builtin, the module exit function specified by module_exit()
+will never be called.
+
+Now as a LKM, i915 must be able to cleanup everything that
+allocated/initialized by vgt. This patch fixed several BUGs
+exposed during module unload:
+
+	- klog rchan may be uninitialized, but vgt didn't check it;
+	- we can't clean up GGTT contents by calling into intel-gtt,
+	  it is only for GEN <= 5;
+	- in the vgt main thread, we can not wait for event without
+	  checking kthread_should_stop();
+	- removing elements from a double-linked list, we should
+	  use the xxx_safe() variants;
+
+Signed-off-by: Jike Song <jike.song@intel.com>
+---
+ drivers/gpu/drm/i915/i915_dma.c      |  5 +++
+ drivers/gpu/drm/i915/i915_irq.c      |  7 +++--
+ drivers/gpu/drm/i915/vgt/host.c      |  6 ++++
+ drivers/gpu/drm/i915/vgt/host.h      |  1 +
+ drivers/gpu/drm/i915/vgt/instance.c  |  8 ++---
+ drivers/gpu/drm/i915/vgt/interrupt.c |  5 ---
+ drivers/gpu/drm/i915/vgt/klog.c      |  2 +-
+ drivers/gpu/drm/i915/vgt/utility.c   |  5 ++-
+ drivers/gpu/drm/i915/vgt/vgt.c       | 60 +++++++++++++++++++-----------------
+ drivers/xen/xengt.c                  | 22 ++++++++-----
+ 10 files changed, 68 insertions(+), 53 deletions(-)
+
+diff --git a/drivers/gpu/drm/i915/i915_dma.c b/drivers/gpu/drm/i915/i915_dma.c
+index 53d9551..2339d75 100644
+--- a/drivers/gpu/drm/i915/i915_dma.c
++++ b/drivers/gpu/drm/i915/i915_dma.c
+@@ -931,6 +931,11 @@ int i915_driver_unload(struct drm_device *dev)
+ 	if (drm_core_check_feature(dev, DRIVER_MODESET)) {
+ 		intel_modeset_cleanup(dev);
+ 
++		if (i915_host_mediate) {
++			i915_stop_vgt();
++			i915_host_mediate = false;
++		}
++
+ 		/*
+ 		 * free the memory space allocated for the child device
+ 		 * config parsed from VBT
+diff --git a/drivers/gpu/drm/i915/i915_irq.c b/drivers/gpu/drm/i915/i915_irq.c
+index 2a7c992..f53129f 100644
+--- a/drivers/gpu/drm/i915/i915_irq.c
++++ b/drivers/gpu/drm/i915/i915_irq.c
+@@ -4394,10 +4394,13 @@ static int vgt_irq_postinstall(struct drm_device *dev)
+ static void vgt_irq_uninstall(struct drm_device *dev)
+ {
+ 	struct drm_i915_private *dev_priv = dev->dev_private;
+-	irq_work_sync(&dev_priv->irq_work);
++	if (i915_host_mediate)
++		irq_work_sync(&dev_priv->irq_work);
+ 
+ 	dev_priv->irq_ops.irq_uninstall(dev);
+-	vgt_fini_irq(dev->pdev);
++
++	if (i915_host_mediate)
++		vgt_fini_irq(dev->pdev);
+ }
+ #endif
+ 
+diff --git a/drivers/gpu/drm/i915/vgt/host.c b/drivers/gpu/drm/i915/vgt/host.c
+index 5f72f8f..69e67e9 100644
+--- a/drivers/gpu/drm/i915/vgt/host.c
++++ b/drivers/gpu/drm/i915/vgt/host.c
+@@ -125,6 +125,11 @@ bool vgt_host_write(u32 reg, void *val, int len, bool is_gtt, bool trace)
+ 	return vgt_ops->emulate_write(vgt_dom0, pa, val, len);
+ }
+ 
++void tmp_vgt_clear_gtt(unsigned int gtt_size)
++{
++	memset_io(dev_priv->gtt.gsm, 0, gtt_size);
++}
++
+ void vgt_host_irq_sync(void)
+ {
+ 	irq_work_sync(&dev_priv->irq_work);
+@@ -145,3 +150,4 @@ void vgt_force_wake_put(void)
+ {
+ 	gen6_gt_force_wake_put(dev_priv, FORCEWAKE_ALL);
+ }
++
+diff --git a/drivers/gpu/drm/i915/vgt/host.h b/drivers/gpu/drm/i915/vgt/host.h
+index 8474d3f..5c87437 100644
+--- a/drivers/gpu/drm/i915/vgt/host.h
++++ b/drivers/gpu/drm/i915/vgt/host.h
+@@ -21,6 +21,7 @@ bool vgt_native_gtt_read(u32 reg, void *val, int len);
+ bool vgt_native_gtt_write(u32 reg, void *val, int len);
+ void vgt_host_irq(int);
+ void vgt_host_irq_sync(void);
++void tmp_vgt_clear_gtt(unsigned int);
+ 
+ void vgt_force_wake_get(void);
+ void vgt_force_wake_put(void);
+diff --git a/drivers/gpu/drm/i915/vgt/instance.c b/drivers/gpu/drm/i915/vgt/instance.c
+index 50a1e41..9b0f541 100644
+--- a/drivers/gpu/drm/i915/vgt/instance.c
++++ b/drivers/gpu/drm/i915/vgt/instance.c
+@@ -343,7 +343,6 @@ void vgt_release_instance(struct vgt_device *vgt)
+ {
+ 	int i;
+ 	struct pgt_device *pdev = vgt->pdev;
+-	struct list_head *pos;
+ 	struct vgt_device *v = NULL;
+ 	int cpu;
+ 
+@@ -357,8 +356,7 @@ void vgt_release_instance(struct vgt_device *vgt)
+ 	vgt_lock_dev(pdev, cpu);
+ 
+ 	printk("check render ownership...\n");
+-	list_for_each (pos, &pdev->rendering_runq_head) {
+-		v = list_entry (pos, struct vgt_device, list);
++	list_for_each_entry(v, &pdev->rendering_runq_head, list) {
+ 		if (v == vgt)
+ 			break;
+ 	}
+@@ -390,7 +388,7 @@ void vgt_release_instance(struct vgt_device *vgt)
+ 	vgt_unlock_dev(pdev, cpu);
+ 	if (vgt->force_removal)
+ 		/* wait for removal completion */
+-		wait_event(pdev->destroy_wq, !vgt->force_removal);
++		wait_event_killable(pdev->destroy_wq, !vgt->force_removal);
+ 
+ 	printk("release display/render ownership... done\n");
+ 
+@@ -399,7 +397,6 @@ void vgt_release_instance(struct vgt_device *vgt)
+ 		vgt_destroy_rb_tailq(vgt);
+ 
+ 	vgt_clean_vgtt(vgt);
+-	hypervisor_hvm_exit(vgt);
+ 
+ 	if (vgt->state.opregion_va) {
+ 		vgt_hvm_opregion_map(vgt, 0);
+@@ -408,6 +405,7 @@ void vgt_release_instance(struct vgt_device *vgt)
+ 	}
+ 
+ 	vgt_lock_dev(pdev, cpu);
++	hypervisor_hvm_exit(vgt);
+ 
+ 	vgt->pdev->device[vgt->vgt_id] = NULL;
+ 	free_vgt_id(vgt->vgt_id);
+diff --git a/drivers/gpu/drm/i915/vgt/interrupt.c b/drivers/gpu/drm/i915/vgt/interrupt.c
+index ba1625c..48c8712 100644
+--- a/drivers/gpu/drm/i915/vgt/interrupt.c
++++ b/drivers/gpu/drm/i915/vgt/interrupt.c
+@@ -2120,12 +2120,7 @@ int vgt_irq_init(struct pgt_device *pdev)
+ 
+ void vgt_irq_exit(struct pgt_device *pdev)
+ {
+-	free_irq(pdev->irq_hstate->pirq, pdev);
+ 	hrtimer_cancel(&pdev->irq_hstate->dpy_timer.timer);
+-
+-	/* TODO: recover i915 handler? */
+-	//unbind_from_irq(vgt_i915_irq(pdev));
+-
+ 	kfree(pdev->irq_hstate);
+ }
+ 
+diff --git a/drivers/gpu/drm/i915/vgt/klog.c b/drivers/gpu/drm/i915/vgt/klog.c
+index 412bc1c..c5dc94d 100644
+--- a/drivers/gpu/drm/i915/vgt/klog.c
++++ b/drivers/gpu/drm/i915/vgt/klog.c
+@@ -35,7 +35,7 @@ static char klog_buf[NR_CPUS][KLOG_TMPBUF_SIZE];
+ /* This app's channel/control files will appear in /debug/klog */
+ #define APP_DIR		"klog"
+ 
+-static struct rchan *	chan;
++static struct rchan *chan = NULL;
+ 
+ /* app data */
+ static struct dentry *	dir;
+diff --git a/drivers/gpu/drm/i915/vgt/utility.c b/drivers/gpu/drm/i915/vgt/utility.c
+index 87074cb..b5232eb4 100644
+--- a/drivers/gpu/drm/i915/vgt/utility.c
++++ b/drivers/gpu/drm/i915/vgt/utility.c
+@@ -835,9 +835,8 @@ err_out:
+ 
+ void free_gtt(struct pgt_device *pdev)
+ {
+-	intel_gtt_clear_range(0,
+-		(phys_aperture_sz(pdev) - GTT_PAGE_SIZE)/PAGE_SIZE);
+-
++	/* TODO: move this to host i915, when it is GVT-g aware */
++	tmp_vgt_clear_gtt(pdev->gtt_size);
+ 	vgt_free_gtt_pages(pdev);
+ }
+ 
+diff --git a/drivers/gpu/drm/i915/vgt/vgt.c b/drivers/gpu/drm/i915/vgt/vgt.c
+index 189836b..3dbfe95 100644
+--- a/drivers/gpu/drm/i915/vgt/vgt.c
++++ b/drivers/gpu/drm/i915/vgt/vgt.c
+@@ -188,7 +188,6 @@ struct pgt_device default_device = {
+ 
+ struct vgt_device *vgt_dom0;
+ struct pgt_device *pdev_default = &default_device;
+-struct drm_i915_private *dev_priv = NULL;
+ DEFINE_PER_CPU(u8, in_vgt);
+ 
+ uint64_t vgt_gttmmio_va(struct pgt_device *pdev, off_t reg)
+@@ -254,12 +253,15 @@ static int vgt_thread(void *priv)
+ 	while (!kthread_should_stop()) {
+ 		enum vgt_ring_id ring_id;
+ 		bool ctx_irq_received = false;
+-		ret = wait_event_interruptible(pdev->event_wq,
+-			pdev->request || freezing(current));
++		ret = wait_event_interruptible(pdev->event_wq, kthread_should_stop() ||
++					pdev->request || freezing(current));
+ 
+ 		if (ret)
+ 			vgt_warn("Main thread waken up by unexpected signal!\n");
+ 
++		if (kthread_should_stop())
++			break;
++
+ 		if (!pdev->request && !freezing(current)) {
+ 			vgt_warn("Main thread waken up by unknown reasons!\n");
+ 			continue;
+@@ -699,8 +701,7 @@ static bool vgt_initialize_pgt_device(struct pci_dev *dev, struct pgt_device *pd
+ 
+ void vgt_destroy(void)
+ {
+-	struct list_head *pos, *next;
+-	struct vgt_device *vgt;
++	struct vgt_device *vgt, *tmp;
+ 	struct pgt_device *pdev = &default_device;
+ 	int i;
+ 
+@@ -711,18 +712,23 @@ void vgt_destroy(void)
+ 
+ 	vgt_cleanup_ctx_scheduler(pdev);
+ 
++	cancel_work_sync(&pdev->hpd_work.work);
++
+ 	/* do we need the thread actually stopped? */
+ 	kthread_stop(pdev->p_thread);
+ 
+ 	vgt_irq_exit(pdev);
+ 
+ 	/* Deactive all VGTs */
+-	while ( !list_empty(&pdev->rendering_runq_head) ) {
+-		list_for_each (pos, &pdev->rendering_runq_head) {
+-			vgt = list_entry (pos, struct vgt_device, list);
+-			vgt_disable_render(vgt);
+-		}
+-	};
++	bool unlock = false;
++	unsigned long flags;
++	if (!spin_is_locked(&pdev->lock)) {
++		spin_lock_irqsave(&pdev->lock, flags);
++		unlock = true;
++	}
++
++	list_for_each_entry_safe(vgt, tmp, &pdev->rendering_runq_head, list)
++		vgt_disable_render(vgt);
+ 
+ 	/* Destruct all vgt_debugfs */
+ 	vgt_release_debugfs();
+@@ -738,14 +744,12 @@ void vgt_destroy(void)
+ 	if (pdev->opregion_va)
+ 		iounmap(pdev->opregion_va);
+ 
+-	while ( !list_empty(&pdev->rendering_idleq_head)) {
+-		for (pos = pdev->rendering_idleq_head.next;
+-			pos != &pdev->rendering_idleq_head; pos = next) {
+-			next = pos->next;
+-			vgt = list_entry (pos, struct vgt_device, list);
+-			vgt_release_instance(vgt);
+-		}
+-	}
++	if (unlock)
++		spin_unlock_irqrestore(&pdev->lock, flags);
++
++	list_for_each_entry_safe(vgt, tmp, &pdev->rendering_idleq_head, list)
++		vgt_release_instance(vgt);
++
+ 	vgt_clear_mmio_table();
+ 	vfree(pdev->reg_info);
+ 	vfree(pdev->initial_mmio_state);
+@@ -1223,23 +1227,21 @@ bool vgt_check_host(void)
+ 	return true;
+ }
+ 
+-static int vgt_init(void)
++static bool vgt_init(void)
+ {
+-	if (!hypervisor_check_host())
+-		return -EINVAL;
+-
+ 	vgt_param_check();
+ 	vgt_klog_init();
+-
+-	return 0;
++	return true;
+ }
+ 
+-__maybe_unused
+ void i915_stop_vgt(void)
+ {
+-	//TODO: fill other exit works here
+ 	vgt_destroy();
+ 	vgt_klog_cleanup();
++
++	symbol_put(xengt_kdm);
++	vgt_pkdm = NULL;
++	vgt_ops = NULL;
+ }
+ 
+ bool i915_start_vgt(struct pci_dev *pdev)
+@@ -1252,10 +1254,10 @@ bool i915_start_vgt(struct pci_dev *pdev)
+ 		return false;
+ 	} //TODO: request kvmgt here!
+ 
+-	if (!vgt_init())
++	if (!vgt_check_host())
+ 		return false;
+ 
+-	if (!vgt_check_host())
++	if (!vgt_init())
+ 		return false;
+ 
+ 	return vgt_initialize(pdev) == 0;
+diff --git a/drivers/xen/xengt.c b/drivers/xen/xengt.c
+index 04a9a30..5881451 100644
+--- a/drivers/xen/xengt.c
++++ b/drivers/xen/xengt.c
+@@ -867,13 +867,14 @@ static int vgt_emulation_thread(void *priv)
+ 		ret = wait_event_freezable(info->io_event_wq,
+ 			kthread_should_stop() ||
+ 			bitmap_weight(info->ioreq_pending, nr_vcpus));
+-		if (ret)
+-			vgt_warn("Emulation thread(%d) waken up"
+-				 "by unexpected signal!\n", vgt->vm_id);
+ 
+ 		if (kthread_should_stop())
+ 			return 0;
+ 
++		if (ret)
++			vgt_warn("Emulation thread(%d) waken up"
++				 "by unexpected signal!\n", vgt->vm_id);
++
+ 		for (vcpu = 0; vcpu < nr_vcpus; vcpu++) {
+ 			if (!test_and_clear_bit(vcpu, info->ioreq_pending))
+ 				continue;
+@@ -886,8 +887,13 @@ static int vgt_emulation_thread(void *priv)
+ 				hypervisor_shutdown_domain(vgt);
+ 			}
+ 
+-			if (vgt->force_removal)
+-				wait_event(vgt->pdev->destroy_wq, !vgt->force_removal);
++			if (vgt->force_removal) {
++				wait_event(vgt->pdev->destroy_wq,
++						kthread_should_stop() ||
++						!vgt->force_removal);
++				if (kthread_should_stop())
++					return 0;
++			}
+ 
+ 			ioreq->state = STATE_IORESP_READY;
+ 
+@@ -944,15 +950,15 @@ static void xen_hvm_exit(struct vgt_device *vgt)
+ 	if (info == NULL)
+ 		return;
+ 
+-	if (info->iosrv_id != 0)
+-		hvm_destroy_iorequest_server(vgt);
+-
+ 	if (info->emulation_thread != NULL)
+ 		kthread_stop(info->emulation_thread);
+ 
+ 	if (!info->nr_vcpu || info->evtchn_irq == NULL)
+ 		goto out1;
+ 
++	if (info->iosrv_id != 0)
++		hvm_destroy_iorequest_server(vgt);
++
+ 	for (vcpu = 0; vcpu < info->nr_vcpu; vcpu++){
+ 		if(info->evtchn_irq[vcpu] >= 0)
+ 			unbind_from_irqhandler(info->evtchn_irq[vcpu], vgt);
+-- 
+1.9.1
+

@@ -1,0 +1,39 @@
+diff --git a/drivers/base/Kconfig b/drivers/base/Kconfig
+index 07abd9d..14737b0 100644
+--- a/drivers/base/Kconfig
++++ b/drivers/base/Kconfig
+@@ -193,7 +193,7 @@ config SOC_BUS
+ source "drivers/base/regmap/Kconfig"
+ 
+ config DMA_SHARED_BUFFER
+-	bool
++	bool "DMA Shared Buffer Framework"
+ 	default n
+ 	select ANON_INODES
+ 	help
+diff --git a/drivers/video/Kconfig b/drivers/video/Kconfig
+index 2e937bd..39c25b3 100644
+--- a/drivers/video/Kconfig
++++ b/drivers/video/Kconfig
+@@ -37,7 +37,7 @@ config VIDEOMODE_HELPERS
+ 	bool
+ 
+ config HDMI
+-	bool
++	bool "Enable HDMI support"
+ 
+ menuconfig FB
+ 	tristate "Support for frame buffer devices"
+diff --git a/lib/Kconfig b/lib/Kconfig
+index 5c87211..1367b3c 100644
+--- a/lib/Kconfig
++++ b/lib/Kconfig
+@@ -295,7 +295,7 @@ config BTREE
+ 	boolean
+ 
+ config INTERVAL_TREE
+-	boolean
++	boolean "Interval Tree"
+ 	help
+ 	  Simple, embeddable, interval-tree. Can find the start of an
+ 	  overlapping range in log(n) time and then iterate over all

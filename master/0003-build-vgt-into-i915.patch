@@ -1,0 +1,79 @@
+From efd5030aafbb87899b347e97f68edff7edec13cb Mon Sep 17 00:00:00 2001
+From: Jike Song <jike.song@intel.com>
+Date: Mon, 27 Apr 2015 16:46:54 +0800
+Subject: [PATCH 3/8] build vgt into i915
+
+So vgt is now a feature of i915, can be configured as either Y or N.
+previsous vgt related kernel params, say "xen_vgt.hvm_boot_foreground",
+should be changed to "i915.hvm_boot_foreground".
+
+Besides, we have to drop the "-Werror" CC option from vgt, since
+we are not part of i915.
+
+Signed-off-by: Jike Song <jike.song@intel.com>
+diff --git a/drivers/gpu/drm/i915/Kconfig b/drivers/gpu/drm/i915/Kconfig
+index b3cd776..210d297 100644
+--- a/drivers/gpu/drm/i915/Kconfig
++++ b/drivers/gpu/drm/i915/Kconfig
+@@ -71,7 +71,7 @@ config DRM_I915_PRELIMINARY_HW_SUPPORT
+ 	  If in doubt, say "N".
+ 
+ config I915_VGT
+-	tristate "iGVT-g vGT driver of i915"
++	bool "iGVT-g vGT driver of i915"
+ 	depends on DRM_I915
+ 	select IRQ_WORK
+ 	default y
+diff --git a/drivers/gpu/drm/i915/Makefile b/drivers/gpu/drm/i915/Makefile
+index 92a4e7f..c8d93a5 100644
+--- a/drivers/gpu/drm/i915/Makefile
++++ b/drivers/gpu/drm/i915/Makefile
+@@ -3,7 +3,6 @@
+ # Direct Rendering Infrastructure (DRI) in XFree86 4.1.0 and higher.
+ 
+ ccflags-y := -Iinclude/drm
+-ccflags-$(CONFIG_I915_VGT) += -I$(src)/vgt
+ 
+ # Please keep these build lists sorted!
+ 
+@@ -87,6 +86,30 @@ i915-y += i915_dma.o \
+ 	  i915_ums.o
+ 
+ obj-$(CONFIG_DRM_I915)  += i915.o
+-obj-$(CONFIG_I915_VGT)  += vgt/
++
++VGT := vgt
++ccflags-$(CONFIG_I915_VGT) += -I$(src)/$(VGT) -I$(src) -Wall
++i915-$(CONFIG_I915_VGT)  += $(VGT)/vgt.o	\
++			   $(VGT)/render.o \
++			   $(VGT)/mmio.o \
++			   $(VGT)/handlers.o \
++			   $(VGT)/interrupt.o \
++			   $(VGT)/sysfs.o \
++			   $(VGT)/display.o \
++			   $(VGT)/debugfs.o \
++			   $(VGT)/edid.o \
++			   $(VGT)/gtt.o \
++			   $(VGT)/aperture_gm.o \
++			   $(VGT)/utility.o \
++			   $(VGT)/klog.o \
++			   $(VGT)/dev.o \
++			   $(VGT)/cmd_parser.o \
++			   $(VGT)/sched.o \
++			   $(VGT)/instance.o \
++			   $(VGT)/cfg_space.o \
++			   $(VGT)/fb_decoder.o \
++			   $(VGT)/vbios.o \
++			   $(VGT)/host.o \
++			   $(VGT)/execlists.o
+ 
+ CFLAGS_i915_trace_points.o := -I$(src)
+diff --git a/drivers/gpu/drm/i915/vgt/Makefile b/drivers/gpu/drm/i915/vgt/Makefile
+index 51327eb..f2929cf 100644
+--- a/drivers/gpu/drm/i915/vgt/Makefile
++++ b/drivers/gpu/drm/i915/vgt/Makefile
+@@ -5,4 +5,3 @@ VGT_SOURCE := vgt.o render.o mmio.o handlers.o interrupt.o  \
+ 
+ ccflags-y				+= -I$(src) -I$(src)/.. -Wall
+ xen_vgt-y				:= $(VGT_SOURCE)
+-obj-$(CONFIG_I915_VGT)			+= xen_vgt.o

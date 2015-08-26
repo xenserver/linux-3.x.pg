@@ -1,9 +1,9 @@
 diff --git a/buildconfigs/linux-defconfig_xen_x86_64 b/buildconfigs/linux-defconfig_xen_x86_64
 new file mode 100644
-index 0000000..60f1cd5
+index 0000000..479c88a
 --- /dev/null
 +++ b/buildconfigs/linux-defconfig_xen_x86_64
-@@ -0,0 +1,3837 @@
+@@ -0,0 +1,3844 @@
 +#
 +# Automatically generated file; DO NOT EDIT.
 +# Linux/x86_64 3.10.0+0 Kernel Configuration
@@ -1207,7 +1207,7 @@ index 0000000..60f1cd5
 +# CONFIG_DEBUG_DEVRES is not set
 +CONFIG_SYS_HYPERVISOR=y
 +# CONFIG_GENERIC_CPU_DEVICES is not set
-+# CONFIG_DMA_SHARED_BUFFER is not set
++CONFIG_DMA_SHARED_BUFFER=y
 +
 +#
 +# Bus devices
@@ -2114,7 +2114,7 @@ index 0000000..60f1cd5
 +#
 +# I2C Algorithms
 +#
-+CONFIG_I2C_ALGOBIT=m
++CONFIG_I2C_ALGOBIT=y
 +CONFIG_I2C_ALGOPCF=m
 +CONFIG_I2C_ALGOPCA=m
 +
@@ -2499,13 +2499,18 @@ index 0000000..60f1cd5
 +#
 +# Graphics support
 +#
-+# CONFIG_AGP is not set
++CONFIG_AGP=y
++# CONFIG_AGP_AMD64 is not set
++CONFIG_AGP_INTEL=y
++# CONFIG_AGP_SIS is not set
++# CONFIG_AGP_VIA is not set
 +CONFIG_VGA_ARB=y
 +CONFIG_VGA_ARB_MAX_GPUS=16
 +# CONFIG_VGA_SWITCHEROO is not set
 +# CONFIG_DRM is not set
 +CONFIG_VGASTATE=m
 +CONFIG_VIDEO_OUTPUT_CONTROL=m
++CONFIG_HDMI=y
 +CONFIG_FB=y
 +CONFIG_FIRMWARE_EDID=y
 +# CONFIG_FB_DDC is not set
@@ -2546,6 +2551,7 @@ index 0000000..60f1cd5
 +# CONFIG_FB_RIVA is not set
 +# CONFIG_FB_I740 is not set
 +# CONFIG_FB_LE80578 is not set
++# CONFIG_FB_INTEL is not set
 +# CONFIG_FB_MATROX is not set
 +# CONFIG_FB_RADEON is not set
 +# CONFIG_FB_ATY128 is not set
@@ -2577,7 +2583,7 @@ index 0000000..60f1cd5
 +# CONFIG_EXYNOS_VIDEO is not set
 +CONFIG_BACKLIGHT_LCD_SUPPORT=y
 +# CONFIG_LCD_CLASS_DEVICE is not set
-+CONFIG_BACKLIGHT_CLASS_DEVICE=m
++CONFIG_BACKLIGHT_CLASS_DEVICE=y
 +# CONFIG_BACKLIGHT_GENERIC is not set
 +# CONFIG_BACKLIGHT_APPLE is not set
 +# CONFIG_BACKLIGHT_SAHARA is not set
@@ -3459,6 +3465,7 @@ index 0000000..60f1cd5
 +# CONFIG_RT_MUTEX_TESTER is not set
 +# CONFIG_DEBUG_SPINLOCK is not set
 +# CONFIG_DEBUG_MUTEXES is not set
++# CONFIG_DEBUG_WW_MUTEX_SLOWPATH is not set
 +# CONFIG_DEBUG_LOCK_ALLOC is not set
 +# CONFIG_PROVE_LOCKING is not set
 +# CONFIG_LOCK_STAT is not set
@@ -3825,6 +3832,7 @@ index 0000000..60f1cd5
 +CONFIG_TEXTSEARCH_BM=m
 +CONFIG_TEXTSEARCH_FSM=m
 +CONFIG_BTREE=y
++CONFIG_INTERVAL_TREE=y
 +CONFIG_HAS_IOMEM=y
 +CONFIG_HAS_IOPORT=y
 +CONFIG_HAS_DMA=y
@@ -3840,4 +3848,3 @@ index 0000000..60f1cd5
 +# CONFIG_DDR is not set
 +CONFIG_MPILIB=m
 +CONFIG_OID_REGISTRY=m
-+CONFIG_UCS2_STRING=y

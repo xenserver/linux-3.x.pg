@@ -1,0 +1,25 @@
+From ce13000cdf03b783ea7017fe89ecbef31b6991df Mon Sep 17 00:00:00 2001
+From: Jike Song <jike.song@intel.com>
+Date: Wed, 29 Apr 2015 15:25:05 +0800
+Subject: [PATCH 2/8] agp-intel: restore the original dependecy of INTEL_GTT
+
+Signed-off-by: Jike Song <jike.song@intel.com>
+---
+ drivers/char/agp/Kconfig | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/drivers/char/agp/Kconfig b/drivers/char/agp/Kconfig
+index bb9e227..c528f96 100644
+--- a/drivers/char/agp/Kconfig
++++ b/drivers/char/agp/Kconfig
+@@ -68,6 +68,7 @@ config AGP_AMD64
+ config AGP_INTEL
+ 	tristate "Intel 440LX/BX/GX, I8xx and E7x05 chipset support"
+ 	depends on AGP && X86
++	select INTEL_GTT
+ 	help
+ 	  This option gives you AGP support for the GLX component of X
+ 	  on Intel 440LX/BX/GX, 815, 820, 830, 840, 845, 850, 860, 875,
+-- 
+1.9.1
+

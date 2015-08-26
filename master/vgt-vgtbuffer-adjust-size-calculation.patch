@@ -1,0 +1,27 @@
+diff --git a/drivers/gpu/drm/i915/i915_gem_vgtbuffer.c b/drivers/gpu/drm/i915/i915_gem_vgtbuffer.c
+index d16574f..d8e19d5 100644
+--- a/drivers/gpu/drm/i915/i915_gem_vgtbuffer.c
++++ b/drivers/gpu/drm/i915/i915_gem_vgtbuffer.c
+@@ -114,9 +114,13 @@ i915_gem_vgtbuffer_ioctl(struct drm_device *dev, void *data,
+ 		args->hw_format = p->hw_format;
+ 		args->drm_format = p->drm_format;
+ 		args->tiled = p->tiled;
+-		args->size = (((p->width * p->height * p->bpp) / 8) +
++		args->size = ((p->stride * roundup(p->height, 8)) +
+ 			      (PAGE_SIZE - 1)) >> PAGE_SHIFT;
+ 
++		DRM_DEBUG_DRIVER("VGT GEM: Surface %ux%ux%u\n", p->width, p->height, p->bpp);
++		DRM_DEBUG_DRIVER("VGT GEM: stride = %u\n", p->stride);
++
++
+ 		uint64_t range = p->base >> PAGE_SHIFT;
+ 		range += args->size;
+ 
+@@ -132,6 +136,7 @@ i915_gem_vgtbuffer_ioctl(struct drm_device *dev, void *data,
+ 		DRM_DEBUG_DRIVER("VGT GEM: Surface GTT Offset = %x\n", p->base);
+ 		obj->tiling_mode = p->tiled ? I915_TILING_X : 0;
+ 		obj->stride = p->tiled ? args->stride : 0;
++		DRM_DEBUG_DRIVER("VGT GEM: tile mode %x, tile stride %x = %x\n", obj->tiling_mode, obj->stride);
+ 	}
+ 
+ 	if ((args->plane_id) == I915_VGT_PLANE_CURSOR) {

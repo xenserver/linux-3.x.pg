@@ -1,0 +1,53 @@
+diff --git a/drivers/gpu/drm/i915/vgt/debugfs.c b/drivers/gpu/drm/i915/vgt/debugfs.c
+index afd8d78..d892e38 100644
+--- a/drivers/gpu/drm/i915/vgt/debugfs.c
++++ b/drivers/gpu/drm/i915/vgt/debugfs.c
+@@ -1382,4 +1382,5 @@ void vgt_release_debugfs(void)
+ 		return;
+ 
+ 	debugfs_remove_recursive(d_vgt_debug);
++	d_vgt_debug = NULL;
+ }
+diff --git a/drivers/gpu/drm/i915/vgt/sysfs.c b/drivers/gpu/drm/i915/vgt/sysfs.c
+index 1c54890..f4d7544 100644
+--- a/drivers/gpu/drm/i915/vgt/sysfs.c
++++ b/drivers/gpu/drm/i915/vgt/sysfs.c
+@@ -1173,6 +1173,13 @@ kset_fail:
+ 
+ void vgt_destroy_sysfs(void)
+ {
++	int i;
++	struct pgt_device *pgt = &default_device;
++
++	for (i = 0; i < I915_MAX_PORTS; i++) {
++		sysfs_remove_bin_file(&pgt->ports[i].kobj, &port_edid_attr);
++		kobject_put(&pgt->ports[i].kobj);
++	}
+ 	sysfs_remove_bin_file(vgt_ctrl_kobj, &igd_mmio_attr);
+ 	kobject_put(vgt_ctrl_kobj);
+ 	kset_unregister(vgt_kset);
+diff --git a/drivers/gpu/drm/i915/vgt/vgt.c b/drivers/gpu/drm/i915/vgt/vgt.c
+index ef6290b..9468263 100644
+--- a/drivers/gpu/drm/i915/vgt/vgt.c
++++ b/drivers/gpu/drm/i915/vgt/vgt.c
+@@ -752,7 +752,9 @@ void vgt_destroy(void)
+ 
+ 	vgt_clear_mmio_table();
+ 	vfree(pdev->reg_info);
++	pdev->reg_info = NULL;
+ 	vfree(pdev->initial_mmio_state);
++	pdev->initial_mmio_state = NULL;
+ 
+ 	for (i = 0; i < I915_MAX_PORTS; ++ i) {
+ 		if (pdev->ports[i].edid) {
+@@ -780,6 +782,10 @@ static int vgt_initialize(struct pci_dev *dev)
+ 	struct task_struct *p_thread;
+ 	vgt_params_t vp;
+ 
++	memset(&default_device, 0, sizeof default_device);
++	default_device.bus = 0;
++	default_device.devfn = 0x10;		/* BDF: 0:2:0 */
++
+ 	spin_lock_init(&pdev->lock);
+ 
+ 	if (!vgt_initialize_pgt_device(dev, pdev))

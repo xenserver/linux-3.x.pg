@@ -1,0 +1,39 @@
+diff --git a/drivers/gpu/drm/i915/i915_gem_vgtbuffer.c b/drivers/gpu/drm/i915/i915_gem_vgtbuffer.c
+index d8e19d5..06e7482 100644
+--- a/drivers/gpu/drm/i915/i915_gem_vgtbuffer.c
++++ b/drivers/gpu/drm/i915/i915_gem_vgtbuffer.c
+@@ -180,14 +180,20 @@ i915_gem_vgtbuffer_ioctl(struct drm_device *dev, void *data,
+ 			 (unsigned int)gtt_base);
+ 	DRM_DEBUG_DRIVER("VGT GEM: fb start %x\n", (unsigned int)gtt_fbstart);
+ 
+-	gtt_base += gtt_fbstart;
++	if (IS_BROADWELL(dev_priv))
++		gtt_base += (gtt_fbstart * 2);
++	else
++		gtt_base += gtt_fbstart;
+ 
+ 	DRM_DEBUG_DRIVER("VGT GEM: gtt + fb start  %x\n", (uint32_t) gtt_base);
+ 
+ 	for (i = 0; i < num_pages; i++) {
+ 		uint64_t overflow;
+ 
+-		gtt_pte = readl(&gtt_base[i]);
++		if (IS_BROADWELL(dev_priv))
++			gtt_pte = readl(&gtt_base[i*2]);
++		else
++			gtt_pte = readl(&gtt_base[i]);
+ 
+ 		gtt_hash = (gtt_hash << 4) + gtt_pte;
+ 		overflow = gtt_hash & (0xf << 32);
+@@ -205,11 +211,6 @@ i915_gem_vgtbuffer_ioctl(struct drm_device *dev, void *data,
+ 		return 0;
+ 	}
+ 
+-	DRM_DEBUG_DRIVER("VGT: gtt_base=0x%x\n", gtt_base);
+-
+-	gtt_pte = readl(gtt_base);
+-
+-	DRM_DEBUG_DRIVER("VGT GEM: pte  %x\n", (uint32_t) gtt_pte);
+ 	DRM_DEBUG_DRIVER("VGT GEM: num_pages from fb decode=%d  \n",
+ 			 (uint32_t) num_pages);
+ 

@@ -1,0 +1,1967 @@
+diff --git a/drivers/gpu/drm/i915/i915_dma.c b/drivers/gpu/drm/i915/i915_dma.c
+index f8c6f9b..53a55f5 100644
+--- a/drivers/gpu/drm/i915/i915_dma.c
++++ b/drivers/gpu/drm/i915/i915_dma.c
+@@ -92,6 +92,9 @@ static int i915_getparam(struct drm_device *dev, void *data,
+ 	case I915_PARAM_HAS_VEBOX:
+ 		value = intel_ring_initialized(&dev_priv->ring[VECS]);
+ 		break;
++	case I915_PARAM_HAS_BSD2:
++		value = intel_ring_initialized(&dev_priv->ring[VCS2]);
++		break;
+ 	case I915_PARAM_HAS_RELAXED_FENCING:
+ 		value = 1;
+ 		break;
+diff --git a/drivers/gpu/drm/i915/i915_gem.c b/drivers/gpu/drm/i915/i915_gem.c
+index 9ef2aed..b57fc33 100644
+--- a/drivers/gpu/drm/i915/i915_gem.c
++++ b/drivers/gpu/drm/i915/i915_gem.c
+@@ -3119,9 +3119,8 @@ int i915_vma_unbind(struct i915_vma *vma)
+ 
+ 	/* Since the unbound list is global, only move to that list if
+ 	 * no more VMAs exist. */
+-	if (list_empty(&obj->vma_list)) {
+-		if (!obj->has_vmfb_mapping)
+-			i915_gem_gtt_finish_object(obj);
++	if (list_empty(&obj->vma_list) && !obj->has_vmfb_mapping) {
++		i915_gem_gtt_finish_object(obj);
+ 		list_move_tail(&obj->global_list, &dev_priv->mm.unbound_list);
+ 	}
+ 
+@@ -4684,6 +4683,10 @@ struct i915_vma *i915_gem_obj_to_vma(struct drm_i915_gem_object *obj,
+ void i915_gem_vma_destroy(struct i915_vma *vma)
+ {
+ 	struct i915_address_space *vm = NULL;
++
++	if (vma->obj->has_vmfb_mapping)
++		vma->node.allocated = 0;
++
+ 	WARN_ON(vma->node.allocated);
+ 
+ 	/* Keep the vma as a placeholder in the execbuffer reservation lists */
+diff --git a/drivers/gpu/drm/i915/i915_gem_execbuffer.c b/drivers/gpu/drm/i915/i915_gem_execbuffer.c
+index e7e6c83..7de2815 100644
+--- a/drivers/gpu/drm/i915/i915_gem_execbuffer.c
++++ b/drivers/gpu/drm/i915/i915_gem_execbuffer.c
+@@ -1352,13 +1352,34 @@ i915_gem_do_execbuffer(struct drm_device *dev, void *data,
+ 		return -EINVAL;
+ 	}
+ 
++	if (((args->flags & I915_EXEC_RING_MASK) != I915_EXEC_BSD) &&
++		((args->flags & I915_EXEC_BSD_MASK) != 0)) {
++		DRM_DEBUG("execbuf with non bsd ring but with invalid "
++			"bsd dispatch flags: %d\n", (int)(args->flags));
++		return -EINVAL;
++	}
++
+ 	if ((args->flags & I915_EXEC_RING_MASK) == I915_EXEC_DEFAULT)
+ 		ring = &dev_priv->ring[RCS];
+ 	else if ((args->flags & I915_EXEC_RING_MASK) == I915_EXEC_BSD) {
+ 		if (HAS_BSD2(dev)) {
+ 			int ring_id;
+-			ring_id = gen8_dispatch_bsd_ring(dev, file);
+-			ring = &dev_priv->ring[ring_id];
++			switch (args->flags & I915_EXEC_BSD_MASK) {
++			case I915_EXEC_BSD_DEFAULT:
++				ring_id = gen8_dispatch_bsd_ring(dev, file);
++				ring = &dev_priv->ring[ring_id];
++				break;
++			case I915_EXEC_BSD_RING1:
++				ring = &dev_priv->ring[VCS];
++				break;
++			case I915_EXEC_BSD_RING2:
++				ring = &dev_priv->ring[VCS2];
++				break;
++			default:
++				DRM_DEBUG("execbuf with unknown bsd ring: %d\n",
++					(int)(args->flags & I915_EXEC_BSD_MASK));
++				return -EINVAL;
++			}
+ 		} else
+ 			ring = &dev_priv->ring[VCS];
+ 	} else
+diff --git a/drivers/gpu/drm/i915/i915_gem_gtt.c b/drivers/gpu/drm/i915/i915_gem_gtt.c
+index 997ec8a..e84685b 100644
+--- a/drivers/gpu/drm/i915/i915_gem_gtt.c
++++ b/drivers/gpu/drm/i915/i915_gem_gtt.c
+@@ -82,6 +82,10 @@ struct _balloon_info_ {
+ 	struct drm_mm_node space[4];
+ } bl_info;
+ 
++static void (*insert_vmfb_entries)(struct i915_address_space *vm,
++					   uint32_t num_pages,
++					   uint64_t start);
++
+ static int i915_balloon_space(
+ 			struct drm_mm *mm,
+ 			struct drm_mm_node *node,
+@@ -558,6 +562,51 @@ static void gen8_ppgtt_clear_range(struct i915_address_space *vm,
+ 	}
+ }
+ 
++static void gen8_ppgtt_insert_vmfb_entries(struct i915_address_space *vm,
++					   uint32_t num_pages,
++					   uint64_t start)
++{
++	struct i915_hw_ppgtt *ppgtt =
++		container_of(vm, struct i915_hw_ppgtt, base);
++	gen8_gtt_pte_t *pt_vaddr;
++	unsigned pdpe = start >> GEN8_PDPE_SHIFT & GEN8_PDPE_MASK;
++	unsigned pde = start >> GEN8_PDE_SHIFT & GEN8_PDE_MASK;
++	unsigned pte = start >> GEN8_PTE_SHIFT & GEN8_PTE_MASK;
++	unsigned first_entry = start >> PAGE_SHIFT;
++
++	pt_vaddr = NULL;
++
++	struct drm_i915_private *dev_priv = ppgtt->base.dev->dev_private;
++	uint64_t __iomem *vmfb_start = dev_priv->gtt.gsm;
++	vmfb_start += first_entry;
++
++	int i;
++	for (i = 0; i < num_pages; i++) {
++		if (pt_vaddr == NULL)
++			pt_vaddr = kmap_atomic(ppgtt->gen8_pt_pages[pdpe][pde]);
++
++		pt_vaddr[pte] = GTT_READ64(vmfb_start);
++		vmfb_start++;
++
++		if (++pte == GEN8_PTES_PER_PAGE) {
++			if (!HAS_LLC(ppgtt->base.dev))
++				drm_clflush_virt_range(pt_vaddr, PAGE_SIZE);
++			kunmap_atomic(pt_vaddr);
++			pt_vaddr = NULL;
++			if (++pde == GEN8_PDES_PER_PAGE) {
++				pdpe++;
++				pde = 0;
++			}
++			pte = 0;
++		}
++	}
++	if (pt_vaddr) {
++		if (!HAS_LLC(ppgtt->base.dev))
++			drm_clflush_virt_range(pt_vaddr, PAGE_SIZE);
++		kunmap_atomic(pt_vaddr);
++	}
++}
++
+ static void gen8_ppgtt_insert_entries(struct i915_address_space *vm,
+ 				      struct sg_table *pages,
+ 				      uint64_t start,
+@@ -1174,8 +1223,7 @@ static void gen6_ppgtt_clear_range(struct i915_address_space *vm,
+ 
+ static void gen6_ppgtt_insert_vmfb_entries(struct i915_address_space *vm,
+ 					   uint32_t num_pages,
+-					   uint64_t start,
+-					   unsigned vmfb_offset)
++					   uint64_t start)
+ {
+ 	struct i915_hw_ppgtt *ppgtt =
+ 		container_of(vm, struct i915_hw_ppgtt, base);
+@@ -1188,7 +1236,7 @@ static void gen6_ppgtt_insert_vmfb_entries(struct i915_address_space *vm,
+ 
+ 	struct drm_i915_private *dev_priv = ppgtt->base.dev->dev_private;
+ 	uint32_t __iomem *vmfb_start = dev_priv->gtt.gsm;
+-	vmfb_start += vmfb_offset;
++	vmfb_start += first_entry;
+ 
+ 	int i;
+ 	for (i = 0; i < num_pages; i++) {
+@@ -1546,10 +1594,9 @@ ppgtt_bind_vma(struct i915_vma *vma,
+ 		flags |= PTE_READ_ONLY;
+ 
+ 	if (vma->obj->has_vmfb_mapping)
+-		gen6_ppgtt_insert_vmfb_entries(vma->vm,
+-					       vma->obj->base.size >> PAGE_SHIFT,
+-					       vma->node.start,
+-					       i915_gem_obj_ggtt_offset(vma->obj) >> PAGE_SHIFT);
++		insert_vmfb_entries(vma->vm,
++				    vma->obj->base.size >> PAGE_SHIFT,
++				    vma->node.start);
+ 	else
+ 		vma->vm->insert_entries(vma->vm, vma->obj->pages, vma->node.start,
+ 					cache_level, flags);
+@@ -1946,10 +1993,9 @@ static void ggtt_bind_vma(struct i915_vma *vma,
+ 	     (cache_level != obj->cache_level))) {
+ 		struct i915_hw_ppgtt *appgtt = dev_priv->mm.aliasing_ppgtt;
+ 		if (obj->has_vmfb_mapping)
+-			gen6_ppgtt_insert_vmfb_entries(&appgtt->base,
+-						       obj->base.size >> PAGE_SHIFT,
+-						       vma->node.start,
+-						       i915_gem_obj_ggtt_offset(obj) >> PAGE_SHIFT);
++			insert_vmfb_entries(&appgtt->base,
++					    obj->base.size >> PAGE_SHIFT,
++					    vma->node.start);
+ 		else
+ 			appgtt->base.insert_entries(&appgtt->base,
+ 							    vma->obj->pages,
+@@ -2549,8 +2595,13 @@ static struct i915_vma *__i915_gem_vma_create(struct drm_i915_gem_object *obj,
+ 	switch (INTEL_INFO(vm->dev)->gen) {
+ 	case 9:
+ 	case 8:
++		if (vma->obj->has_vmfb_mapping && !insert_vmfb_entries)
++			insert_vmfb_entries = gen8_ppgtt_insert_vmfb_entries;
+ 	case 7:
+ 	case 6:
++		if (vma->obj->has_vmfb_mapping && !insert_vmfb_entries)
++			insert_vmfb_entries = gen6_ppgtt_insert_vmfb_entries;
++
+ 		if (i915_is_ggtt(vm)) {
+ 			vma->unbind_vma = ggtt_unbind_vma;
+ 			vma->bind_vma = ggtt_bind_vma;
+diff --git a/drivers/gpu/drm/i915/i915_gem_vgtbuffer.c b/drivers/gpu/drm/i915/i915_gem_vgtbuffer.c
+index 813d917..47696b2 100644
+--- a/drivers/gpu/drm/i915/i915_gem_vgtbuffer.c
++++ b/drivers/gpu/drm/i915/i915_gem_vgtbuffer.c
+@@ -201,14 +201,13 @@ i915_gem_vgtbuffer_ioctl(struct drm_device *dev, void *data,
+ 
+ 	i915_gem_object_init(obj, &i915_gem_vgtbuffer_ops);
+ 	obj->cache_level = I915_CACHE_L3_LLC;
++	obj->has_vmfb_mapping = true;
++	obj->pages = NULL;
+ 
+ 	struct i915_address_space *ggtt_vm = &dev_priv->gtt.base;
+ 	struct i915_vma *vma = i915_gem_obj_lookup_or_create_vma(obj, ggtt_vm);
+ 	vma->node.start = gtt_offset;
+ 
+-	obj->has_vmfb_mapping = true;
+-	obj->pages = NULL;
+-
+ 	ret = drm_gem_handle_create(file, &obj->base, &handle);
+ 	/* drop reference from allocate - handle holds it now */
+ 	drm_gem_object_unreference(&obj->base);
+diff --git a/drivers/gpu/drm/i915/intel_lrc.c b/drivers/gpu/drm/i915/intel_lrc.c
+index f97458c..dff1491 100644
+--- a/drivers/gpu/drm/i915/intel_lrc.c
++++ b/drivers/gpu/drm/i915/intel_lrc.c
+@@ -285,6 +285,7 @@ static void execlists_elsp_write(struct intel_engine_cs *ring,
+ 	uint64_t temp = 0;
+ 	uint32_t desc[4];
+ 	unsigned long flags;
++	bool force_wake = !(USES_VGT(ring->dev) && !i915_host_mediate);
+ 
+ 	/* XXX: You must always write both descriptors in the order below. */
+ 	if (ctx_obj1)
+@@ -305,25 +306,27 @@ static void execlists_elsp_write(struct intel_engine_cs *ring,
+ 	 * because that function calls intel_runtime_pm_get(), which might sleep.
+ 	 * Instead, we do the runtime_pm_get/put when creating/destroying requests.
+ 	 */
+-	spin_lock_irqsave(&dev_priv->uncore.lock, flags);
+-	if (IS_CHERRYVIEW(dev) || INTEL_INFO(dev)->gen >= 9) {
+-		if (dev_priv->uncore.fw_rendercount++ == 0)
+-			dev_priv->uncore.funcs.force_wake_get(dev_priv,
+-							      FORCEWAKE_RENDER);
+-		if (dev_priv->uncore.fw_mediacount++ == 0)
+-			dev_priv->uncore.funcs.force_wake_get(dev_priv,
+-							      FORCEWAKE_MEDIA);
+-		if (INTEL_INFO(dev)->gen >= 9) {
+-			if (dev_priv->uncore.fw_blittercount++ == 0)
++	if (force_wake) {
++		spin_lock_irqsave(&dev_priv->uncore.lock, flags);
++		if (IS_CHERRYVIEW(dev) || INTEL_INFO(dev)->gen >= 9) {
++			if (dev_priv->uncore.fw_rendercount++ == 0)
+ 				dev_priv->uncore.funcs.force_wake_get(dev_priv,
++						FORCEWAKE_RENDER);
++			if (dev_priv->uncore.fw_mediacount++ == 0)
++				dev_priv->uncore.funcs.force_wake_get(dev_priv,
++						FORCEWAKE_MEDIA);
++			if (INTEL_INFO(dev)->gen >= 9) {
++				if (dev_priv->uncore.fw_blittercount++ == 0)
++					dev_priv->uncore.funcs.force_wake_get(dev_priv,
+ 							FORCEWAKE_BLITTER);
++			}
++		} else {
++			if (dev_priv->uncore.forcewake_count++ == 0)
++				dev_priv->uncore.funcs.force_wake_get(dev_priv,
++						FORCEWAKE_ALL);
+ 		}
+-	} else {
+-		if (dev_priv->uncore.forcewake_count++ == 0)
+-			dev_priv->uncore.funcs.force_wake_get(dev_priv,
+-							      FORCEWAKE_ALL);
++		spin_unlock_irqrestore(&dev_priv->uncore.lock, flags);
+ 	}
+-	spin_unlock_irqrestore(&dev_priv->uncore.lock, flags);
+ 
+ 	I915_WRITE(RING_ELSP(ring), desc[1]);
+ 	I915_WRITE(RING_ELSP(ring), desc[0]);
+@@ -334,27 +337,28 @@ static void execlists_elsp_write(struct intel_engine_cs *ring,
+ 	/* ELSP is a wo register, so use another nearby reg for posting instead */
+ 	POSTING_READ(RING_EXECLIST_STATUS(ring));
+ 
+-	/* Release Force Wakeup (see the big comment above). */
+-	spin_lock_irqsave(&dev_priv->uncore.lock, flags);
+-	if (IS_CHERRYVIEW(dev) || INTEL_INFO(dev)->gen >= 9) {
+-		if (--dev_priv->uncore.fw_rendercount == 0)
+-			dev_priv->uncore.funcs.force_wake_put(dev_priv,
+-							      FORCEWAKE_RENDER);
+-		if (--dev_priv->uncore.fw_mediacount == 0)
+-			dev_priv->uncore.funcs.force_wake_put(dev_priv,
+-							      FORCEWAKE_MEDIA);
+-		if (INTEL_INFO(dev)->gen >= 9) {
+-			if (--dev_priv->uncore.fw_blittercount == 0)
++	if (force_wake) {
++		/* Release Force Wakeup (see the big comment above). */
++		spin_lock_irqsave(&dev_priv->uncore.lock, flags);
++		if (IS_CHERRYVIEW(dev) || INTEL_INFO(dev)->gen >= 9) {
++			if (--dev_priv->uncore.fw_rendercount == 0)
++				dev_priv->uncore.funcs.force_wake_put(dev_priv,
++						FORCEWAKE_RENDER);
++			if (--dev_priv->uncore.fw_mediacount == 0)
+ 				dev_priv->uncore.funcs.force_wake_put(dev_priv,
++						FORCEWAKE_MEDIA);
++			if (INTEL_INFO(dev)->gen >= 9) {
++				if (--dev_priv->uncore.fw_blittercount == 0)
++					dev_priv->uncore.funcs.force_wake_put(dev_priv,
+ 							FORCEWAKE_BLITTER);
++			}
++		} else {
++			if (--dev_priv->uncore.forcewake_count == 0)
++				dev_priv->uncore.funcs.force_wake_put(dev_priv,
++						FORCEWAKE_ALL);
+ 		}
+-	} else {
+-		if (--dev_priv->uncore.forcewake_count == 0)
+-			dev_priv->uncore.funcs.force_wake_put(dev_priv,
+-							      FORCEWAKE_ALL);
++		spin_unlock_irqrestore(&dev_priv->uncore.lock, flags);
+ 	}
+-
+-	spin_unlock_irqrestore(&dev_priv->uncore.lock, flags);
+ }
+ 
+ static int execlists_update_context(struct drm_i915_gem_object *ctx_obj,
+diff --git a/drivers/gpu/drm/i915/vgt/cmd_parser.c b/drivers/gpu/drm/i915/vgt/cmd_parser.c
+index 41c2465..5a4287a 100644
+--- a/drivers/gpu/drm/i915/vgt/cmd_parser.c
++++ b/drivers/gpu/drm/i915/vgt/cmd_parser.c
+@@ -51,7 +51,7 @@ static void vgt_add_cmd_entry(struct vgt_cmd_entry *e)
+ 	hash_add(vgt_cmd_table, &e->hlist, e->info->opcode);
+ }
+ 
+-static struct cmd_info* vgt_find_cmd_entry(unsigned int opcode, int ring_id)
++static inline struct cmd_info* vgt_find_cmd_entry(unsigned int opcode, int ring_id)
+ {
+ 	struct vgt_cmd_entry *e;
+ 
+@@ -117,7 +117,7 @@ static int get_next_entry(struct cmd_general_info *list)
+ }
+ 
+ /* TODO: support incremental patching */
+-static int add_patch_entry(struct parser_exec_state *s,
++static inline int add_patch_entry(struct parser_exec_state *s,
+ 	void *addr, uint32_t val)
+ {
+ 	vgt_state_ring_t *rs = &s->vgt->rb[s->ring_id];
+@@ -139,8 +139,10 @@ static int add_patch_entry(struct parser_exec_state *s,
+ 	patch->addr = addr;
+ 	patch->new_val = val;
+ 
++#if 0
+ 	hypervisor_read_va(s->vgt, addr, &patch->old_val,
+-				sizeof(patch->old_val), 1);
++			sizeof(patch->old_val), 1);
++#endif
+ 
+ 	patch->request_id = s->request_id;
+ 
+@@ -148,7 +150,7 @@ static int add_patch_entry(struct parser_exec_state *s,
+ 	return 0;
+ }
+ 
+-static int add_post_handle_entry(struct parser_exec_state *s,
++static inline int add_post_handle_entry(struct parser_exec_state *s,
+ 	parser_cmd_handler handler)
+ {
+ 	vgt_state_ring_t* rs = &s->vgt->rb[s->ring_id];
+@@ -163,6 +165,12 @@ static int add_post_handle_entry(struct parser_exec_state *s,
+ 	}
+ 
+ 	entry = &list->handler[next];
++	/*
++	 * Do not use ip buf in post handle entry,
++	 * as ip buf has been freed at that time.
++	 * Switch back to guest memory write/read method
++	 */
++	entry->exec_state.ip_buf = entry->exec_state.ip_buf_va = NULL;
+ 	/* two pages mapping are always valid */
+ 	memcpy(&entry->exec_state, s, sizeof(struct parser_exec_state));
+ 	entry->handler = handler;
+@@ -300,6 +308,7 @@ void apply_tail_list(struct vgt_device *vgt, int ring_id,
+ 				rs->uhptr &= ~_REGBIT_UHPTR_VALID;
+ 				VGT_MMIO_WRITE(pdev, VGT_UHPTR(ring_id), rs->uhptr);
+ 			}
++			ppgtt_sync_oos_pages(vgt);
+ 			VGT_WRITE_TAIL(pdev, ring_id, entry->tail);
+ 		}
+ 		list->head = next;
+@@ -523,12 +532,24 @@ static inline uint32_t *cmd_ptr(struct parser_exec_state *s, int index)
+ 		return s->ip_va_next_page + (index - s->ip_buf_len);
+ }
+ 
++static inline uint32_t *cmd_buf_ptr(struct parser_exec_state *s, int index)
++{
++	ASSERT(s->ip_buf_va);
++
++	return s->ip_buf_va + index;
++}
++
+ static inline uint32_t cmd_val(struct parser_exec_state *s, int index)
+ {
+-	uint32_t *addr = cmd_ptr(s, index);
++	uint32_t *addr;
+ 	uint32_t ret = 0;
+ 
+-	hypervisor_read_va(s->vgt, addr, &ret, sizeof(ret), 1);
++	if (s->ip_buf) {
++		ret = *cmd_buf_ptr(s, index);
++	} else {
++		addr = cmd_ptr(s, index);
++		hypervisor_read_va(s->vgt, addr, &ret, sizeof(ret), 1);
++	}
+ 
+ 	return ret;
+ }
+@@ -601,6 +622,14 @@ static int ip_gma_set(struct parser_exec_state *s, unsigned long ip_gma)
+ 		return -EFAULT;
+ 	}
+ 
++	if (s->ip_buf) {
++		hypervisor_read_va(s->vgt, s->ip_va, s->ip_buf,
++				s->ip_buf_len * sizeof(uint32_t), 1);
++		hypervisor_read_va(s->vgt, s->ip_va_next_page, s->ip_buf + s->ip_buf_len * sizeof(uint32_t),
++				PAGE_SIZE, 1);
++		s->ip_buf_va = s->ip_buf;
++	}
++
+ 	return 0;
+ }
+ 
+@@ -611,6 +640,8 @@ static inline int ip_gma_advance(struct parser_exec_state *s, unsigned int len)
+ 		/* not cross page, advance ip inside page */
+ 		s->ip_gma += len*sizeof(uint32_t);
+ 		s->ip_va += len;
++		if (s->ip_buf)
++			s->ip_buf_va += len;
+ 		s->ip_buf_len -= len;
+ 	} else {
+ 		/* cross page, reset ip_va */
+@@ -1262,7 +1293,7 @@ static unsigned long get_gma_bb_from_cmd(struct parser_exec_state *s, int index)
+ 	return addr;
+ }
+ 
+-static bool address_audit(struct parser_exec_state *s, int index)
++static inline bool address_audit(struct parser_exec_state *s, int index)
+ {
+ 	int gmadr_bytes = s->vgt->pdev->device_info.gmadr_bytes_in_cmd;
+ 
+@@ -1274,13 +1305,16 @@ static bool address_audit(struct parser_exec_state *s, int index)
+ 	return true;
+ }
+ 
+-static bool vgt_cmd_addr_audit_with_bitmap(struct parser_exec_state *s,
++static inline bool vgt_cmd_addr_audit_with_bitmap(struct parser_exec_state *s,
+ 			unsigned long addr_bitmap)
+ {
+ 	unsigned int bit;
+ 	unsigned int delta = 0;
+ 	int cmd_len = cmd_length(s);
+ 
++	if (!addr_bitmap)
++		return true;
++
+ 	for_each_set_bit(bit, &addr_bitmap, sizeof(addr_bitmap)*8) {
+ 		if (bit + delta >= cmd_len)
+ 			return false;
+@@ -2341,7 +2375,7 @@ static int cmd_hash_init(struct pgt_device *pdev)
+ 	return 0;
+ }
+ 
+-static void trace_cs_command(struct parser_exec_state *s)
++static void trace_cs_command(struct parser_exec_state *s, cycles_t cost_pre_cmd_handler, cycles_t cost_cmd_handler)
+ {
+ 	/* This buffer is used by ftrace to store all commands copied from guest gma
+ 	* space. Sometimes commands can cross pages, this should not be handled in
+@@ -2368,7 +2402,7 @@ static void trace_cs_command(struct parser_exec_state *s)
+ 		cmd_trace_buf[i] = cmd_val(s, i);
+ 
+ 	trace_vgt_command(s->vgt->vm_id, s->ring_id, s->ip_gma, cmd_trace_buf,
+-			cmd_len, s->buf_type == RING_BUFFER_INSTRUCTION);
++			cmd_len, s->buf_type == RING_BUFFER_INSTRUCTION, cost_pre_cmd_handler, cost_cmd_handler);
+ 
+ }
+ 
+@@ -2378,8 +2412,11 @@ static int vgt_cmd_parser_exec(struct parser_exec_state *s)
+ 	struct cmd_info *info;
+ 	uint32_t cmd;
+ 	int rc = 0;
++	cycles_t t0, t1, t2;
++
++	t0 = get_cycles();
+ 
+-	hypervisor_read_va(s->vgt, s->ip_va, &cmd, sizeof(cmd), 1);
++	cmd = cmd_val(s, 0);
+ 
+ 	info = vgt_get_cmd_info(cmd, s->ring_id);
+ 	if (info == NULL) {
+@@ -2410,7 +2447,7 @@ static int vgt_cmd_parser_exec(struct parser_exec_state *s)
+ 	}
+ 	klog_printk("\n");
+ #endif
+-	trace_cs_command(s);
++	t1 = get_cycles();
+ 
+ 	if (info->handler) {
+ 		int post_handle = 0;
+@@ -2438,6 +2475,10 @@ static int vgt_cmd_parser_exec(struct parser_exec_state *s)
+ 		}
+ 	}
+ 
++	t2 = get_cycles();
++
++	trace_cs_command(s, t1 - t0, t2 -t1);
++
+ 	if (!(info->flag & F_IP_ADVANCE_CUSTOM)) {
+ 		rc = vgt_cmd_advance_default(s);
+ 		if (rc < 0) {
+@@ -2493,9 +2534,18 @@ static int __vgt_scan_vring(struct vgt_device *vgt, int ring_id, vgt_reg_t head,
+ 		return 0;
+ 	}
+ 
++	if (cmd_parser_ip_buf) {
++		s.ip_buf = kmalloc(PAGE_SIZE * 2, GFP_ATOMIC);
++		if (!s.ip_buf) {
++			vgt_err("fail to allocate buffer page.\n");
++			return -ENOMEM;
++		}
++	} else
++		s.ip_buf = s.ip_buf_va = NULL;
++
+ 	rc = ip_gma_set(&s, base + head);
+ 	if (rc < 0)
+-		return rc;
++		goto out;
+ 
+ 	klog_printk("ring buffer scan start on ring %d\n", ring_id);
+ 	vgt_dbg(VGT_DBG_CMD, "scan_start: start=%lx end=%lx\n", gma_head, gma_tail);
+@@ -2542,6 +2592,9 @@ static int __vgt_scan_vring(struct vgt_device *vgt, int ring_id, vgt_reg_t head,
+ 
+ 	klog_printk("ring buffer scan end on ring %d\n", ring_id);
+ 	vgt_dbg(VGT_DBG_CMD, "scan_end\n");
++out:
++	if (s.ip_buf)
++		kfree(s.ip_buf);
+ 	return rc;
+ }
+ 
+diff --git a/drivers/gpu/drm/i915/vgt/cmd_parser.h b/drivers/gpu/drm/i915/vgt/cmd_parser.h
+index 09c61cb..202eab0 100644
+--- a/drivers/gpu/drm/i915/vgt/cmd_parser.h
++++ b/drivers/gpu/drm/i915/vgt/cmd_parser.h
+@@ -481,6 +481,9 @@ struct parser_exec_state {
+ 	bool cmd_issue_irq;
+ 
+ 	struct cmd_info* info;
++
++	uint32_t *ip_buf_va;
++	void *ip_buf;
+ };
+ 
+ #define CMD_TAIL_NUM	1024
+diff --git a/drivers/gpu/drm/i915/vgt/debugfs.c b/drivers/gpu/drm/i915/vgt/debugfs.c
+index a51dfa4..afd8d78 100644
+--- a/drivers/gpu/drm/i915/vgt/debugfs.c
++++ b/drivers/gpu/drm/i915/vgt/debugfs.c
+@@ -102,6 +102,8 @@ enum vgt_debugfs_entry_t
+ 	VGT_DEBUGFS_FB_FORMAT,
+ 	VGT_DEBUGFS_DPY_INFO,
+ 	VGT_DEBUGFS_VIRTUAL_GTT,
++	VGT_DEBUGFS_HLIST_INFO,
++	VGT_DEBUGFS_MMIO_ACCOUNTING,
+ 	VGT_DEBUGFS_ENTRY_MAX
+ };
+ 
+@@ -727,6 +729,166 @@ static const struct file_operations virt_dpyinfo_fops = {
+ 	.release = single_release,
+ };
+ 
++static void show_hlist_status(struct seq_file *m, struct hlist_head *head, int n_bucket)
++{
++	unsigned long count;
++	struct hlist_node *pos;
++	int i;
++
++	for (i = 0; i < n_bucket; i++) {
++		count = 0;
++		hlist_for_each(pos, head + i)
++			count++;
++		seq_printf(m, "[bucket %d] %lu elements\n", i, count);
++	}
++}
++
++static int show_hlist_info(struct seq_file *m, void *data)
++{
++	struct vgt_device *vgt = (struct vgt_device *)m->private;
++	struct pgt_device *pdev = vgt->pdev;
++	struct vgt_vgtt_info *gtt = &vgt->gtt;
++	int cpu;
++
++	vgt_lock_dev(pdev, cpu);
++
++	seq_printf(m, "------- guest page hash table -------\n");
++	show_hlist_status(m, gtt->guest_page_hash_table, 1 << VGT_HASH_BITS);
++	seq_printf(m, "------- shadow page hash table -------\n");
++	show_hlist_status(m, gtt->shadow_page_hash_table, 1 << VGT_HASH_BITS);
++
++	vgt_unlock_dev(pdev, cpu);
++
++	return 0;
++}
++
++static int hlist_info_open(struct inode *inode, struct file *file)
++{
++	return single_open(file, show_hlist_info, inode->i_private);
++}
++
++static const struct file_operations hlist_info_fops = {
++	.open = hlist_info_open,
++	.read = seq_read,
++	.llseek = seq_lseek,
++	.release = single_release,
++};
++
++static int mmio_accounting_show(struct seq_file *m, void *data)
++{
++	struct vgt_device *vgt = (struct vgt_device *)m->private;
++	struct vgt_mmio_accounting_reg_stat *stat;
++	unsigned long count;
++
++	mutex_lock(&vgt->stat.mmio_accounting_lock);
++
++	if (!vgt->stat.mmio_accounting_reg_stats)
++		goto out;
++
++	seq_printf(m, "* MMIO read statistics *\n");
++	seq_printf(m, "------------------------\n");
++
++	for (count = 0; count < (2 * 1024 * 1024 / 4); count++) {
++		stat = &vgt->stat.mmio_accounting_reg_stats[count];
++		if (!stat->r_count)
++			continue;
++
++		seq_printf(m, "[ 0x%lx ]\t[ read ] count [ %llu ]\tcycles [ %llu ]\n", count * 4,
++			stat->r_count, stat->r_cycles);
++	}
++
++	seq_printf(m, "\n");
++
++	seq_printf(m, "* MMIO write statistics *\n");
++	seq_printf(m, "-------------------------\n");
++
++	for (count = 0; count < (2 * 1024 * 1024 / 4); count++) {
++		stat = &vgt->stat.mmio_accounting_reg_stats[count];
++		if (!stat->w_count)
++			continue;
++
++		seq_printf(m, "[ 0x%lx ]\t[ write ] count [ %llu ]\tcycles [ %llu ]\n", count * 4,
++			stat->w_count, stat->w_cycles);
++	}
++out:
++	mutex_unlock(&vgt->stat.mmio_accounting_lock);
++
++	return 0;
++}
++
++static int mmio_accounting_open(struct inode *inode, struct file *file)
++{
++	return single_open(file, mmio_accounting_show, inode->i_private);
++}
++
++static ssize_t mmio_accounting_write(struct file *file,
++		const char __user *ubuf, size_t count, loff_t *ppos)
++{
++	struct seq_file *s = file->private_data;
++	struct vgt_device *vgt = (struct vgt_device *)s->private;
++	struct pgt_device *pdev = vgt->pdev;
++	unsigned long flags;
++	char buf[32];
++
++	if (*ppos && count > sizeof(buf))
++		return -EINVAL;
++
++	if (copy_from_user(buf, ubuf, count))
++		return -EFAULT;
++
++	mutex_lock(&vgt->stat.mmio_accounting_lock);
++
++	if (!strncmp(buf, "start", 5)) {
++		if (vgt->stat.mmio_accounting) {
++			vgt_err("mmio accounting has already started.\n");
++			goto out;
++		}
++
++		if (!vgt->stat.mmio_accounting_reg_stats) {
++			vgt->stat.mmio_accounting_reg_stats =
++				vzalloc(sizeof(struct vgt_mmio_accounting_reg_stat) * (2 * 1024 * 1024 / 4));
++			if (!vgt->stat.mmio_accounting_reg_stats) {
++				vgt_err("fail to allocate memory for mmio accounting.\n");
++				goto out;
++			}
++		}
++
++		spin_lock_irqsave(&pdev->lock, flags);
++		vgt->stat.mmio_accounting = true;
++		spin_unlock_irqrestore(&pdev->lock, flags);
++
++		vgt_info("VM %d start mmio accounting.\n", vgt->vm_id);
++	} else if (!strncmp(buf, "stop", 4)) {
++		spin_lock_irqsave(&pdev->lock, flags);
++		vgt->stat.mmio_accounting = false;
++		spin_unlock_irqrestore(&pdev->lock, flags);
++
++		vgt_info("VM %d stop mmio accounting.\n", vgt->vm_id);
++	} else if (!strncmp(buf, "clean", 5)) {
++		spin_lock_irqsave(&pdev->lock, flags);
++		vgt->stat.mmio_accounting = false;
++		spin_unlock_irqrestore(&pdev->lock, flags);
++
++		if (vgt->stat.mmio_accounting_reg_stats) {
++			vfree(vgt->stat.mmio_accounting_reg_stats);
++			vgt->stat.mmio_accounting_reg_stats = NULL;
++		}
++
++		vgt_info("VM %d stop and clean mmio accounting statistics.\n", vgt->vm_id);
++	}
++out:
++	mutex_unlock(&vgt->stat.mmio_accounting_lock);
++	return count;
++}
++
++static const struct file_operations mmio_accounting_fops = {
++	.open = mmio_accounting_open,
++	.write = mmio_accounting_write,
++	.read = seq_read,
++	.llseek = seq_lseek,
++	.release = single_release,
++};
++
+ static int vgt_device_reset_show(struct seq_file *m, void *data)
+ {
+ 	struct pgt_device *pdev = (struct pgt_device *)m->private;
+@@ -858,6 +1020,43 @@ static const struct file_operations vgt_debug_fops = {
+ 	.release = single_release,
+ };
+ 
++static int vgt_oos_page_info_show(struct seq_file *m, void *data)
++{
++	struct pgt_device *pdev = (struct pgt_device *)m->private;
++	unsigned long flags;
++
++	spin_lock_irqsave(&pdev->lock, flags);
++
++	seq_printf(m, "current avail oos page count: %llu.\n",
++		pdev->stat.oos_page_cur_avail_cnt);
++	seq_printf(m, "minimum avail oos page count: %llu.\n",
++		pdev->stat.oos_page_min_avail_cnt);
++	seq_printf(m, "oos page steal count: %llu.\n",
++		pdev->stat.oos_page_steal_cnt);
++	seq_printf(m, "oos page attach count: %llu.\n",
++		pdev->stat.oos_page_attach_cnt);
++	seq_printf(m, "oos page detach count: %llu.\n",
++		pdev->stat.oos_page_detach_cnt);
++
++	spin_unlock_irqrestore(&pdev->lock, flags);
++
++	seq_printf(m, "\n");
++
++	return 0;
++}
++
++static int vgt_oos_page_info_open(struct inode *inode, struct file *file)
++{
++	return single_open(file, vgt_oos_page_info_show, inode->i_private);
++}
++
++static const struct file_operations vgt_oos_page_info_fops = {
++	.open = vgt_oos_page_info_open,
++	.read = seq_read,
++	.llseek = seq_lseek,
++	.release = single_release,
++};
++
+ static int vgt_el_status_show(struct seq_file *m, void *data)
+ {
+ 	struct pgt_device *pdev = (struct pgt_device *)m->private;
+@@ -935,6 +1134,11 @@ struct dentry *vgt_init_debugfs(struct pgt_device *pdev)
+ 	if (!temp_d)
+ 		return NULL;
+ 
++	temp_d = debugfs_create_file("oos_page_info", 0444, d_vgt_debug,
++		pdev, &vgt_oos_page_info_fops);
++	if (!temp_d)
++		return NULL;
++
+ 	temp_d = debugfs_create_file("show_el_status", 0444, d_vgt_debug,
+ 		pdev, &vgt_el_status_fops);
+ 	if (!temp_d)
+@@ -1076,6 +1280,22 @@ int vgt_create_debugfs(struct vgt_device *vgt)
+ 		printk("vGT(%d): create debugfs node: virtual_mmio_space\n", vgt_id);
+ 	/* end of virtual gtt space dump */
+ 
++	d_debugfs_entry[vgt_id][VGT_DEBUGFS_HLIST_INFO] = debugfs_create_file("hlistinfo",
++			0444, d_per_vgt[vgt_id], vgt, &hlist_info_fops);
++
++	if (!d_debugfs_entry[vgt_id][VGT_DEBUGFS_HLIST_INFO])
++		printk(KERN_ERR "vGT(%d): failed to create debugfs node: hlistinfo\n", vgt_id);
++	else
++		printk("vGT(%d): create debugfs node: hlistinfo\n", vgt_id);
++
++	d_debugfs_entry[vgt_id][VGT_DEBUGFS_MMIO_ACCOUNTING] = debugfs_create_file("mmio_accounting",
++			0444, d_per_vgt[vgt_id], vgt, &mmio_accounting_fops);
++
++	if (!d_debugfs_entry[vgt_id][VGT_DEBUGFS_MMIO_ACCOUNTING])
++		printk(KERN_ERR "vGT(%d): failed to create debugfs node: mmio_accounting\n", vgt_id);
++	else
++		printk("vGT(%d): create debugfs node: mmio_accounting\n", vgt_id);
++
+ 	d_debugfs_entry[vgt_id][VGT_DEBUGFS_FB_FORMAT] = debugfs_create_file("frame_buffer_format",
+ 			0444, d_per_vgt[vgt_id], vgt, &fbinfo_fops);
+ 
+@@ -1116,8 +1336,18 @@ int vgt_create_debugfs(struct vgt_device *vgt)
+ 		debugfs_create_u64_node ("total_cmds", 0444, perf_dir_entry, &(vgt->total_cmds));
+ 		debugfs_create_u64_node ("vring_scan_cnt", 0444, perf_dir_entry, &(vgt->stat.vring_scan_cnt));
+ 		debugfs_create_u64_node ("vring_scan_cycles", 0444, perf_dir_entry, &(vgt->stat.vring_scan_cycles));
++		debugfs_create_u64_node ("wp_cnt", 0444, perf_dir_entry, &(vgt->stat.wp_cnt));
++		debugfs_create_u64_node ("wp_cycles", 0444, perf_dir_entry, &(vgt->stat.wp_cycles));
+ 		debugfs_create_u64_node ("ppgtt_wp_cnt", 0444, perf_dir_entry, &(vgt->stat.ppgtt_wp_cnt));
+ 		debugfs_create_u64_node ("ppgtt_wp_cycles", 0444, perf_dir_entry, &(vgt->stat.ppgtt_wp_cycles));
++		debugfs_create_u64_node ("spt_find_hit_cnt", 0444, perf_dir_entry, &(vgt->stat.spt_find_hit_cnt));
++		debugfs_create_u64_node ("spt_find_hit_cycles", 0444, perf_dir_entry, &(vgt->stat.spt_find_hit_cycles));
++		debugfs_create_u64_node ("spt_find_miss_cnt", 0444, perf_dir_entry, &(vgt->stat.spt_find_miss_cnt));
++		debugfs_create_u64_node ("spt_find_miss_cycles", 0444, perf_dir_entry, &(vgt->stat.spt_find_miss_cycles));
++		debugfs_create_u64_node ("gpt_find_hit_cnt", 0444, perf_dir_entry, &(vgt->stat.gpt_find_hit_cnt));
++		debugfs_create_u64_node ("gpt_find_hit_cycles", 0444, perf_dir_entry, &(vgt->stat.gpt_find_hit_cycles));
++		debugfs_create_u64_node ("gpt_find_miss_cnt", 0444, perf_dir_entry, &(vgt->stat.gpt_find_miss_cnt));
++		debugfs_create_u64_node ("gpt_find_miss_cycles", 0444, perf_dir_entry, &(vgt->stat.gpt_find_miss_cycles));
+ 		debugfs_create_u64_node ("skip_bb_cnt", 0444, perf_dir_entry, &(vgt->stat.skip_bb_cnt));
+ 
+ 		/* cmd statistics for ring/batch buffers */
+diff --git a/drivers/gpu/drm/i915/vgt/execlists.c b/drivers/gpu/drm/i915/vgt/execlists.c
+index 7e48327..0c9f467 100644
+--- a/drivers/gpu/drm/i915/vgt/execlists.c
++++ b/drivers/gpu/drm/i915/vgt/execlists.c
+@@ -1098,40 +1098,6 @@ static inline void vgt_add_ctx_switch_status(struct vgt_device *vgt, enum vgt_ri
+ 	vgt->rb[ring_id].csb_write_ptr = write_idx;
+ }
+ 
+-static bool vgt_save_last_execlist_context(struct vgt_device *vgt,
+-	enum vgt_ring_id ring_id, struct execlist_context *ctx)
+-{
+-	struct vgt_mm *mm = vgt->gtt.ggtt_mm;
+-	void *dst = v_aperture(vgt->pdev, vgt->rb[ring_id].context_save_area);
+-	u32 lrca = ctx->guest_context.lrca;
+-	int nr_page = EXECLIST_CTX_PAGES(ring_id);
+-	u32 *ring_context;
+-	void *src;
+-	int i;
+-
+-	if (ring_id != RING_BUFFER_RCS)
+-		return true;
+-
+-	ring_context = vgt_gma_to_va(mm, (lrca + 1) << GTT_PAGE_SHIFT);
+-	if (!ring_context) {
+-		vgt_err("Fail to find ring_context, lrca %x.\n", lrca);
+-		return false;
+-	}
+-
+-	if (ring_context[1] != 0x1100101b) {
+-		vgt_err("Not a valid guest context?!\n");
+-		return false;
+-	}
+-
+-	for (i = 1; i < nr_page; i++, dst += SIZE_PAGE) {
+-		src = vgt_gma_to_va(mm, (lrca + i) << GTT_PAGE_SHIFT);
+-		memcpy(dst, src, SIZE_PAGE);
+-	}
+-
+-	vgt->has_context = 1;
+-	return true;
+-}
+-
+ static void vgt_emulate_context_status_change(struct vgt_device *vgt,
+ 				enum vgt_ring_id ring_id,
+ 				struct context_status_format *ctx_status)
+@@ -1180,9 +1146,6 @@ static void vgt_emulate_context_status_change(struct vgt_device *vgt,
+ 		goto emulation_done;
+ 	}
+ 
+-	if (ctx_status->context_complete)
+-		vgt_save_last_execlist_context(vgt, ring_id, el_ctx);
+-
+ 	if (!vgt_require_shadow_context(vgt))
+ 		goto emulation_done;
+ 
+@@ -1379,6 +1342,8 @@ static inline bool vgt_hw_ELSP_write(struct vgt_device *vgt,
+ 
+ 	ASSERT(ctx0 && ctx1);
+ 
++	ppgtt_sync_oos_pages(vgt);
++
+ 	vgt_dbg(VGT_DBG_EXECLIST, "EXECLIST is submitted into hardware! "
+ 			"Writing 0x%x with: 0x%x; 0x%x; 0x%x; 0x%x\n",
+ 			reg,
+@@ -1467,9 +1432,6 @@ void vgt_kick_off_execlists(struct vgt_device *vgt)
+ 	for (i = 0; i < pdev->max_engines; i ++) {
+ 		int j;
+ 		int num = vgt_el_slots_number(&vgt->rb[i]);
+-
+-		vgt->rb[i].check_uninitialized_context = true;
+-
+ 		if (num == 2)
+ 			vgt_dbg(VGT_DBG_EXECLIST,
+ 				"VM(%d) Ring-%d: Preemption is met while "
+@@ -1508,59 +1470,6 @@ bool vgt_idle_execlist(struct pgt_device *pdev, enum vgt_ring_id ring_id)
+ 	return true;
+ }
+ 
+-static bool vgt_check_uninitialized_execlist_context(struct vgt_device *vgt,
+-	enum vgt_ring_id ring_id, struct execlist_context *ctx)
+-{
+-	struct vgt_mm *mm = vgt->gtt.ggtt_mm;
+-	void *src = v_aperture(vgt->pdev, vgt->rb[ring_id].context_save_area);
+-	u32 lrca = ctx->guest_context.lrca;
+-	int nr_page = EXECLIST_CTX_PAGES(ring_id);
+-	u32 *ring_context;
+-	u32 *ctx_sr_ctrl;
+-	void *dst;
+-	int i;
+-
+-	if (ring_id != RING_BUFFER_RCS
+-			|| !vgt->rb[ring_id].check_uninitialized_context)
+-		return true;
+-
+-	vgt->rb[ring_id].check_uninitialized_context = false;
+-
+-	if (!vgt->has_context)
+-		return true;
+-
+-	ring_context = vgt_gma_to_va(mm, (lrca + 1) << GTT_PAGE_SHIFT);
+-	if (!ring_context) {
+-		vgt_err("Fail to find ring_context, lrca %x.\n", lrca);
+-		return false;
+-	}
+-
+-	if (ring_context[1] != 0x1100101b && ring_context[2] != 0x2244) {
+-		vgt_err("Not a valid guest context?!\n");
+-		return false;
+-	}
+-
+-	ctx_sr_ctrl = ring_context + 3;
+-	if ((*ctx_sr_ctrl & ((1 << 16) | (1 << 0))) != ((1 << 16) | (1 << 0)))
+-		return false;
+-
+-	*ctx_sr_ctrl &= ~((1 << 16) | (1 << 0));
+-
+-	/* Fill the engine context in page 1. */
+-	memcpy(ring_context + 0x50, src + 0x50 * 4, SIZE_PAGE - 0x50 * 4);
+-
+-	src += SIZE_PAGE;
+-
+-	for (i = 2; i < nr_page; i++, src += SIZE_PAGE) {
+-		dst = vgt_gma_to_va(mm, (lrca + i) << GTT_PAGE_SHIFT);
+-		memcpy(dst, src, SIZE_PAGE);
+-	}
+-
+-	vgt_info("fill uninitialized guest context with last context, lrca: %x.\n", lrca);
+-
+-	return true;
+-}
+-
+ void vgt_submit_execlist(struct vgt_device *vgt, enum vgt_ring_id ring_id)
+ {
+ 	int i;
+@@ -1606,8 +1515,6 @@ void vgt_submit_execlist(struct vgt_device *vgt, enum vgt_ring_id ring_id)
+ 		trace_ctx_lifecycle(vgt->vm_id, ring_id,
+ 			ctx->guest_context.lrca, "schedule_to_run");
+ 
+-		vgt_check_uninitialized_execlist_context(vgt, ring_id, ctx);
+-
+ 		if (!vgt_require_shadow_context(vgt))
+ 			continue;
+ 
+diff --git a/drivers/gpu/drm/i915/vgt/fb_decoder.c b/drivers/gpu/drm/i915/vgt/fb_decoder.c
+index cbb4cd2..0b4bef2 100644
+--- a/drivers/gpu/drm/i915/vgt/fb_decoder.c
++++ b/drivers/gpu/drm/i915/vgt/fb_decoder.c
+@@ -399,8 +399,8 @@ int vgt_decode_fb_format(int vmid, struct vgt_fb_format *fb)
+ 	if (!fb)
+ 		return -EINVAL;
+ 
+-	if (!IS_HSW(pdev)) {
+-		vgt_err("Only HSW is supported now\n");
++	if (!IS_HSW(pdev) && !IS_BDW(pdev)) {
++		vgt_err("Only HSW or BDW supported now\n");
+ 		return -EINVAL;
+ 	}
+ 
+diff --git a/drivers/gpu/drm/i915/vgt/gtt.c b/drivers/gpu/drm/i915/vgt/gtt.c
+index f94b497..dd1fc80 100644
+--- a/drivers/gpu/drm/i915/vgt/gtt.c
++++ b/drivers/gpu/drm/i915/vgt/gtt.c
+@@ -511,17 +511,24 @@ bool vgt_init_guest_page(struct vgt_device *vgt, guest_page_t *guest_page,
+ 	guest_page->gfn = gfn;
+ 	guest_page->handler = handler;
+ 	guest_page->data = data;
++	guest_page->oos_page = NULL;
++	guest_page->write_cnt = 0;
+ 
+ 	hash_add(vgt->gtt.guest_page_hash_table, &guest_page->node, guest_page->gfn);
+ 
+ 	return true;
+ }
+ 
++static bool vgt_detach_oos_page(struct vgt_device *vgt, oos_page_t *oos_page);
++
+ void vgt_clean_guest_page(struct vgt_device *vgt, guest_page_t *guest_page)
+ {
+ 	if(!hlist_unhashed(&guest_page->node))
+ 		hash_del(&guest_page->node);
+ 
++	if (guest_page->oos_page)
++		vgt_detach_oos_page(vgt, guest_page->oos_page);
++
+ 	if (guest_page->writeprotection)
+ 		hypervisor_unset_wp_pages(vgt, guest_page);
+ }
+@@ -529,10 +536,23 @@ void vgt_clean_guest_page(struct vgt_device *vgt, guest_page_t *guest_page)
+ guest_page_t *vgt_find_guest_page(struct vgt_device *vgt, unsigned long gfn)
+ {
+ 	guest_page_t *guest_page;
++	struct vgt_statistics *stat = &vgt->stat;
++	cycles_t t0, t1;
++
++	t0 = get_cycles();
+ 
+-	hash_for_each_possible(vgt->gtt.guest_page_hash_table, guest_page, node, gfn)
+-		if (guest_page->gfn == gfn)
++	hash_for_each_possible(vgt->gtt.guest_page_hash_table, guest_page, node, gfn) {
++		if (guest_page->gfn == gfn) {
++			t1 = get_cycles();
++			stat->gpt_find_hit_cnt++;
++			stat->gpt_find_hit_cycles += t1 - t0;
+ 			return guest_page;
++		}
++	}
++
++	t1 = get_cycles();
++	stat->gpt_find_miss_cnt++;
++	stat->gpt_find_miss_cycles += t1 - t0;
+ 
+ 	return NULL;
+ }
+@@ -564,12 +584,24 @@ static inline shadow_page_t *vgt_find_shadow_page(struct vgt_device *vgt,
+ 		unsigned long mfn)
+ {
+ 	shadow_page_t *shadow_page;
++	struct vgt_statistics *stat = &vgt->stat;
++	cycles_t t0, t1;
++
++	t0 = get_cycles();
+ 
+ 	hash_for_each_possible(vgt->gtt.shadow_page_hash_table, shadow_page, node, mfn) {
+-		if (shadow_page->mfn == mfn)
++		if (shadow_page->mfn == mfn) {
++			t1 = get_cycles();
++			stat->spt_find_hit_cnt++;
++			stat->spt_find_hit_cycles += t1 - t0;
+ 			return shadow_page;
++		}
+ 	}
+ 
++	t1 = get_cycles();
++	stat->spt_find_miss_cnt++;
++	stat->spt_find_miss_cycles += t1 - t0;
++
+ 	return NULL;
+ }
+ 
+@@ -607,6 +639,10 @@ static bool ppgtt_handle_guest_write_page_table_bytes(void *gp,
+ static bool ppgtt_write_protection_handler(void *gp, uint64_t pa, void *p_data, int bytes)
+ {
+ 	guest_page_t *gpt = (guest_page_t *)gp;
++	ppgtt_spt_t *spt = guest_page_to_ppgtt_spt(gpt);
++	struct vgt_device *vgt = spt->vgt;
++	struct vgt_statistics *stat = &vgt->stat;
++	cycles_t t0, t1;
+ 
+ 	if (bytes != 4 && bytes != 8)
+ 		return false;
+@@ -614,8 +650,17 @@ static bool ppgtt_write_protection_handler(void *gp, uint64_t pa, void *p_data,
+ 	if (!gpt->writeprotection)
+ 		return false;
+ 
+-	return ppgtt_handle_guest_write_page_table_bytes(gp,
+-		pa, p_data, bytes);
++	t0 = get_cycles();
++
++	if (!ppgtt_handle_guest_write_page_table_bytes(gp,
++		pa, p_data, bytes))
++		return false;
++
++	t1 = get_cycles();
++	stat->ppgtt_wp_cnt++;
++	stat->ppgtt_wp_cycles += t1 - t0;
++
++	return true;
+ }
+ 
+ static ppgtt_spt_t *ppgtt_alloc_shadow_page(struct vgt_device *vgt,
+@@ -902,6 +947,154 @@ fail:
+ 	return false;
+ }
+ 
++static bool vgt_sync_oos_page(struct vgt_device *vgt, oos_page_t *oos_page)
++{
++	struct vgt_device_info *info = &vgt->pdev->device_info;
++	struct pgt_device *pdev = vgt->pdev;
++	struct vgt_gtt_pte_ops *ops = pdev->gtt.pte_ops;
++	ppgtt_spt_t *spt = guest_page_to_ppgtt_spt(oos_page->guest_page);
++	gtt_entry_t old, new, m;
++	int index;
++
++	trace_oos_change(vgt->vm_id, "sync", oos_page->id,
++			oos_page->guest_page, spt->guest_page_type);
++
++	old.type = new.type = get_entry_type(spt->guest_page_type);
++	old.pdev = new.pdev = pdev;
++	old.val64 = new.val64 = 0;
++
++	for (index = 0; index < (GTT_PAGE_SIZE >> info->gtt_entry_size_shift); index++) {
++		ops->get_entry(oos_page->mem, &old, index, false, NULL);
++		ops->get_entry(oos_page->guest_page->vaddr, &new, index, true, vgt);
++
++		if (old.val64 == new.val64)
++			continue;
++
++		trace_oos_sync(vgt->vm_id, oos_page->id,
++				oos_page->guest_page, spt->guest_page_type,
++				new.val64, index);
++
++		if (!gtt_entry_p2m(vgt, &new, &m))
++			return false;
++
++		ops->set_entry(oos_page->mem, &new, index, false, NULL);
++		ppgtt_set_shadow_entry(spt, &m, index);
++	}
++
++	oos_page->guest_page->write_cnt = 0;
++
++	return true;
++}
++
++static bool vgt_detach_oos_page(struct vgt_device *vgt, oos_page_t *oos_page)
++{
++	struct pgt_device *pdev = vgt->pdev;
++	ppgtt_spt_t *spt = guest_page_to_ppgtt_spt(oos_page->guest_page);
++
++	trace_oos_change(vgt->vm_id, "detach", oos_page->id,
++			oos_page->guest_page, spt->guest_page_type);
++
++	oos_page->guest_page->write_cnt = 0;
++	oos_page->guest_page->oos_page = NULL;
++	oos_page->guest_page = NULL;
++
++	list_del_init(&oos_page->vm_list);
++	list_move_tail(&oos_page->list, &pdev->gtt.oos_page_free_list_head);
++
++	pdev->stat.oos_page_cur_avail_cnt++;
++	pdev->stat.oos_page_detach_cnt++;
++
++	return true;
++}
++
++static oos_page_t *vgt_attach_oos_page(struct vgt_device *vgt,
++		oos_page_t *oos_page, guest_page_t *gpt)
++{
++	struct pgt_device *pdev = vgt->pdev;
++
++	if (!hypervisor_read_va(vgt, gpt->vaddr, oos_page->mem, GTT_PAGE_SIZE, 1))
++		return NULL;
++
++	oos_page->guest_page = gpt;
++	gpt->oos_page = oos_page;
++
++	list_move_tail(&oos_page->list, &pdev->gtt.oos_page_use_list_head);
++
++	if (--pdev->stat.oos_page_cur_avail_cnt < pdev->stat.oos_page_min_avail_cnt)
++		pdev->stat.oos_page_min_avail_cnt = pdev->stat.oos_page_cur_avail_cnt;
++
++	trace_oos_change(vgt->vm_id, "attach", gpt->oos_page->id,
++			gpt, guest_page_to_ppgtt_spt(gpt)->guest_page_type);
++
++	pdev->stat.oos_page_attach_cnt++;
++
++	return oos_page;
++}
++
++static bool ppgtt_set_guest_page_sync(struct vgt_device *vgt, guest_page_t *gpt)
++{
++	if (!hypervisor_set_wp_pages(vgt, gpt))
++		return false;
++
++	trace_oos_change(vgt->vm_id, "set page sync", gpt->oos_page->id,
++			gpt, guest_page_to_ppgtt_spt(gpt)->guest_page_type);
++
++	list_del_init(&gpt->oos_page->vm_list);
++	return vgt_sync_oos_page(vgt, gpt->oos_page);
++}
++
++static bool ppgtt_allocate_oos_page(struct vgt_device *vgt, guest_page_t *gpt)
++{
++	struct pgt_device *pdev = vgt->pdev;
++	struct vgt_gtt_info *gtt = &pdev->gtt;
++	oos_page_t *oos_page = gpt->oos_page;
++
++	/* oos_page should be NULL at this point */
++	ASSERT(!oos_page);
++
++	if (list_empty(&gtt->oos_page_free_list_head)) {
++		oos_page = container_of(gtt->oos_page_use_list_head.next, oos_page_t, list);
++		if (!ppgtt_set_guest_page_sync(vgt, oos_page->guest_page)
++			|| !vgt_detach_oos_page(vgt, oos_page))
++			return false;
++		ASSERT(!list_empty(&gtt->oos_page_free_list_head));
++		pdev->stat.oos_page_steal_cnt++;
++	} else
++		oos_page = container_of(gtt->oos_page_free_list_head.next, oos_page_t, list);
++
++	return vgt_attach_oos_page(vgt, oos_page, gpt);
++}
++
++static bool ppgtt_set_guest_page_oos(struct vgt_device *vgt, guest_page_t *gpt)
++{
++	oos_page_t *oos_page = gpt->oos_page;
++
++	ASSERT(oos_page);
++
++	trace_oos_change(vgt->vm_id, "set page out of sync", gpt->oos_page->id,
++			gpt, guest_page_to_ppgtt_spt(gpt)->guest_page_type);
++
++	list_add_tail(&oos_page->vm_list, &vgt->gtt.oos_page_list_head);
++	return hypervisor_unset_wp_pages(vgt, gpt);
++}
++
++bool ppgtt_sync_oos_pages(struct vgt_device *vgt)
++{
++	struct list_head *pos, *n;
++	oos_page_t *oos_page;
++
++	if (!spt_out_of_sync)
++		return true;
++
++	list_for_each_safe(pos, n, &vgt->gtt.oos_page_list_head) {
++		oos_page = container_of(pos, oos_page_t, vm_list);
++		if (!ppgtt_set_guest_page_sync(vgt, oos_page->guest_page))
++			return false;
++	}
++
++	return true;
++}
++
+ /*
+  * The heart of PPGTT shadow page table.
+  */
+@@ -940,6 +1133,13 @@ fail:
+ 	return false;
+ }
+ 
++static inline bool can_do_out_of_sync(guest_page_t *gpt)
++{
++	return spt_out_of_sync
++		&& gtt_type_is_pte_pt(guest_page_to_ppgtt_spt(gpt)->guest_page_type)
++		&& gpt->write_cnt >= 2;
++}
++
+ static bool ppgtt_handle_guest_write_page_table_bytes(void *gp,
+ 		uint64_t pa, void *p_data, int bytes)
+ {
+@@ -984,7 +1184,32 @@ static bool ppgtt_handle_guest_write_page_table_bytes(void *gp,
+ 
+ 	ops->test_pse(&we);
+ 
+-	return ppgtt_handle_guest_write_page_table(gpt, &we, index);
++	gpt->write_cnt++;
++
++	if (!ppgtt_handle_guest_write_page_table(gpt, &we, index))
++		return false;
++
++	if (spt_out_of_sync) {
++		if (gpt->oos_page) {
++			/* 1. only GTT_PTE type has oos_page assocaited
++			 * 2. update oos_page according to wp guest page change
++			 */
++			ops->set_entry(gpt->oos_page->mem, &we, index, false, NULL);
++		}
++
++		if (can_do_out_of_sync(gpt)) {
++			if (!gpt->oos_page)
++				ppgtt_allocate_oos_page(vgt, gpt);
++
++			if (!ppgtt_set_guest_page_oos(vgt, gpt)) {
++				/* should not return false since we can handle it*/
++				ppgtt_set_guest_page_sync(vgt, gpt);
++			}
++		}
++
++	}
++
++	return true;
+ }
+ 
+ bool ppgtt_handle_guest_write_root_pointer(struct vgt_mm *mm,
+@@ -1692,6 +1917,7 @@ bool vgt_init_vgtt(struct vgt_device *vgt)
+ 	hash_init(gtt->el_ctx_hash_table);
+ 
+ 	INIT_LIST_HEAD(&gtt->mm_list_head);
++	INIT_LIST_HEAD(&gtt->oos_page_list_head);
+ 
+ 	if (!vgt_expand_shadow_page_mempool(vgt->pdev)) {
+ 		vgt_err("fail to expand the shadow page mempool.");
+@@ -1727,6 +1953,57 @@ void vgt_clean_vgtt(struct vgt_device *vgt)
+ 	return;
+ }
+ 
++static void vgt_clean_spt_oos(struct pgt_device *pdev)
++{
++	struct vgt_gtt_info *gtt = &pdev->gtt;
++	struct list_head *pos, *n;
++	oos_page_t *oos_page;
++
++	ASSERT(list_empty(&gtt->oos_page_use_list_head));
++
++	list_for_each_safe(pos, n, &gtt->oos_page_free_list_head) {
++		oos_page = container_of(pos, oos_page_t, list);
++		list_del(&oos_page->list);
++		kfree(oos_page);
++	}
++}
++
++static bool vgt_setup_spt_oos(struct pgt_device *pdev)
++{
++	struct vgt_gtt_info *gtt = &pdev->gtt;
++	oos_page_t *oos_page;
++	int i;
++
++	INIT_LIST_HEAD(&gtt->oos_page_free_list_head);
++	INIT_LIST_HEAD(&gtt->oos_page_use_list_head);
++
++	for (i = 0; i < preallocated_oos_pages; i++) {
++		oos_page = kzalloc(sizeof(*oos_page), GFP_KERNEL);
++		if (!oos_page) {
++			vgt_err("fail to pre-allocate oos page.\n");
++			goto fail;
++		}
++
++		INIT_LIST_HEAD(&oos_page->list);
++		INIT_LIST_HEAD(&oos_page->vm_list);
++		oos_page->id = i;
++		list_add_tail(&oos_page->list, &gtt->oos_page_free_list_head);
++	}
++
++	pdev->stat.oos_page_cur_avail_cnt = preallocated_oos_pages;
++	pdev->stat.oos_page_min_avail_cnt = preallocated_oos_pages;
++	pdev->stat.oos_page_steal_cnt = 0;
++	pdev->stat.oos_page_attach_cnt = 0;
++	pdev->stat.oos_page_detach_cnt = 0;
++
++	vgt_info("%d oos pages preallocated\n", preallocated_oos_pages);
++
++	return true;
++fail:
++	vgt_clean_spt_oos(pdev);
++	return false;
++}
++
+ bool vgt_gtt_init(struct pgt_device *pdev)
+ {
+ 	if (IS_PREBDW(pdev)) {
+@@ -1737,6 +2014,8 @@ bool vgt_gtt_init(struct pgt_device *pdev)
+ 
+ 		if (preallocated_shadow_pages == -1)
+ 			preallocated_shadow_pages = 512;
++		if (preallocated_oos_pages == -1)
++			preallocated_oos_pages = 2048;
+ 	} else if (IS_BDW(pdev)) {
+ 		pdev->gtt.pte_ops = &gen8_gtt_pte_ops;
+ 		pdev->gtt.gma_ops = &gen8_gtt_gma_ops;
+@@ -1745,17 +2024,27 @@ bool vgt_gtt_init(struct pgt_device *pdev)
+ 
+ 		if (preallocated_shadow_pages == -1)
+ 			preallocated_shadow_pages = 8192;
++		if (preallocated_oos_pages == -1)
++			preallocated_oos_pages = 4096;
+ 	} else {
+ 		vgt_err("Unsupported platform.\n");
+ 		return false;
+ 	}
+ 
++	if (spt_out_of_sync) {
++		if (!vgt_setup_spt_oos(pdev)) {
++			vgt_err("fail to initialize SPT oos.\n");
++			return false;
++		}
++	}
++
+ 	mutex_init(&pdev->gtt.mempool_lock);
+ 
+ 	pdev->gtt.mempool = mempool_create(preallocated_shadow_pages,
+ 		mempool_alloc_spt, mempool_free_spt, pdev);
+ 	if (!pdev->gtt.mempool) {
+ 		vgt_err("fail to create mempool.\n");
++		vgt_clean_spt_oos(pdev);
+ 		return false;
+ 	}
+ 
+@@ -1764,6 +2053,9 @@ bool vgt_gtt_init(struct pgt_device *pdev)
+ 
+ void vgt_gtt_clean(struct pgt_device *pdev)
+ {
++	if (spt_out_of_sync)
++		vgt_clean_spt_oos(pdev);
++
+ 	mempool_destroy(pdev->gtt.mempool);
+ }
+ 
+diff --git a/drivers/gpu/drm/i915/vgt/handlers.c b/drivers/gpu/drm/i915/vgt/handlers.c
+index 8d58ffb..cf8f3ba 100644
+--- a/drivers/gpu/drm/i915/vgt/handlers.c
++++ b/drivers/gpu/drm/i915/vgt/handlers.c
+@@ -1929,6 +1929,8 @@ static bool pvinfo_read(struct vgt_device *vgt, unsigned int offset,
+ 			 *   *((unsigned int *)p_data)) = VGT_V2G_SET_SW_CURSOR;
+ 			 */
+ 			break;
++		case vgt_info_off(vgt_caps):
++			break;
+ 		default:
+ 			invalid_read = true;
+ 			break;
+diff --git a/drivers/gpu/drm/i915/vgt/instance.c b/drivers/gpu/drm/i915/vgt/instance.c
+index 80a40dd..e8e2c41 100644
+--- a/drivers/gpu/drm/i915/vgt/instance.c
++++ b/drivers/gpu/drm/i915/vgt/instance.c
+@@ -320,6 +320,9 @@ int create_vgt_instance(struct pgt_device *pdev, struct vgt_device **ptr_vgt, vg
+ 	if (shadow_tail_based_qos)
+ 		vgt_init_rb_tailq(vgt);
+ 
++	mutex_init(&vgt->stat.mmio_accounting_lock);
++	vgt->stat.mmio_accounting = false;
++
+ 	vgt->warn_untrack = 1;
+ 	return 0;
+ err:
+diff --git a/drivers/gpu/drm/i915/vgt/mmio.c b/drivers/gpu/drm/i915/vgt/mmio.c
+index a3edd9b..0b8686c 100644
+--- a/drivers/gpu/drm/i915/vgt/mmio.c
++++ b/drivers/gpu/drm/i915/vgt/mmio.c
+@@ -262,6 +262,30 @@ static inline bool valid_mmio_alignment(struct vgt_mmio_entry *mht,
+ 	return false;
+ }
+ 
++static inline void mmio_accounting_read(struct vgt_device *vgt, unsigned long offset, cycles_t cycles)
++{
++	struct vgt_mmio_accounting_reg_stat *stat;
++
++	if (!vgt->stat.mmio_accounting)
++		return;
++
++	stat = &vgt->stat.mmio_accounting_reg_stats[offset >> 2];
++	stat->r_count++;
++	stat->r_cycles += cycles;
++}
++
++static inline void mmio_accounting_write(struct vgt_device *vgt, unsigned long offset, cycles_t cycles)
++{
++	struct vgt_mmio_accounting_reg_stat *stat;
++
++	if (!vgt->stat.mmio_accounting)
++		return;
++
++	stat = &vgt->stat.mmio_accounting_reg_stats[offset >> 2];
++	stat->w_count++;
++	stat->w_cycles += cycles;
++}
++
+ /*
+  * Emulate the VGT MMIO register read ops.
+  * Return : true/false
+@@ -346,6 +370,8 @@ bool vgt_emulate_read(struct vgt_device *vgt, uint64_t pa, void *p_data,int byte
+ 	t1 = get_cycles();
+ 	stat->mmio_rcnt++;
+ 	stat->mmio_rcycles += t1 - t0;
++
++	mmio_accounting_read(vgt, offset, t1 - t0);
+ 	return true;
+ err_mmio:
+ 	vgt_unlock_dev_flags(pdev, cpu, flags);
+@@ -382,6 +408,9 @@ bool vgt_emulate_write(struct vgt_device *vgt, uint64_t pa,
+ 		guest_page = vgt_find_guest_page(vgt, pa >> PAGE_SHIFT);
+ 		if (guest_page) {
+ 			rc = guest_page->handler(guest_page, pa, p_data, bytes);
++			t1 = get_cycles();
++			stat->wp_cycles += t1 - t0;
++			stat->wp_cnt++;
+ 			vgt_unlock_dev_flags(pdev, cpu, flags);
+ 			return rc;
+ 		}
+@@ -466,6 +495,7 @@ bool vgt_emulate_write(struct vgt_device *vgt, uint64_t pa,
+ 	t1 = get_cycles();
+ 	stat->mmio_wcycles += t1 - t0;
+ 	stat->mmio_wcnt++;
++	mmio_accounting_write(vgt, offset, t1 - t0);
+ 	return true;
+ err_mmio:
+ 	vgt_unlock_dev_flags(pdev, cpu, flags);
+diff --git a/drivers/gpu/drm/i915/vgt/render.c b/drivers/gpu/drm/i915/vgt/render.c
+index ab4382e..a5d8749 100644
+--- a/drivers/gpu/drm/i915/vgt/render.c
++++ b/drivers/gpu/drm/i915/vgt/render.c
+@@ -1319,6 +1319,7 @@ static struct reg_mask_t rcs_reset_mmio[] = {
+ 	{0x2044, 0},
+ 
+ 	{0x20a0, 0},
++	{0x20e4, 1},
+ 	{0x7004, 1},
+ 	{0x20dc, 1},
+ 
+diff --git a/drivers/gpu/drm/i915/vgt/trace.h b/drivers/gpu/drm/i915/vgt/trace.h
+index 457ec0e..1b29e7f 100644
+--- a/drivers/gpu/drm/i915/vgt/trace.h
++++ b/drivers/gpu/drm/i915/vgt/trace.h
+@@ -23,6 +23,7 @@
+ #include <linux/types.h>
+ #include <linux/stringify.h>
+ #include <linux/tracepoint.h>
++#include <asm/tsc.h>
+ 
+ #undef TRACE_SYSTEM
+ #define TRACE_SYSTEM vgt
+@@ -60,11 +61,11 @@ TRACE_EVENT(vgt_mmio_rw,
+ 				__entry->bytes)
+ );
+ 
+-#define MAX_CMD_STR_LEN	200
++#define MAX_CMD_STR_LEN	256
+ TRACE_EVENT(vgt_command,
+-		TP_PROTO(u8 vm_id, u8 ring_id, u32 ip_gma, u32 *cmd_va, u32 cmd_len, bool ring_buffer_cmd),
++		TP_PROTO(u8 vm_id, u8 ring_id, u32 ip_gma, u32 *cmd_va, u32 cmd_len, bool ring_buffer_cmd, cycles_t cost_pre_cmd_handler, cycles_t cost_cmd_handler),
+ 
+-		TP_ARGS(vm_id, ring_id, ip_gma, cmd_va, cmd_len, ring_buffer_cmd),
++		TP_ARGS(vm_id, ring_id, ip_gma, cmd_va, cmd_len, ring_buffer_cmd, cost_pre_cmd_handler, cost_cmd_handler),
+ 
+ 		TP_STRUCT__entry(
+ 			__field(u8, vm_id)
+@@ -78,7 +79,7 @@ TRACE_EVENT(vgt_command,
+ 			__entry->vm_id = vm_id;
+ 			__entry->ring_id = ring_id;
+ 			__entry->cmd_str[0] = '\0';
+-			snprintf(__entry->tmp_buf, MAX_CMD_STR_LEN, "VM(%d) Ring(%d): %s ip(%08x) ", vm_id, ring_id, ring_buffer_cmd ? "RB":"BB", ip_gma);
++			snprintf(__entry->tmp_buf, MAX_CMD_STR_LEN, "VM(%d) Ring(%d): %s ip(%08x) pre handler cost (%llu), handler cost (%llu) ", vm_id, ring_id, ring_buffer_cmd ? "RB":"BB", ip_gma, cost_pre_cmd_handler, cost_cmd_handler);
+ 			strcat(__entry->cmd_str, __entry->tmp_buf);
+ 			entry->i = 0;
+ 			while (cmd_len > 0) {
+@@ -251,6 +252,40 @@ TRACE_EVENT(gpt_change,
+ 		TP_printk("%s", __entry->buf)
+ );
+ 
++TRACE_EVENT(oos_change,
++		TP_PROTO(int vm_id, const char *tag, int page_id, void *gpt, int type),
++
++		TP_ARGS(vm_id, tag, page_id, gpt, type),
++
++		TP_STRUCT__entry(
++			__array(char, buf, MAX_BUF_LEN)
++		),
++
++		TP_fast_assign(
++			snprintf(__entry->buf, MAX_BUF_LEN, "VM%d [oos %s] page id %d gpt %p type %d\n",
++					vm_id, tag, page_id, gpt, type);
++		),
++
++		TP_printk("%s", __entry->buf)
++);
++
++TRACE_EVENT(oos_sync,
++		TP_PROTO(int vm_id, int page_id, void *gpt, int type, u64 v, unsigned long index),
++
++		TP_ARGS(vm_id, page_id, gpt, type, v, index),
++
++		TP_STRUCT__entry(
++			__array(char, buf, MAX_BUF_LEN)
++		),
++
++		TP_fast_assign(
++			snprintf(__entry->buf, MAX_BUF_LEN, "VM%d [oos sync] page id %d gpt %p type %d entry 0x%llx index 0x%lx\n",
++					vm_id, page_id, gpt, type, v, index);
++		),
++
++		TP_printk("%s", __entry->buf)
++);
++
+ TRACE_EVENT(ctx_lifecycle,
+ 		TP_PROTO(int vm_id, int ring_id,
+ 				uint32_t guest_lrca, const char *action),
+diff --git a/drivers/gpu/drm/i915/vgt/vgt-if.h b/drivers/gpu/drm/i915/vgt/vgt-if.h
+index 35e8d58..410d92e 100644
+--- a/drivers/gpu/drm/i915/vgt/vgt-if.h
++++ b/drivers/gpu/drm/i915/vgt/vgt-if.h
+@@ -75,12 +75,17 @@ enum vgt_v2g_type {
+ 	VGT_V2G_MAX,
+ };
+ 
++enum vgt_caps_type {
++	VGT_CAPS_PREEMPTION = (1 << 0),
++};
++
+ struct vgt_if {
+     uint64_t  magic;      /* VGT_MAGIC */
+     uint16_t  version_major;
+     uint16_t  version_minor;
+     uint32_t  vgt_id;       /* ID of vGT instance */
+-    uint32_t  rsv2[12];	    /* pad to offset 0x40 */
++    uint32_t  vgt_caps;     /* VGT capabilties */
++    uint32_t  rsv2[11];	    /* pad to offset 0x40 */
+     /*
+      *  Data structure to describe the balooning info of resources.
+      *  Each VM can only have one portion of continuous area for now.
+diff --git a/drivers/gpu/drm/i915/vgt/vgt.c b/drivers/gpu/drm/i915/vgt/vgt.c
+index a2a5383..9b4d570 100644
+--- a/drivers/gpu/drm/i915/vgt/vgt.c
++++ b/drivers/gpu/drm/i915/vgt/vgt.c
+@@ -97,6 +97,14 @@ int preallocated_shadow_pages = -1;
+ module_param_named(preallocated_shadow_pages, preallocated_shadow_pages, int, 0600);
+ MODULE_PARM_DESC(preallocated_shadow_pages, "Amount of pre-allocated shadow pages");
+ 
++int preallocated_oos_pages = -1;
++module_param_named(preallocated_oos_pages, preallocated_oos_pages, int, 0600);
++MODULE_PARM_DESC(preallocated_oos_pages, "Amount of pre-allocated oos pages");
++
++bool spt_out_of_sync = true;
++module_param_named(spt_out_of_sync, spt_out_of_sync, bool, 0600);
++MODULE_PARM_DESC(spt_out_of_sync, "Enable SPT out of sync");
++
+ /*
+  * FIXME: now video ring switch has weird issue. The cmd
+  * parser may enter endless loop even when head/tail is
+@@ -135,6 +143,9 @@ module_param_named(bypass_scan, bypass_scan_mask, int, 0600);
+ bool bypass_dom0_addr_check = false;
+ module_param_named(bypass_dom0_addr_check, bypass_dom0_addr_check, bool, 0600);
+ 
++bool cmd_parser_ip_buf = true;
++module_param_named(cmd_parser_ip_buf, cmd_parser_ip_buf, bool, 0600);
++
+ bool enable_panel_fitting = true;
+ module_param_named(enable_panel_fitting, enable_panel_fitting, bool, 0600);
+ 
+@@ -785,15 +796,6 @@ static int vgt_initialize(struct pci_dev *dev)
+ 
+ 	printk("vgt_initialize succeeds.\n");
+ 
+-	/* FIXME
+-	 * always enable forcewake. It was found that forcewake
+-	 * operation is one of the stability issue for running
+-	 * windows guest. Before having a decent fix, we will
+-	 * always enable force wake for Broadwell.
+-	 */
+-	if (IS_BDW(pdev))
+-		vgt_force_wake_get();
+-
+ 	return 0;
+ err:
+ 	printk("vgt_initialize failed.\n");
+diff --git a/drivers/gpu/drm/i915/vgt/vgt.h b/drivers/gpu/drm/i915/vgt/vgt.h
+index e2a4ec5..78d2a1a 100644
+--- a/drivers/gpu/drm/i915/vgt/vgt.h
++++ b/drivers/gpu/drm/i915/vgt/vgt.h
+@@ -90,6 +90,9 @@ extern bool wp_submitted_ctx;
+ extern bool propagate_monitor_to_guest;
+ extern bool irq_based_ctx_switch;
+ extern int preallocated_shadow_pages;
++extern int preallocated_oos_pages;
++extern bool spt_out_of_sync;
++extern bool cmd_parser_ip_buf;
+ 
+ enum vgt_event_type {
+ 	// GT
+@@ -402,7 +405,6 @@ typedef struct {
+ 	struct vgt_exec_list execlist_slots[EL_QUEUE_SLOT_NUM];
+ 	struct vgt_elsp_store elsp_store;
+ 	int csb_write_ptr;
+-	bool check_uninitialized_context;
+ } vgt_state_ring_t;
+ 
+ #define vgt_el_queue_head(vgt, ring_id) \
+@@ -428,7 +430,7 @@ struct vgt_mmio_entry {
+ 	vgt_mmio_write	write;
+ };
+ 
+-#define	VGT_HASH_BITS	6
++#define	VGT_HASH_BITS	8
+ 
+ /*
+  * Ring ID definition.
+@@ -613,6 +615,7 @@ struct vgt_vgtt_info {
+ 	DECLARE_HASHTABLE(guest_page_hash_table, VGT_HASH_BITS);
+ 	DECLARE_HASHTABLE(el_ctx_hash_table, VGT_HASH_BITS);
+ 	atomic_t n_write_protected_guest_page;
++	struct list_head oos_page_list_head;
+ };
+ 
+ extern bool vgt_init_vgtt(struct vgt_device *vgt);
+@@ -631,6 +634,8 @@ extern struct vgt_mm *gen8_find_ppgtt_mm(struct vgt_device *vgt,
+ 
+ typedef bool guest_page_handler_t(void *gp, uint64_t pa, void *p_data, int bytes);
+ 
++struct oos_page;
++
+ struct guest_page {
+ 	struct hlist_node node;
+ 	int writeprotection;
+@@ -638,9 +643,21 @@ struct guest_page {
+ 	void *vaddr;
+ 	guest_page_handler_t *handler;
+ 	void *data;
++	unsigned long write_cnt;
++	struct oos_page *oos_page;
+ };
++
+ typedef struct guest_page guest_page_t;
+ 
++struct oos_page {
++	guest_page_t *guest_page;
++	struct list_head list;
++	struct list_head vm_list;
++	int id;
++	unsigned char mem[GTT_PAGE_SIZE];
++};
++typedef struct oos_page oos_page_t;
++
+ typedef struct {
+ 	shadow_page_t shadow_page;
+ 	guest_page_t guest_page;
+@@ -659,6 +676,7 @@ extern bool vgt_clear_guest_page_writeprotection(struct vgt_device *vgt,
+ extern guest_page_t *vgt_find_guest_page(struct vgt_device *vgt, unsigned long gfn);
+ 
+ extern bool gen7_ppgtt_mm_setup(struct vgt_device *vgt, int ring_id);
++bool ppgtt_sync_oos_pages(struct vgt_device *vgt);
+ 
+ /* shadow context */
+ 
+@@ -729,6 +747,13 @@ extern void vgt_check_pending_context_switch(struct vgt_device *vgt);
+ 
+ struct vgt_irq_virt_state;
+ 
++struct vgt_mmio_accounting_reg_stat {
++	u64 r_count;
++	u64 r_cycles;
++	u64 w_count;
++	u64 w_cycles;
++};
++
+ struct vgt_statistics {
+ 	u64	schedule_in_time;	/* TSC time when it is last scheduled in */
+ 	u64	allocated_cycles;
+@@ -760,9 +785,23 @@ struct vgt_statistics {
+ 	u64	ring_tail_mmio_wcycles;
+ 	u64	vring_scan_cnt;
+ 	u64	vring_scan_cycles;
++	u64	wp_cnt;
++	u64	wp_cycles;
+ 	u64	ppgtt_wp_cnt;
+ 	u64	ppgtt_wp_cycles;
++	u64	spt_find_hit_cnt;
++	u64	spt_find_hit_cycles;
++	u64	spt_find_miss_cnt;
++	u64	spt_find_miss_cycles;
++	u64	gpt_find_hit_cnt;
++	u64	gpt_find_hit_cycles;
++	u64	gpt_find_miss_cnt;
++	u64	gpt_find_miss_cycles;
+ 	u64	skip_bb_cnt;
++
++	struct vgt_mmio_accounting_reg_stat *mmio_accounting_reg_stats;
++	bool mmio_accounting;
++	struct mutex mmio_accounting_lock;
+ };
+ 
+ /* per-VM structure */
+@@ -1100,6 +1139,11 @@ struct pgt_statistics {
+ 	u64	virq_cycles;
+ 	u64	irq_delay_cycles;
+ 	u64	events[EVENT_MAX];
++	u64	oos_page_cur_avail_cnt;
++	u64	oos_page_min_avail_cnt;
++	u64	oos_page_steal_cnt;
++	u64	oos_page_attach_cnt;
++	u64	oos_page_detach_cnt;
+ };
+ 
+ #define PCI_BDF2(b,df)  ((((b) & 0xff) << 8) | ((df) & 0xff))
+@@ -1139,6 +1183,8 @@ struct vgt_gtt_info {
+ 	void (*mm_free_page_table)(struct vgt_mm *mm);
+ 	mempool_t *mempool;
+ 	struct mutex mempool_lock;
++	struct list_head oos_page_use_list_head;
++	struct list_head oos_page_free_list_head;
+ };
+ 
+ /* per-device structure */
+diff --git a/include/uapi/drm/i915_drm.h b/include/uapi/drm/i915_drm.h
+index 32d0ea0..f7f1b6f 100644
+--- a/include/uapi/drm/i915_drm.h
++++ b/include/uapi/drm/i915_drm.h
+@@ -343,6 +343,7 @@ typedef struct drm_i915_irq_wait {
+ #define I915_PARAM_HAS_WT     	 	 27
+ #define I915_PARAM_CMD_PARSER_VERSION	 28
+ #define I915_PARAM_HAS_COHERENT_PHYS_GTT 29
++#define I915_PARAM_HAS_BSD2 31
+ 
+ typedef struct drm_i915_getparam {
+ 	int param;
+@@ -739,7 +740,13 @@ struct drm_i915_gem_execbuffer2 {
+  */
+ #define I915_EXEC_HANDLE_LUT		(1<<12)
+ 
+-#define __I915_EXEC_UNKNOWN_FLAGS -(I915_EXEC_HANDLE_LUT<<1)
++/** Used for switching BSD rings on the platforms with two BSD rings */
++#define I915_EXEC_BSD_MASK		(3<<13)
++#define I915_EXEC_BSD_DEFAULT		(0<<13) /* default ping-pong mode */
++#define I915_EXEC_BSD_RING1		(1<<13)
++#define I915_EXEC_BSD_RING2		(2<<13)
++
++#define __I915_EXEC_UNKNOWN_FLAGS -(1<<15)
+ 
+ #define I915_EXEC_CONTEXT_ID_MASK	(0xffffffff)
+ #define i915_execbuffer2_set_context_id(eb2, context) \
+diff --git a/tools/vgt/vgt_perf b/tools/vgt/vgt_perf
+index 9c080de..7162bff 100644
+--- a/tools/vgt/vgt_perf
++++ b/tools/vgt/vgt_perf
+@@ -172,11 +172,36 @@ state_nodes = {
+ 		"count" : 1,
+ 		"cycles": 1,
+ 	},
+-	"PPGTT writes" : {
++	"WP writes" : {
++		"node"	: "wp_",
++		"count" : 1,
++		"cycles": 1,
++	},
++	"PPGTT WP writes" : {
+ 		"node"	: "ppgtt_wp_",
+ 		"count" : 1,
+ 		"cycles": 1,
+ 	},
++	"PPGTT guest page find hit" : {
++		"node"	: "gpt_find_hit_",
++		"count" : 1,
++		"cycles": 1,
++	},
++	"PPGTT guest page find miss" : {
++		"node"	: "gpt_find_miss_",
++		"count" : 1,
++		"cycles": 1,
++	},
++	"PPGTT shadow page find hit" : {
++		"node"	: "spt_find_hit_",
++		"count" : 1,
++		"cycles": 1,
++	},
++	"PPGTT shadow page find miss" : {
++		"node"	: "spt_find_miss_",
++		"count" : 1,
++		"cycles": 1,
++	},
+ 	"MMIO reads" : {
+ 		"node"	: "mmio_r",
+ 		"count" : 1,
+@@ -207,11 +232,6 @@ state_nodes = {
+ 		"count" : 1,
+ 		"cycles": 1,
+ 	},
+-	"GP faults" : {
+-		"node"	: "vgt_gp_",
+-		"count" : 1,
+-		"cycles": 1,
+-	},
+ 	"Skipped batch buffers" : {
+ 		"node"	: "skip_bb_",
+ 		"count"	: 1,
+@@ -382,12 +402,15 @@ def show_result(e, s, r, time):
+ 		print_param2(e, vs, "MMIO writes", bias)
+ 		print_param2(e, vs, "GTT reads", bias)
+ 		print_param2(e, vs, "GTT writes", bias)
+-		print_param2(e, vs, "PPGTT writes", bias)
++		print_param2(e, vs, "WP writes", bias)
++		print_param2(e, vs, "PPGTT WP writes", bias)
++		print_param2(e, vs, "PPGTT guest page find hit", bias)
++		print_param2(e, vs, "PPGTT guest page find miss", bias)
++		print_param2(e, vs, "PPGTT shadow page find hit", bias)
++		print_param2(e, vs, "PPGTT shadow page find miss", bias)
+ 		#print_param2(e, vs, "PM accesses", bias)
+ 		#print_param2(e, vs, "IRQ accesses", bias)
+ 		#print_param2(vs, "Emulations", freq, bias)
+-		if id == 0:
+-			print_param2(e, vs, "GP faults", 0)
+ 
+ 		print "----"
+ 		print_param2(e, vs, "Ring tail writes", bias)
+diff --git a/tools/vgt/vgt_report b/tools/vgt/vgt_report
+index e4d5c80..35904e8 100644
+--- a/tools/vgt/vgt_report
++++ b/tools/vgt/vgt_report
+@@ -163,6 +163,12 @@ def get_reg_state(reg):
+ 	return out
+ 
+ def show_reginfo():
++	if options.preg:
++		print "Get preg info..."
++		p_output = Popen(["cat", path_preg], stdout=PIPE)
++		print "Analyze preg info..."
++		preginfo = get_reginfo(p_output)
++
+ 	print "===================================="
+ 	print "Owner Type:"
+ 	print "\tNone, RDR(Render), DPY(Display), PM, MGMT(Management)"
+@@ -181,14 +187,31 @@ def show_reginfo():
+ 	print "\tG - Accessed by GPU CMDs"
+ 	print "\tU - Tracked but unused"
+ 
+-	print "\n%10s: %5s|%5s|%12s|%8s|%-8s" % ("Reg", "Owner", "Type", "Attributes", "State", "Name")
++	line = "\n%10s: %5s|%5s|%12s|%8s" % ("Reg", "Owner", "Type", "Attributes", "State")
++
++	if options.preg:
++		line += "|%10s" % "Preg"
++
++	line += "|%-8s" % "Name"
++
++	print line
++
+ 	print "------------------------------------"
+ 
+ 	i = 0
+ 	for reg in sorted(reginfo):
+ 		if not "Accessed" in reginfo[reg]:
+ 			continue
+-		print "%10s: %5s|%5s|%12s|%8s|%s" % (hex(reg), reginfo[reg]["Owner"], reginfo[reg]["Type"], get_reg_attr(reginfo[reg]), get_reg_state(reginfo[reg]), reginfo[reg]["name"])
++
++		line = "%10s: %5s|%5s|%12s|%8s" % (hex(reg), reginfo[reg]["Owner"], reginfo[reg]["Type"], get_reg_attr(reginfo[reg]), get_reg_state(reginfo[reg]))
++
++		if options.preg:
++			line += "|%10s" % preginfo[reg]
++
++		line += "|%s" % reginfo[reg]["name"]
++
++		print line
++
+ 		i += 1
+ 	print "Total %d registers" % i
+ 	print "===================================="

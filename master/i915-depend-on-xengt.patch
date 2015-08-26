@@ -1,0 +1,13 @@
+diff --git a/drivers/gpu/drm/i915/vgt/vgt.c b/drivers/gpu/drm/i915/vgt/vgt.c
+index 8ffcf298..c0481d8 100644
+--- a/drivers/gpu/drm/i915/vgt/vgt.c
++++ b/drivers/gpu/drm/i915/vgt/vgt.c
+@@ -1272,7 +1272,7 @@ bool i915_start_vgt(struct pci_dev *pdev)
+ {
+ 	vgt_ops = &__vgt_ops;
+ 
+-	vgt_pkdm = try_then_request_module(symbol_get(xengt_kdm), "xengt");
++	vgt_pkdm = &xengt_kdm;
+ 	if (vgt_pkdm == NULL) {
+ 		printk("vgt: Could not load xengt MPT service\n");
+ 		return false;

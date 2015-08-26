@@ -1,0 +1,88 @@
+diff --git a/drivers/xen/xengt.c b/drivers/xen/xengt.c
+index f7c652c..d2f3ec8 100644
+--- a/drivers/xen/xengt.c
++++ b/drivers/xen/xengt.c
+@@ -809,43 +809,50 @@ static int vgt_hvm_do_ioreq(struct vgt_device *vgt, struct ioreq *ioreq)
+ {
+ 	struct pgt_device *pdev = vgt->pdev;
+ 	uint64_t bdf = PCI_BDF2(pdev->pbus->number, pdev->devfn);
++	int rc = 0;
+ 
+-	/* When using ioreq-server, sometimes an event channal
+-	 * notification is received with invalid ioreq. Don't
+-	 * know the root cause. Put the workaround here.
+-	 */
+-	if (ioreq->state == STATE_IOREQ_NONE)
+-		return 0;
+-
+-	if (ioreq->type == IOREQ_TYPE_INVALIDATE)
+-		return 0;
++	BUG_ON(ioreq->state != STATE_IOREQ_INPROCESS);
+ 
+ 	switch (ioreq->type) {
+-		case IOREQ_TYPE_PCI_CONFIG:
++	case IOREQ_TYPE_PCI_CONFIG:
+ 		/* High 32 bit of ioreq->addr is bdf */
+ 		if ((ioreq->addr >> 32) != bdf) {
+ 			printk(KERN_ERR "vGT: Unexpected PCI Dev %lx emulation\n",
+-				(unsigned long) (ioreq->addr>>32));
+-				return -EINVAL;
+-			} else
+-				return _hvm_pio_emulation(vgt, ioreq);
+-			break;
+-		case IOREQ_TYPE_COPY:	/* MMIO */
+-			return _hvm_mmio_emulation(vgt, ioreq);
+-			break;
+-		default:
+-			printk(KERN_ERR "vGT: Unknown ioreq type %x addr %llx size %u state %u\n",
+-				ioreq->type, ioreq->addr, ioreq->size, ioreq->state);
+-			return -EINVAL;
++			       (unsigned long) (ioreq->addr>>32));
++			rc = -EINVAL;
++		} else
++			rc = _hvm_pio_emulation(vgt, ioreq);
++		break;
++	case IOREQ_TYPE_COPY:	/* MMIO */
++		rc = _hvm_mmio_emulation(vgt, ioreq);
++		break;
++	case IOREQ_TYPE_INVALIDATE:
++	case IOREQ_TYPE_TIMEOFFSET:
++		break;
++	default:
++		printk(KERN_ERR "vGT: Unknown ioreq type %x addr %llx size %u state %u\n",
++		       ioreq->type, ioreq->addr, ioreq->size, ioreq->state);
++		rc = -EINVAL;
++		break;
+ 	}
+ 
+-	return 0;
++	wmb();
++
++	return rc;
+ }
+ 
+ static struct ioreq *vgt_get_hvm_ioreq(struct vgt_device *vgt, int vcpu)
+ {
+ 	struct vgt_hvm_info *info = vgt->hvm_info;
+-	return &(info->iopage->vcpu_ioreq[vcpu]);
++	ioreq_t *req = &(info->iopage->vcpu_ioreq[vcpu]);
++
++	if (req->state != STATE_IOREQ_READY)
++	  return NULL;
++
++	rmb();
++
++	req->state = STATE_IOREQ_INPROCESS;
++	return req;
+ }
+ 
+ static int vgt_emulation_thread(void *priv)
+@@ -881,6 +888,8 @@ static int vgt_emulation_thread(void *priv)
+ 				continue;
+ 
+ 			ioreq = vgt_get_hvm_ioreq(vgt, vcpu);
++			if (ioreq == NULL)
++				continue;
+ 
+ 			if (vgt_hvm_do_ioreq(vgt, ioreq) ||
+ 					!vgt_ops->expand_shadow_page_mempool(vgt->pdev)) {

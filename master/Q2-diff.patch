@@ -1,0 +1,1014 @@
+diff -ur -x '.*' ../XenGT-Preview-kernel/drivers/gpu/drm/i915/i915_drv.h XenGT-Server-kernel/drivers/gpu/drm/i915/i915_drv.h
+--- ../XenGT-Preview-kernel/drivers/gpu/drm/i915/i915_drv.h	2015-05-08 05:11:55.395001324 +0100
++++ XenGT-Server-kernel/drivers/gpu/drm/i915/i915_drv.h	2015-05-08 05:09:08.593646914 +0100
+@@ -1795,6 +1795,8 @@
+ 	} irq_ops;
+ #endif
+ 
++	unsigned long value_of_0xfdc;
++
+ 	/* Abstract the submission mechanism (legacy ringbuffer or execlists) away */
+ 	struct {
+ 		int (*do_execbuf)(struct drm_device *dev, struct drm_file *file,
+diff -ur -x '.*' ../XenGT-Preview-kernel/drivers/gpu/drm/i915/i915_gem.c XenGT-Server-kernel/drivers/gpu/drm/i915/i915_gem.c
+--- ../XenGT-Preview-kernel/drivers/gpu/drm/i915/i915_gem.c	2015-05-08 05:11:55.395001324 +0100
++++ XenGT-Server-kernel/drivers/gpu/drm/i915/i915_gem.c	2015-05-08 05:09:08.594646928 +0100
+@@ -195,8 +195,13 @@
+ 			pinned += i915_gem_obj_ggtt_size(obj);
+ 	mutex_unlock(&dev->struct_mutex);
+ 
+-	args->aper_size = dev_priv->gtt.base.total;
+-	args->aper_available_size = args->aper_size - pinned;
++	if (!USES_VGT(ring->dev)) {
++		args->aper_size = dev_priv->gtt.base.total;
++		args->aper_available_size = args->aper_size - pinned;
++	} else {
++		args->aper_size = dev_priv->mm.vgt_low_gm_size + dev_priv->mm.vgt_high_gm_size;
++		args->aper_available_size = dev_priv->mm.vgt_low_gm_size + dev_priv->mm.vgt_high_gm_size - pinned;
++	}
+ 
+ 	return 0;
+ }
+diff -ur -x '.*' ../XenGT-Preview-kernel/drivers/gpu/drm/i915/i915_reg.h XenGT-Server-kernel/drivers/gpu/drm/i915/i915_reg.h
+--- ../XenGT-Preview-kernel/drivers/gpu/drm/i915/i915_reg.h	2015-05-04 03:47:41.686723971 +0100
++++ XenGT-Server-kernel/drivers/gpu/drm/i915/i915_reg.h	2015-05-08 05:09:08.599646998 +0100
+@@ -137,6 +137,9 @@
+ #define GEN8_RING_PDP_UDW(ring, n)	((ring)->mmio_base+0x270 + ((n) * 8 + 4))
+ #define GEN8_RING_PDP_LDW(ring, n)	((ring)->mmio_base+0x270 + (n) * 8)
+ 
++#define GEN8_GTT_CACHE_EN		0x4024
++#define   GEN8_GTT_CACHE_DEFAULT	0xf0007fff
++
+ #define GAM_ECOCHK			0x4090
+ #define   ECOCHK_SNB_BIT		(1<<10)
+ #define   HSW_ECOCHK_ARB_PRIO_SOL	(1<<6)
+@@ -1432,6 +1435,9 @@
+ #define   MI_AGPBUSY_INT_EN			(1 << 1) /* 85x only */
+ #define   MI_AGPBUSY_830_MODE			(1 << 0) /* 85x only */
+ 
++#define GEN8_FF_SLICE_CS_CHICKEN2		0x20e4
++#define   GEN8_THREAD_GROUP_PREEMPTION		(1<<1)
++
+ #define CACHE_MODE_0	0x02120 /* 915+ only */
+ #define   CM0_PIPELINED_RENDER_FLUSH_DISABLE (1<<8)
+ #define   CM0_IZ_OPT_DISABLE      (1<<6)
+@@ -5161,6 +5167,9 @@
+ #define GEN7_L3SQCREG1				0xB010
+ #define  VLV_B0_WA_L3SQCREG1_VALUE		0x00D30000
+ 
++#define GEN8_L3SQCREG1				0xB100
++#define  BDW_WA_L3SQCREG1_DEFAULT		0x784000
++
+ #define GEN7_L3CNTLREG1				0xB01C
+ #define  GEN7_WA_FOR_GEN7_L3_CONTROL			0x3C47FF8C
+ #define  GEN7_L3AGDIS				(1<<19)
+@@ -5173,6 +5182,9 @@
+ #define GEN7_L3SQCREG4				0xb034
+ #define  L3SQ_URB_READ_CAM_MATCH_DISABLE	(1<<27)
+ 
++#define GEN8_L3SQCREG4				0xb118
++#define  GEN8_PIPELINE_FLUSH_COHERENT_LINES	(1<<21)
++
+ /* GEN8 chicken */
+ #define HDC_CHICKEN0				0x7300
+ #define  HDC_FORCE_NON_COHERENT			(1<<4)
+diff -ur -x '.*' ../XenGT-Preview-kernel/drivers/gpu/drm/i915/intel_display.c XenGT-Server-kernel/drivers/gpu/drm/i915/intel_display.c
+--- ../XenGT-Preview-kernel/drivers/gpu/drm/i915/intel_display.c	2015-05-08 05:11:55.400001402 +0100
++++ XenGT-Server-kernel/drivers/gpu/drm/i915/intel_display.c	2015-05-08 05:09:08.603647054 +0100
+@@ -99,6 +99,9 @@
+ static void chv_prepare_pll(struct intel_crtc *crtc,
+ 			    const struct intel_crtc_config *pipe_config);
+ 
++static void page_flip_completed(struct intel_crtc *intel_crtc);
++static bool page_flip_finished(struct intel_crtc *crtc);
++
+ static struct intel_encoder *intel_find_encoder(struct intel_connector *connector, int pipe)
+ {
+ 	if (!connector->mst_port)
+@@ -2912,6 +2915,15 @@
+ 
+ 	spin_lock_irq(&dev->event_lock);
+ 	pending = to_intel_crtc(crtc)->unpin_work != NULL;
++	/* Re-check the page flip status in vgt as in suspending
++	 * process flip done interrupt may be lost due to vgt_thread
++	 * is frozen before i915_pm_suspend.
++	 */
++	if (i915.enable_vgt && pending) {
++		pending = !page_flip_finished(intel_crtc);
++		if (!pending)
++			page_flip_completed(intel_crtc);
++	}
+ 	spin_unlock_irq(&dev->event_lock);
+ 
+ 	return pending;
+diff -ur -x '.*' ../XenGT-Preview-kernel/drivers/gpu/drm/i915/intel_pm.c XenGT-Server-kernel/drivers/gpu/drm/i915/intel_pm.c
+--- ../XenGT-Preview-kernel/drivers/gpu/drm/i915/intel_pm.c	2015-05-08 05:11:55.403001443 +0100
++++ XenGT-Server-kernel/drivers/gpu/drm/i915/intel_pm.c	2015-05-08 05:09:08.609647141 +0100
+@@ -6646,8 +6646,7 @@
+ 	I915_WRITE(WM2_LP_ILK, 0);
+ 	I915_WRITE(WM1_LP_ILK, 0);
+ 
+-	/* WaSwitchSolVfFArbitrationPriority:bdw */
+-	I915_WRITE(GAM_ECOCHK, I915_READ(GAM_ECOCHK) | HSW_ECOCHK_ARB_PRIO_SOL);
++	I915_WRITE(GAM_ECOCHK, I915_READ(GAM_ECOCHK) | ECOCHK_PPGTT_WB_HSW);
+ 
+ 	/* WaPsrDPAMaskVBlankInSRD:bdw */
+ 	I915_WRITE(CHICKEN_PAR1_1,
+@@ -6673,13 +6672,19 @@
+ 	I915_WRITE(GEN8_UCGCTL6, I915_READ(GEN8_UCGCTL6) |
+ 		   GEN8_SDEUNIT_CLOCK_GATE_DISABLE);
+ 
+-	I915_WRITE(GEN7_ROW_CHICKEN2,
+-			_MASKED_BIT_ENABLE(DOP_CLOCK_GATING_DISABLE));
+-
+-	I915_WRITE(GEN6_UCGCTL1, I915_READ(GEN6_UCGCTL1) |
+-			GEN6_EU_TCUNIT_CLOCK_GATE_DISABLE);
++	/* WaOCLCoherentLineFlush:bdw */
++	I915_WRITE(GEN8_L3SQCREG4, I915_READ(GEN8_L3SQCREG4) |
++		   GEN8_PIPELINE_FLUSH_COHERENT_LINES);
++
++	/* WaGttCachingOffByDefault:bdw */
++	I915_WRITE(GEN8_GTT_CACHE_EN, GEN8_GTT_CACHE_DEFAULT);
++
++	/* WaDisableMidThreadPreempt:bdw */
++	I915_WRITE(GEN8_FF_SLICE_CS_CHICKEN2,
++		   I915_READ(GEN8_FF_SLICE_CS_CHICKEN2) |
++		   _MASKED_BIT_ENABLE(GEN8_THREAD_GROUP_PREEMPTION));
+ 
+-	I915_WRITE(0x20e4, _MASKED_BIT_ENABLE(0x2));
++	I915_WRITE(0xb10c, (I915_READ(0xb10c) & ~(0xf << 20)) | (0x8 << 20));
+ 
+ 	lpt_init_clock_gating(dev);
+ }
+diff -ur -x '.*' ../XenGT-Preview-kernel/drivers/gpu/drm/i915/intel_ringbuffer.c XenGT-Server-kernel/drivers/gpu/drm/i915/intel_ringbuffer.c
+--- ../XenGT-Preview-kernel/drivers/gpu/drm/i915/intel_ringbuffer.c	2015-05-08 05:11:55.404001457 +0100
++++ XenGT-Server-kernel/drivers/gpu/drm/i915/intel_ringbuffer.c	2015-05-08 05:09:08.610647155 +0100
+@@ -785,6 +785,9 @@
+ 			    GEN6_WIZ_HASHING_MASK,
+ 			    GEN6_WIZ_HASHING_16x4);
+ 
++	/* WaProgramL3SqcReg1Default:bdw */
++	WA_WRITE(GEN8_L3SQCREG1, BDW_WA_L3SQCREG1_DEFAULT);
++
+ 	return 0;
+ }
+ 
+diff -ur -x '.*' ../XenGT-Preview-kernel/drivers/gpu/drm/i915/intel_uncore.c XenGT-Server-kernel/drivers/gpu/drm/i915/intel_uncore.c
+--- ../XenGT-Preview-kernel/drivers/gpu/drm/i915/intel_uncore.c	2015-05-08 05:11:55.404001457 +0100
++++ XenGT-Server-kernel/drivers/gpu/drm/i915/intel_uncore.c	2015-05-08 05:09:08.612647183 +0100
+@@ -149,6 +149,9 @@
+ 
+ 	/* WaRsForcewakeWaitTC0:ivb,hsw */
+ 	__gen6_gt_wait_for_thread_c0(dev_priv);
++
++	if (IS_BROADWELL(dev_priv->dev))
++		__raw_i915_write32(dev_priv, 0xfdc, dev_priv->value_of_0xfdc);
+ }
+ 
+ static void gen6_gt_check_fifodbg(struct drm_i915_private *dev_priv)
+@@ -1192,6 +1195,29 @@
+ 	dev_priv->uncore.funcs.mmio_readq = x##_read64; \
+ } while (0)
+ 
++void gen8_calc_value_of_0xfdc(struct drm_i915_private *dev_priv)
++{
++	unsigned long val_9120;
++	int bit;
++	unsigned long value = 0;
++
++	val_9120 = (__raw_i915_read32(dev_priv, 0x9120) >> 25) & 0x7;
++	for (bit = 0; bit < 3; bit++)
++		if ((val_9120 & (1 << bit)) && bit)
++			value |= (1 << (25 + bit));
++
++	val_9120 = (__raw_i915_read32(dev_priv, 0x9120) >> 21) & 0x7;
++	for (bit = 0; bit < 3; bit++)
++		if (!(val_9120 & (1 << bit)) && bit)
++			value |= (1 << (23 + bit));
++
++	value |= (1 << 28);
++
++	dev_priv->value_of_0xfdc = value;
++
++	DRM_INFO("value of 0xfdc: %lx.\n", dev_priv->value_of_0xfdc);
++}
++
+ void intel_uncore_init(struct drm_device *dev)
+ {
+ 	struct drm_i915_private *dev_priv = dev->dev_private;
+@@ -1264,6 +1290,7 @@
+ 		} else {
+ 			ASSIGN_WRITE_MMIO_VFUNCS(gen8);
+ 			ASSIGN_READ_MMIO_VFUNCS(gen6);
++			gen8_calc_value_of_0xfdc(dev_priv);
+ 		}
+ 		break;
+ 	case 7:
+diff -ur -x '.*' ../XenGT-Preview-kernel/drivers/gpu/drm/i915/vgt/cmd_parser.c XenGT-Server-kernel/drivers/gpu/drm/i915/vgt/cmd_parser.c
+--- ../XenGT-Preview-kernel/drivers/gpu/drm/i915/vgt/cmd_parser.c	2015-05-08 05:11:55.405001471 +0100
++++ XenGT-Server-kernel/drivers/gpu/drm/i915/vgt/cmd_parser.c	2015-05-08 05:09:08.612647183 +0100
+@@ -665,6 +665,57 @@
+ 	return 0;
+ }
+ 
++/*
++ * Actually, we don't like to emulate register behavior in LRI handlers,
++ * But DE_RRMR is an exception, even we can modify i915 to access
++ * DE_RRMR via MMIO, the 2D driver will also access it via submitted
++ * batch buffer.
++ *
++ * So we have no choice and have to handle it here, as windows is
++ * using deferred filp from gen8+, MI_DISPLAY_FLIP and MI_WAIT_FOR_EVENT
++ * will not be in the same submission. If a i915 submission modify
++ * DE_RRMR after the filp submission, the wait submission of windows
++ * will hang as the needed events are disabled by i915. Only modify i915
++ * will not work, as 2D driver(xf86-video-intel) also modify it directly.
++ * */
++
++#define BIT_RANGE_MASK(a, b)	\
++	((1UL << ((a) + 1)) - (1UL << (b)))
++
++static int vgt_cmd_handler_lri_de_rrmr(struct parser_exec_state *s)
++{
++	int i;
++	int cmd_len = cmd_length(s);
++	unsigned long offset;
++	unsigned long val;
++
++	for (i = 1; i < cmd_len; i += 2) {
++		offset = cmd_val(s, i) & BIT_RANGE_MASK(22, 2);
++		val = cmd_val(s, i + 1);
++
++		if (offset == _REG_DE_RRMR)
++			break;
++	}
++
++	if (i == cmd_len) {
++		vgt_err("No DE_RRMR in LRI?");
++		return -EINVAL;
++	}
++
++	if (!vgt_rrmr_mmio_write(s->vgt, _REG_DE_RRMR, &val, 4)) {
++		vgt_err("fail to emulate register DE_RRMR!\n");
++		return -EINVAL;
++	}
++
++	if (add_patch_entry(s, cmd_ptr(s, i + 1),
++				VGT_MMIO_READ(s->vgt->pdev, _REG_DE_RRMR))) {
++		vgt_err("fail to patch DE_RRMR LRI.\n");
++		return -ENOSPC;
++	}
++
++	return 0;
++}
++
+ static int cmd_reg_handler(struct parser_exec_state *s,
+ 	unsigned int offset, unsigned int index, char *cmd)
+ {
+@@ -706,16 +757,24 @@
+ 
+ 	return 0;
+ }
+-#define BIT_RANGE_MASK(a, b)	\
+-	((1UL << ((a) + 1)) - (1UL << (b)))
++
+ static int vgt_cmd_handler_lri(struct parser_exec_state *s)
+ {
++	unsigned long offset;
+ 	int i, rc = 0;
+ 	int cmd_len = cmd_length(s);
+ 
+ 	for (i = 1; i < cmd_len; i += 2) {
+-		rc |= cmd_reg_handler(s,
+-			cmd_val(s, i) & BIT_RANGE_MASK(22, 2), i, "lri");
++		offset = cmd_val(s, i) & BIT_RANGE_MASK(22, 2);
++		rc |= cmd_reg_handler(s, offset, i, "lri");
++
++		if (IS_BDW(s->vgt->pdev) && offset == _REG_DE_RRMR) {
++			rc = add_post_handle_entry(s, vgt_cmd_handler_lri_de_rrmr);
++			if (rc) {
++				vgt_err("fail to allocate post handle");
++				break;
++			}
++		}
+ 	}
+ 
+ 	return rc;
+diff -ur -x '.*' ../XenGT-Preview-kernel/drivers/gpu/drm/i915/vgt/gtt.c XenGT-Server-kernel/drivers/gpu/drm/i915/vgt/gtt.c
+--- ../XenGT-Preview-kernel/drivers/gpu/drm/i915/vgt/gtt.c	2015-05-08 05:11:55.416001627 +0100
++++ XenGT-Server-kernel/drivers/gpu/drm/i915/vgt/gtt.c	2015-05-08 05:09:08.614647211 +0100
+@@ -586,7 +586,7 @@
+ 	vgt_clean_shadow_page(&spt->shadow_page);
+ 	vgt_clean_guest_page(spt->vgt, &spt->guest_page);
+ 
+-	mempool_free(spt, spt->vgt->gtt.mempool);
++	mempool_free(spt, spt->vgt->pdev->gtt.mempool);
+ }
+ 
+ static void ppgtt_free_all_shadow_page(struct vgt_device *vgt)
+@@ -601,19 +601,12 @@
+ 	return;
+ }
+ 
+-static bool ppgtt_handle_guest_write_page_table(guest_page_t *gpt, gtt_entry_t *we,
+-		unsigned long index);
++static bool ppgtt_handle_guest_write_page_table_bytes(void *gp,
++		uint64_t pa, void *p_data, int bytes);
+ 
+ static bool ppgtt_write_protection_handler(void *gp, uint64_t pa, void *p_data, int bytes)
+ {
+ 	guest_page_t *gpt = (guest_page_t *)gp;
+-	ppgtt_spt_t *spt = guest_page_to_ppgtt_spt(gpt);
+-	struct vgt_device *vgt = spt->vgt;
+-	struct vgt_device_info *info = &vgt->pdev->device_info;
+-	struct vgt_gtt_pte_ops *ops = vgt->pdev->gtt.pte_ops;
+-	gtt_type_t type = get_entry_type(spt->guest_page_type);
+-	unsigned long index;
+-	gtt_entry_t e;
+ 
+ 	if (bytes != 4 && bytes != 8)
+ 		return false;
+@@ -621,20 +614,8 @@
+ 	if (!gpt->writeprotection)
+ 		return false;
+ 
+-	e.val64 = 0;
+-
+-	if (info->gtt_entry_size == 4) {
+-		gtt_init_entry(&e, type, vgt->pdev, *(u32 *)p_data);
+-	} else if (info->gtt_entry_size == 8) {
+-		ASSERT_VM(bytes == 8, vgt);
+-		gtt_init_entry(&e, type, vgt->pdev, *(u64 *)p_data);
+-	}
+-
+-	ops->test_pse(&e);
+-
+-	index = (pa & (PAGE_SIZE - 1)) >> info->gtt_entry_size_shift;
+-
+-	return ppgtt_handle_guest_write_page_table(gpt, &e, index);
++	return ppgtt_handle_guest_write_page_table_bytes(gp,
++		pa, p_data, bytes);
+ }
+ 
+ static ppgtt_spt_t *ppgtt_alloc_shadow_page(struct vgt_device *vgt,
+@@ -642,12 +623,13 @@
+ {
+ 	ppgtt_spt_t *spt = NULL;
+ 
+-	spt = mempool_alloc(vgt->gtt.mempool, GFP_ATOMIC);
++	spt = mempool_alloc(vgt->pdev->gtt.mempool, GFP_ATOMIC);
+ 	if (!spt) {
+ 		vgt_err("fail to allocate ppgtt shadow page.\n");
+ 		return NULL;
+ 	}
+ 
++	spt->vgt = vgt;
+ 	spt->guest_page_type = type;
+ 	atomic_set(&spt->refcount, 1);
+ 
+@@ -865,7 +847,11 @@
+ 	struct vgt_gtt_pte_ops *ops = vgt->pdev->gtt.pte_ops;
+ 	gtt_entry_t e;
+ 
+-	trace_guest_pt_change(spt->vgt->vm_id, "remove", spt, sp->type, we->val64, index);
++	trace_gpt_change(spt->vgt->vm_id, "remove", spt, sp->type, we->val64, index);
++
++	ppgtt_get_shadow_entry(spt, &e, index);
++	if (!ops->test_present(&e))
++		return true;
+ 
+ 	if (gtt_type_is_pt(get_next_pt_type(we->type))) {
+ 		guest_page_t *g = vgt_find_guest_page(vgt, ops->get_pfn(we));
+@@ -876,7 +862,6 @@
+ 		if (!ppgtt_invalidate_shadow_page(guest_page_to_ppgtt_spt(g)))
+ 			goto fail;
+ 	}
+-	ppgtt_get_shadow_entry(spt, &e, index);
+ 	e.val64 = 0;
+ 	ppgtt_set_shadow_entry(spt, &e, index);
+ 	return true;
+@@ -895,7 +880,7 @@
+ 	gtt_entry_t m;
+ 	ppgtt_spt_t *s;
+ 
+-	trace_guest_pt_change(spt->vgt->vm_id, "add", spt, sp->type, we->val64, index);
++	trace_gpt_change(spt->vgt->vm_id, "add", spt, sp->type, we->val64, index);
+ 
+ 	if (gtt_type_is_pt(get_next_pt_type(we->type))) {
+ 		s = ppgtt_populate_shadow_page_by_guest_entry(vgt, we);
+@@ -955,6 +940,53 @@
+ 	return false;
+ }
+ 
++static bool ppgtt_handle_guest_write_page_table_bytes(void *gp,
++		uint64_t pa, void *p_data, int bytes)
++{
++	guest_page_t *gpt = (guest_page_t *)gp;
++	ppgtt_spt_t *spt = guest_page_to_ppgtt_spt(gpt);
++	struct vgt_device *vgt = spt->vgt;
++	struct vgt_gtt_pte_ops *ops = vgt->pdev->gtt.pte_ops;
++	struct vgt_device_info *info = &vgt->pdev->device_info;
++	gtt_entry_t we, se;
++	unsigned long index;
++
++	bool partial_access = (bytes != info->gtt_entry_size);
++	bool hi = (partial_access && (pa & (info->gtt_entry_size - 1)));
++
++	index = (pa & (PAGE_SIZE - 1)) >> info->gtt_entry_size_shift;
++
++	ppgtt_get_guest_entry(spt, &we, index);
++	memcpy(&we.val64 + (pa & (info->gtt_entry_size - 1)), p_data, bytes);
++
++	if (partial_access && !hi) {
++		trace_gpt_change(vgt->vm_id, "partial access - LOW",
++				NULL, we.type, *(u32 *)(p_data), index);
++
++		ppgtt_set_guest_entry(spt, &we, index);
++		ppgtt_get_shadow_entry(spt, &se, index);
++
++		if (!ops->test_present(&se))
++			return true;
++
++		if (gtt_type_is_pt(get_next_pt_type(se.type)))
++			if (!ppgtt_invalidate_shadow_page_by_shadow_entry(vgt, &se))
++				return false;
++
++		se.val64 = 0;
++		ppgtt_set_shadow_entry(spt, &se, index);
++		return true;
++	}
++
++	if (hi)
++		trace_gpt_change(vgt->vm_id, "partial access - HIGH",
++				NULL, we.type, *(u32 *)(p_data), index);
++
++	ops->test_pse(&we);
++
++	return ppgtt_handle_guest_write_page_table(gpt, &we, index);
++}
++
+ bool ppgtt_handle_guest_write_root_pointer(struct vgt_mm *mm,
+ 		gtt_entry_t *we, unsigned long index)
+ {
+@@ -966,7 +998,7 @@
+ 	if (mm->type != VGT_MM_PPGTT || !mm->shadowed)
+ 		return false;
+ 
+-	trace_guest_pt_change(vgt->vm_id, __func__, NULL,
++	trace_gpt_change(vgt->vm_id, __func__, NULL,
+ 			we->type, we->val64, index);
+ 
+ 	ppgtt_get_guest_root_entry(mm, &e, index);
+@@ -974,7 +1006,7 @@
+ 	if (ops->test_present(&e)) {
+ 		ppgtt_get_shadow_root_entry(mm, &e, index);
+ 
+-		trace_guest_pt_change(vgt->vm_id, "destroy old root pointer",
++		trace_gpt_change(vgt->vm_id, "destroy old root pointer",
+ 				spt, e.type, e.val64, index);
+ 
+ 		if (gtt_type_is_pt(get_next_pt_type(e.type))) {
+@@ -1001,7 +1033,7 @@
+ 			vgt_err("VGT doesn't support pse bit now.\n");
+ 			goto fail;
+ 		}
+-		trace_guest_pt_change(vgt->vm_id, "populate root pointer",
++		trace_gpt_change(vgt->vm_id, "populate root pointer",
+ 				spt, e.type, e.val64, index);
+ 	}
+ 	return true;
+@@ -1139,7 +1171,7 @@
+ 			se.val64 = 0;
+ 			ppgtt_set_shadow_root_entry(mm, &se, i);
+ 
+-			trace_guest_pt_change(vgt->vm_id, "destroy root pointer",
++			trace_gpt_change(vgt->vm_id, "destroy root pointer",
+ 					NULL, se.type, se.val64, i);
+ 		}
+ 	}
+@@ -1196,7 +1228,7 @@
+ 			if (!ops->test_present(&ge))
+ 				continue;
+ 
+-			trace_guest_pt_change(vgt->vm_id, __func__, NULL,
++			trace_gpt_change(vgt->vm_id, __func__, NULL,
+ 					ge.type, ge.val64, i);
+ 
+ 			spt = ppgtt_populate_shadow_page_by_guest_entry(vgt, &ge);
+@@ -1207,7 +1239,7 @@
+ 			ppgtt_generate_shadow_entry(&se, spt, &ge);
+ 			ppgtt_set_shadow_root_entry(mm, &se, i);
+ 
+-			trace_guest_pt_change(vgt->vm_id, "populate root pointer",
++			trace_gpt_change(vgt->vm_id, "populate root pointer",
+ 					NULL, se.type, se.val64, i);
+ 		}
+ 		mm->shadowed = true;
+@@ -1341,11 +1373,7 @@
+ 		return false;
+ 
+ 	ggtt_get_guest_entry(ggtt_mm, &e, index);
+-
+-	if (bytes == 4 && info->gtt_entry_size == 4)
+-		*(u32 *)p_data = e.val32[0];
+-	else if (info->gtt_entry_size == 8)
+-		memcpy(p_data, &e.val64 + (off & 0x7), bytes);
++	memcpy(p_data, &e.val64 + (off & (info->gtt_entry_size - 1)), bytes);
+ 
+ 	return true;
+ }
+@@ -1428,6 +1456,8 @@
+ 	struct vgt_device_info *info = &pdev->device_info;
+ 	struct vgt_mm *ggtt_mm = vgt->gtt.ggtt_mm;
+ 	unsigned long g_gtt_index = off >> info->gtt_entry_size_shift;
++	bool partial_access = (bytes != info->gtt_entry_size);
++	bool hi = (partial_access && (off & (info->gtt_entry_size - 1)));
+ 	unsigned long gma;
+ 	gtt_entry_t e, m;
+ 	int rc;
+@@ -1447,15 +1477,15 @@
+ 
+ 		count++;
+ 		/* in this case still return true since the impact is on vgtt only */
+-		goto out;
++		return true;
+ 	}
+ 
+-	if (bytes == 4 && info->gtt_entry_size == 4)
+-		e.val32[0] = *(u32 *)p_data;
+-	else if (info->gtt_entry_size == 8)
+-		memcpy(&e.val64 + (off & 7), p_data, bytes);
++	ggtt_get_guest_entry(ggtt_mm, &e, g_gtt_index);
+ 
+-	gtt_init_entry(&e, GTT_TYPE_GGTT_PTE, vgt->pdev, e.val64);
++	memcpy(&e.val64 + (off & (info->gtt_entry_size - 1)), p_data, bytes);
++
++	if (partial_access && !hi)
++		goto out;
+ 
+ 	if (!process_ppgtt_root_pointer(vgt, &e, g_gtt_index))
+ 		return false;
+@@ -1463,8 +1493,6 @@
+ 	if (e.type != GTT_TYPE_GGTT_PTE)
+ 		return true;
+ 
+-	ggtt_set_guest_entry(ggtt_mm, &e, g_gtt_index);
+-
+ 	rc = gtt_entry_p2m(vgt, &e, &m);
+ 	if (!rc) {
+ 		vgt_err("VM %d: failed to translate guest gtt entry\n", vgt->vm_id);
+@@ -1473,6 +1501,7 @@
+ 
+ 	ggtt_set_shadow_entry(ggtt_mm, &m, g_gtt_index);
+ out:
++	ggtt_set_guest_entry(ggtt_mm, &e, g_gtt_index);
+ 	return true;
+ }
+ 
+@@ -1596,13 +1625,16 @@
+ 	}
+ }
+ 
+-bool vgt_expand_shadow_page_mempool(struct vgt_device *vgt)
++bool vgt_expand_shadow_page_mempool(struct pgt_device *pdev)
+ {
+-	mempool_t *mempool = vgt->gtt.mempool;
++	mempool_t *mempool = pdev->gtt.mempool;
++	bool rc = true;
+ 	int new_min_nr;
+ 
++	mutex_lock(&pdev->gtt.mempool_lock);
++
+ 	if (mempool->curr_nr >= preallocated_shadow_pages / 3)
+-		return true;
++		goto out;
+ 
+ 	/*
+ 	 * Have to do this to let the pool expand directly.
+@@ -1610,21 +1642,24 @@
+ 	new_min_nr = preallocated_shadow_pages - 1;
+ 	if (mempool_resize(mempool, new_min_nr, GFP_KERNEL)) {
+ 		vgt_err("fail to resize the mempool.\n");
+-		return false;
++		rc = false;
++		goto out;
+ 	}
+ 
+ 	new_min_nr = preallocated_shadow_pages;
+ 	if (mempool_resize(mempool, new_min_nr, GFP_KERNEL)) {
+ 		vgt_err("fail to resize the mempool.\n");
+-		return false;
++		rc = false;
++		goto out;
+ 	}
+ 
+-	return true;
++out:
++	mutex_unlock(&pdev->gtt.mempool_lock);
++	return rc;
+ }
+ 
+ static void *mempool_alloc_spt(gfp_t gfp_mask, void *pool_data)
+ {
+-	struct vgt_device *vgt = pool_data;
+ 	ppgtt_spt_t *spt;
+ 
+ 	spt = kzalloc(sizeof(*spt), gfp_mask);
+@@ -1636,7 +1671,6 @@
+ 		kfree(spt);
+ 		return NULL;
+ 	}
+-	spt->vgt = vgt;
+ 	return spt;
+ }
+ 
+@@ -1659,6 +1693,11 @@
+ 
+ 	INIT_LIST_HEAD(&gtt->mm_list_head);
+ 
++	if (!vgt_expand_shadow_page_mempool(vgt->pdev)) {
++		vgt_err("fail to expand the shadow page mempool.");
++		return false;
++	}
++
+ 	ggtt_mm = vgt_create_mm(vgt, VGT_MM_GGTT,
+ 			GTT_TYPE_GGTT_PTE, NULL, 1, 0);
+ 	if (!ggtt_mm) {
+@@ -1667,17 +1706,6 @@
+ 	}
+ 
+ 	gtt->ggtt_mm = ggtt_mm;
+-
+-	if (!vgt->vm_id)
+-		return true;
+-
+-	gtt->mempool = mempool_create(preallocated_shadow_pages,
+-		mempool_alloc_spt, mempool_free_spt, vgt);
+-	if (!gtt->mempool) {
+-		vgt_err("fail to create mempool.\n");
+-		return false;
+-	}
+-
+ 	return true;
+ }
+ 
+@@ -1688,9 +1716,6 @@
+ 
+ 	ppgtt_free_all_shadow_page(vgt);
+ 
+-	if (vgt->gtt.mempool)
+-		mempool_destroy(vgt->gtt.mempool);
+-
+ 	list_for_each_safe(pos, n, &vgt->gtt.mm_list_head) {
+ 		mm = container_of(pos, struct vgt_mm, list);
+ 		vgt->pdev->gtt.mm_free_page_table(mm);
+@@ -1702,6 +1727,46 @@
+ 	return;
+ }
+ 
++bool vgt_gtt_init(struct pgt_device *pdev)
++{
++	if (IS_PREBDW(pdev)) {
++		pdev->gtt.pte_ops = &gen7_gtt_pte_ops;
++		pdev->gtt.gma_ops = &gen7_gtt_gma_ops;
++		pdev->gtt.mm_alloc_page_table = gen7_mm_alloc_page_table;
++		pdev->gtt.mm_free_page_table = gen7_mm_free_page_table;
++
++		if (preallocated_shadow_pages == -1)
++			preallocated_shadow_pages = 512;
++	} else if (IS_BDW(pdev)) {
++		pdev->gtt.pte_ops = &gen8_gtt_pte_ops;
++		pdev->gtt.gma_ops = &gen8_gtt_gma_ops;
++		pdev->gtt.mm_alloc_page_table = gen8_mm_alloc_page_table;
++		pdev->gtt.mm_free_page_table = gen8_mm_free_page_table;
++
++		if (preallocated_shadow_pages == -1)
++			preallocated_shadow_pages = 8192;
++	} else {
++		vgt_err("Unsupported platform.\n");
++		return false;
++	}
++
++	mutex_init(&pdev->gtt.mempool_lock);
++
++	pdev->gtt.mempool = mempool_create(preallocated_shadow_pages,
++		mempool_alloc_spt, mempool_free_spt, pdev);
++	if (!pdev->gtt.mempool) {
++		vgt_err("fail to create mempool.\n");
++		return false;
++	}
++
++	return true;
++}
++
++void vgt_gtt_clean(struct pgt_device *pdev)
++{
++	mempool_destroy(pdev->gtt.mempool);
++}
++
+ int ring_ppgtt_mode(struct vgt_device *vgt, int ring_id, u32 off, u32 mode)
+ {
+ 	vgt_state_ring_t *rb = &vgt->rb[ring_id];
+diff -ur -x '.*' ../XenGT-Preview-kernel/drivers/gpu/drm/i915/vgt/handlers.c XenGT-Server-kernel/drivers/gpu/drm/i915/vgt/handlers.c
+--- ../XenGT-Preview-kernel/drivers/gpu/drm/i915/vgt/handlers.c	2015-05-08 05:11:55.417001641 +0100
++++ XenGT-Server-kernel/drivers/gpu/drm/i915/vgt/handlers.c	2015-05-08 05:09:08.615647225 +0100
+@@ -354,7 +354,7 @@
+ 	return true;
+ }
+ 
+-static bool rrmr_mmio_write(struct vgt_device *vgt, unsigned int offset,
++bool vgt_rrmr_mmio_write(struct vgt_device *vgt, unsigned int offset,
+ 	void *p_data, unsigned int bytes)
+ {
+ 	uint32_t old_rrmr, new_rrmr, new_physical_rrmr;
+@@ -370,7 +370,7 @@
+ 		VGT_MMIO_WRITE(pdev, offset, new_physical_rrmr);
+ 	}
+ 
+-	vgt_info("RRMR: VM%d: old (%x), new (%x), new_physical (%x)\n",
++	vgt_dbg(VGT_DBG_DPY, "RRMR: VM%d: old (%x), new (%x), new_physical (%x)\n",
+ 		vgt->vm_id, old_rrmr, new_rrmr, new_physical_rrmr);
+ 	return true;
+ }
+@@ -2704,7 +2704,7 @@
+ {0x42080, 4, F_DOM0, 0, D_HSW_PLUS, NULL, NULL},
+ {0xc4040, 4, F_VIRT, 0, D_ALL, NULL, NULL},
+ 
+-{_REG_DE_RRMR, 4, F_VIRT, 0, D_ALL, NULL, rrmr_mmio_write},
++{_REG_DE_RRMR, 4, F_VIRT, 0, D_ALL, NULL, vgt_rrmr_mmio_write},
+ 
+ {_REG_PIPEADSL, 4, F_DPY, 0, D_ALL, pipe_dsl_mmio_read, NULL},
+ {_REG_PIPEACONF, 4, F_DPY, 0, D_ALL, NULL, pipe_conf_mmio_write},
+@@ -3334,7 +3334,8 @@
+ {0x7180, 4, F_VIRT, 0, D_ALL, NULL, NULL},
+ {0x7408, 4, F_VIRT, 0, D_ALL, NULL, NULL},
+ {0x7c00, 4, F_VIRT, 0, D_ALL, NULL, NULL},
+-{_REG_SNPCR, 4, F_VIRT, 0, D_ALL, NULL, NULL},
++{_REG_SNPCR, 4, F_VIRT, 0, D_PRE_BDW, NULL, NULL},
++{_REG_SNPCR, 4, F_PT, 0, D_BDW_PLUS, NULL, NULL},
+ {_REG_MBCTL, 4, F_VIRT, 0, D_ALL, NULL, NULL},
+ {0x911c, 4, F_VIRT, 0, D_ALL, NULL, NULL},
+ {0x9120, 4, F_VIRT, 0, D_ALL, NULL, NULL},
+@@ -3356,7 +3357,8 @@
+ {_REG_PCH_GMBUS5, 4, F_DPY, 0, D_ALL, NULL, NULL},
+ 
+ {_REG_SUPER_QUEUE_CONFIG, 4, F_VIRT, 0, D_ALL, NULL, NULL},
+-{_REG_MISC_CLOCK_GATING, 4, F_VIRT, 0, D_ALL, NULL, NULL},
++{_REG_MISC_CLOCK_GATING, 4, F_VIRT, 0, D_PRE_BDW, NULL, NULL},
++{_REG_MISC_CLOCK_GATING, 4, F_PT, 0, D_BDW_PLUS, NULL, NULL},
+ {0xec008, 4, F_VIRT, 0, D_ALL, NULL, NULL},
+ {0xec00c, 4, F_VIRT, 0, D_ALL, NULL, NULL},
+ {0xec008+0x18, 4, F_VIRT, 0, D_ALL, NULL, NULL},
+@@ -3523,14 +3525,14 @@
+ {0x66c00, 4, F_VIRT, 0, D_BDW_PLUS, NULL, NULL},
+ {0x66c04, 4, F_VIRT, 0, D_BDW, NULL, NULL},
+ 
+-{0x4024, 4, F_VIRT, 0, D_BDW, NULL, NULL},
++{0x4024, 4, F_DOM0, 0, D_BDW, NULL, NULL},
+ 
+ {0x9134, 4, F_VIRT, 0, D_BDW, NULL, NULL},
+ {0x9138, 4, F_VIRT, 0, D_BDW, NULL, NULL},
+ {0x913c, 4, F_VIRT, 0, D_BDW, NULL, NULL},
+ 
+ /* WA */
+-{0xfdc, 4, F_VIRT, 0, D_BDW, NULL, NULL},
++{0xfdc, 4, F_DOM0, 0, D_BDW, NULL, NULL},
+ {0xe4f0, 4, F_RDR, 0, D_BDW, NULL, NULL},
+ {0xe4f4, 4, F_RDR, 0, D_BDW, NULL, NULL},
+ {0x9430, 4, F_RDR, 0, D_BDW, NULL, NULL},
+@@ -3550,6 +3552,7 @@
+ {0x24dc, 4, F_RDR, 0, D_BDW, NULL, NULL},
+ 
+ {0x83a4, 4, F_RDR, 0, D_BDW, NULL, NULL},
++{0x4dd4, 4, F_RDR, 0, D_BDW, NULL, NULL},
+ 
+ /* UCG */
+ {0x8430, 4, F_PT, 0, D_BDW, NULL, NULL},
+@@ -3642,9 +3645,6 @@
+ 		reg_update_handlers(pdev, _REG_VCS2_MFX_MODE_BDW, 4,
+ 				ring_pp_mode_read,
+ 				ring_pp_mode_write);
+-
+-		VGT_MMIO_WRITE(pdev, 0xfdc,
+-				(1 << 28) | (1 << 24) | (1 << 25) | (1 << 26));
+ 	}
+ 
+ 	return true;
+diff -ur -x '.*' ../XenGT-Preview-kernel/drivers/gpu/drm/i915/vgt/instance.c XenGT-Server-kernel/drivers/gpu/drm/i915/vgt/instance.c
+--- ../XenGT-Preview-kernel/drivers/gpu/drm/i915/vgt/instance.c	2015-05-08 05:11:55.417001641 +0100
++++ XenGT-Server-kernel/drivers/gpu/drm/i915/vgt/instance.c	2015-05-08 05:09:08.615647225 +0100
+@@ -45,14 +45,14 @@
+ 	return NULL;
+ }
+ 
+-static int allocate_vgt_id(void)
++static int allocate_vgt_id(struct pgt_device *pdev)
+ {
+ 	unsigned long bit_index;
+ 
+ 	ASSERT(vgt_id_alloc_bitmap != ~0UL)
+ 	do {
+ 		bit_index = ffz (vgt_id_alloc_bitmap);
+-		if (bit_index >= VGT_MAX_VMS) {
++		if (bit_index >= (IS_BDW(pdev) ? VGT_MAX_VMS : VGT_MAX_VMS_HSW)) {
+ 			vgt_err("vGT: allocate_vgt_id() failed\n");
+ 			return -ENOSPC;
+ 		}
+@@ -126,7 +126,7 @@
+ 
+ 	atomic_set(&vgt->crashing, 0);
+ 
+-	if ((rc = vgt->vgt_id = allocate_vgt_id()) < 0 )
++	if ((rc = vgt->vgt_id = allocate_vgt_id(pdev)) < 0 )
+ 		goto err2;
+ 
+ 	vgt->vm_id = vp.vm_id;
+@@ -190,6 +190,9 @@
+ 		cfg_space[VGT_REG_CFG_COMMAND] &= ~(_REGBIT_CFG_COMMAND_IO |
+ 						_REGBIT_CFG_COMMAND_MEMORY |
+ 						_REGBIT_CFG_COMMAND_MASTER);
++		/* Clear the bar upper 32bit and let hvmloader to assign the new value */
++		memset (&vgt->state.cfg_space[VGT_REG_CFG_SPACE_BAR0 + 4], 0, 4);
++		memset (&vgt->state.cfg_space[VGT_REG_CFG_SPACE_BAR1 + 4], 0, 4);
+ 	}
+ 
+ 	vgt_info("aperture: [0x%llx, 0x%llx] guest [0x%llx, 0x%llx] "
+diff -ur -x '.*' ../XenGT-Preview-kernel/drivers/gpu/drm/i915/vgt/render.c XenGT-Server-kernel/drivers/gpu/drm/i915/vgt/render.c
+--- ../XenGT-Preview-kernel/drivers/gpu/drm/i915/vgt/render.c	2015-05-08 05:11:55.419001669 +0100
++++ XenGT-Server-kernel/drivers/gpu/drm/i915/vgt/render.c	2015-05-08 05:09:08.617647253 +0100
+@@ -1690,23 +1690,21 @@
+ 	{0x24d8, 0},
+ 	{0x24dc, 0},
+ 
+-	{0xe4f0, 0},
+-	{0xe4f4, 0},
++#if 0
++	{0xe4f0, 1},
++	{0xe4f4, 1},
++	{0xe184, 1},
++#endif
+ 
+-	{0xe184, 0},
+-	{0x7300, 0},
++	{0x7300, 1},
+ 	{0x7004, 1},
+ 	{0x7008, 1},
+ 
+ 	{0x7000, 1},
+-	{0x20e4, 1},
+ 
+ 	{0x7010, 1},
+ 
+-	{0xb118, 0},
+-	{0xb100, 0},
+ 	{0xb110, 0},
+-	{0xb10c, 0},
+ 
+ 	{0x83a4, 1},
+ };
+diff -ur -x '.*' ../XenGT-Preview-kernel/drivers/gpu/drm/i915/vgt/trace.h XenGT-Server-kernel/drivers/gpu/drm/i915/vgt/trace.h
+--- ../XenGT-Preview-kernel/drivers/gpu/drm/i915/vgt/trace.h	2015-05-08 05:11:55.420001683 +0100
++++ XenGT-Server-kernel/drivers/gpu/drm/i915/vgt/trace.h	2015-05-08 05:09:08.617647253 +0100
+@@ -234,7 +234,7 @@
+ 		TP_printk("%s", __entry->buf)
+ );
+ 
+-TRACE_EVENT(guest_pt_change,
++TRACE_EVENT(gpt_change,
+ 		TP_PROTO(int vm_id, const char *tag, void *spt, int type, u64 v, unsigned long index),
+ 
+ 		TP_ARGS(vm_id, tag, spt, type, v, index),
+diff -ur -x '.*' ../XenGT-Preview-kernel/drivers/gpu/drm/i915/vgt/utility.c XenGT-Server-kernel/drivers/gpu/drm/i915/vgt/utility.c
+--- ../XenGT-Preview-kernel/drivers/gpu/drm/i915/vgt/utility.c	2015-05-08 05:11:55.420001683 +0100
++++ XenGT-Server-kernel/drivers/gpu/drm/i915/vgt/utility.c	2015-05-08 05:09:08.617647253 +0100
+@@ -278,7 +278,14 @@
+ 	p_head &= RB_HEAD_OFF_MASK;
+ 	ring_len = _RING_CTL_BUF_SIZE(p_ctl);
+ 	p_contents = vgt_gma_to_va(vgt->gtt.ggtt_mm, p_start);
++	if (!p_contents) {
++		if (pdev->enable_execlist)
++			return;
+ 
++		printk("Looks this ring buffer doesn't belong to current render owner.\n");
++		printk("Try to dump it from aperture.\n");
++		p_contents = phys_aperture_vbase(pdev) + p_start;
++	}
+ #define WRAP_OFF(off, size)			\
+ 	({					\
+ 		u64 val = off;			\
+diff -ur -x '.*' ../XenGT-Preview-kernel/drivers/gpu/drm/i915/vgt/vgt.c XenGT-Server-kernel/drivers/gpu/drm/i915/vgt/vgt.c
+--- ../XenGT-Preview-kernel/drivers/gpu/drm/i915/vgt/vgt.c	2015-05-08 05:11:55.431001840 +0100
++++ XenGT-Server-kernel/drivers/gpu/drm/i915/vgt/vgt.c	2015-05-08 05:09:08.618647267 +0100
+@@ -585,11 +585,6 @@
+ 	/* this check is broken on SNB */
+ 	pdev->ring_xxx_valid = 0;
+ 
+-	pdev->gtt.pte_ops = &gen7_gtt_pte_ops;
+-	pdev->gtt.gma_ops = &gen7_gtt_gma_ops;
+-	pdev->gtt.mm_alloc_page_table = gen7_mm_alloc_page_table;
+-	pdev->gtt.mm_free_page_table = gen7_mm_free_page_table;
+-
+ 	if (IS_HSW(pdev)) {
+ 		pdev->max_engines = 4;
+ 		pdev->ring_mmio_base[RING_BUFFER_VECS] = _REG_VECS_TAIL;
+@@ -603,9 +598,6 @@
+ 		pdev->ring_xxx_bit[RING_BUFFER_BCS] = 2;
+ 		pdev->ring_xxx_bit[RING_BUFFER_VECS] = 10;
+ 		pdev->ring_xxx_valid = 1;
+-
+-		if (preallocated_shadow_pages == -1)
+-			preallocated_shadow_pages = 512;
+ 	} else if (IS_BDW(pdev)) {
+ 		pdev->max_engines = 4;
+ 		pdev->ring_mmio_base[RING_BUFFER_VECS] = _REG_VECS_TAIL;
+@@ -622,14 +614,6 @@
+ 			pdev->ring_xxx[RING_BUFFER_VCS2] = 0x8008;
+ 			pdev->ring_xxx_bit[RING_BUFFER_VCS2] = 0;
+ 		}
+-
+-		pdev->gtt.pte_ops = &gen8_gtt_pte_ops;
+-		pdev->gtt.gma_ops = &gen8_gtt_gma_ops;
+-		pdev->gtt.mm_alloc_page_table = gen8_mm_alloc_page_table;
+-		pdev->gtt.mm_free_page_table = gen8_mm_free_page_table;
+-
+-		if (preallocated_shadow_pages == -1)
+-			preallocated_shadow_pages = 8192;
+ 	} else {
+ 		vgt_err("Unsupported platform.\n");
+ 		return false;
+@@ -689,6 +673,11 @@
+ 		return false;
+ 	}
+ 
++	if (!vgt_gtt_init(pdev)) {
++		vgt_err("failed to initialize gtt\n");
++		return false;
++	}
++
+ 	vgt_init_reserved_aperture(pdev);
+ 
+ 	for (i = 0; i < pdev->max_engines; i++)
+diff -ur -x '.*' ../XenGT-Preview-kernel/drivers/gpu/drm/i915/vgt/vgt.h XenGT-Server-kernel/drivers/gpu/drm/i915/vgt/vgt.h
+--- ../XenGT-Preview-kernel/drivers/gpu/drm/i915/vgt/vgt.h	2015-05-08 05:11:55.432001854 +0100
++++ XenGT-Server-kernel/drivers/gpu/drm/i915/vgt/vgt.h	2015-05-08 05:09:08.618647267 +0100
+@@ -282,7 +282,8 @@
+ #define VGT_VBLANK_TIMEOUT	50	/* in ms */
+ 
+ /* Maximum VMs supported by vGT. Actual number is device specific */
+-#define VGT_MAX_VMS			4
++#define VGT_MAX_VMS_HSW 		4
++#define VGT_MAX_VMS			8
+ #define VGT_RSVD_APERTURE_SZ		(32*SIZE_1MB)	/* reserve 8MB for vGT itself */
+ 
+ #define GTT_PAGE_SHIFT		12
+@@ -608,7 +609,6 @@
+ 	struct vgt_mm *ggtt_mm;
+ 	unsigned long active_ppgtt_mm_bitmap;
+ 	struct list_head mm_list_head;
+-	mempool_t *mempool;
+ 	DECLARE_HASHTABLE(shadow_page_hash_table, VGT_HASH_BITS);
+ 	DECLARE_HASHTABLE(guest_page_hash_table, VGT_HASH_BITS);
+ 	DECLARE_HASHTABLE(el_ctx_hash_table, VGT_HASH_BITS);
+@@ -618,7 +618,10 @@
+ extern bool vgt_init_vgtt(struct vgt_device *vgt);
+ extern void vgt_clean_vgtt(struct vgt_device *vgt);
+ 
+-extern bool vgt_expand_shadow_page_mempool(struct vgt_device *vgt);
++extern bool vgt_gtt_init(struct pgt_device *pdev);
++extern void vgt_gtt_clean(struct pgt_device *pdev);
++
++extern bool vgt_expand_shadow_page_mempool(struct pgt_device *pdev);
+ 
+ extern bool vgt_g2v_create_ppgtt_mm(struct vgt_device *vgt, int page_table_level);
+ extern bool vgt_g2v_destroy_ppgtt_mm(struct vgt_device *vgt, int page_table_level);
+@@ -1134,6 +1137,8 @@
+ 	struct vgt_gtt_gma_ops *gma_ops;
+ 	bool (*mm_alloc_page_table)(struct vgt_mm *mm);
+ 	void (*mm_free_page_table)(struct vgt_mm *mm);
++	mempool_t *mempool;
++	struct mutex mempool_lock;
+ };
+ 
+ /* per-device structure */
+@@ -2636,6 +2641,9 @@
+ 
+ void vgt_inject_flip_done(struct vgt_device *vgt, enum vgt_pipe pipe);
+ 
++bool vgt_rrmr_mmio_write(struct vgt_device *vgt, unsigned int offset,
++        void *p_data, unsigned int bytes);
++
+ void vgt_trigger_virtual_event(struct vgt_device *vgt,
+ 	enum vgt_event_type event);
+ 
+diff -ur -x '.*' ../XenGT-Preview-kernel/drivers/xen/xengt.c XenGT-Server-kernel/drivers/xen/xengt.c
+--- ../XenGT-Preview-kernel/drivers/xen/xengt.c	2015-05-08 05:11:55.453002148 +0100
++++ XenGT-Server-kernel/drivers/xen/xengt.c	2015-05-08 05:09:10.356671792 +0100
+@@ -859,7 +859,7 @@
+ 			ioreq = vgt_get_hvm_ioreq(vgt, vcpu);
+ 
+ 			if (vgt_hvm_do_ioreq(vgt, ioreq) ||
+-					!vgt_expand_shadow_page_mempool(vgt)) {
++					!vgt_expand_shadow_page_mempool(vgt->pdev)) {
+ 				hypervisor_pause_domain(vgt);
+ 				hypervisor_shutdown_domain(vgt);
+ 			}

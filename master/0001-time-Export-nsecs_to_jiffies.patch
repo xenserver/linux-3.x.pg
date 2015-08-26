@@ -1,0 +1,21 @@
+From d560fed6abe0f9975b509e4fb824e08ac19adc93 Mon Sep 17 00:00:00 2001
+From: Thomas Gleixner <tglx@linutronix.de>
+Date: Wed, 16 Jul 2014 21:04:31 +0000
+Subject: [PATCH] time: Export nsecs_to_jiffies()
+
+Required for moving drivers to the nanosecond based interfaces.
+
+Signed-off-by: Thomas Gleixner <tglx@linutronix.de>
+Signed-off-by: John Stultz <john.stultz@linaro.org>
+diff --git a/kernel/time.c b/kernel/time.c
+index 31ec845..b436b3c 100644
+--- a/kernel/time.c
++++ b/kernel/time.c
+@@ -704,6 +704,7 @@ unsigned long nsecs_to_jiffies(u64 n)
+ {
+ 	return (unsigned long)nsecs_to_jiffies64(n);
+ }
++EXPORT_SYMBOL_GPL(nsecs_to_jiffies);
+ 
+ /*
+  * Add two timespec values and do a safety check for overflow.
