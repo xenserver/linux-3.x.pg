@@ -43,10 +43,6 @@
 0001-xen-blkback-use-balloon-pages-for-all-mappings.patch
 # 7e44892c1b6bb499cb2f6d5c0f4afcc077a26074 (3.11-rc4)
 0001-igb-fix-vlan-filtering-in-promisc-mode-when-not-in-V.patch
-# 2ac3ac8f86f2fe065d746d9a9abaca867adec577 (3.11-rc4)
-0001-ipv6-prevent-fib6_run_gc-contention.patch
-# 49a18d86f66d33a20144ecb5a34bba0d1856b260 (3.11-rc4)
-0002-ipv6-update-ip6_rt_last_gc-every-time-GC-is-run.patch
 # 73cc4bb0c79eebe1f0e92b700d9fe8d1c9b061bb (3.12-rc1)
 0001-xen-evtchn-improve-scalability-by-using-per-user-loc.patch
 # 06b35d0072d2a126d8cd134b253e5ec65beb9e66 (3.12-rc1)
@@ -73,8 +69,6 @@
 0001-tracing-events-Add-bounce-tracing-to-swiotbl.patch
 # 24f69373e212d4356268fbb1d01c5735423c300d (3.12-rc3)
 0007-xen-balloon-don-t-alloc-page-while-non-preemptible.patch
-# 7cde9b27e7b3a2e09d647bb4f6d94e842698d2d5 (3.12-rc6)
-0001-xen-Fix-possible-user-space-selector-corruption.patch
 # 2f6c9479633780ba4a3484bba7eba5a721a5cf20 (3.12-rc6)
 CA-165060-CIFS-Enable-files-greater-than-2GB.patch
 # 74d332c13b2148ae934ea94dac1745ae92efe8e5 (3.13-rc1)
