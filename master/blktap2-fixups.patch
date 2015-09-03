@@ -1,8 +1,8 @@
 diff --git a/drivers/block/Kconfig b/drivers/block/Kconfig
-index b81ddfe..97deaca 100644
+index c09fb86..cdfa63e 100644
 --- a/drivers/block/Kconfig
 +++ b/drivers/block/Kconfig
-@@ -541,4 +541,13 @@ config BLK_DEV_RSXX
+@@ -544,4 +544,13 @@ config BLK_DEV_RSXX
  	  To compile this driver as a module, choose M here: the
  	  module will be called rsxx.
  
@@ -17,10 +17,10 @@ index b81ddfe..97deaca 100644
 +
  endif # BLK_DEV
 diff --git a/drivers/block/Makefile b/drivers/block/Makefile
-index ca07399..ab7db8c 100644
+index 03b3b4a..3726eec 100644
 --- a/drivers/block/Makefile
 +++ b/drivers/block/Makefile
-@@ -44,3 +44,5 @@ obj-$(CONFIG_BLK_DEV_RSXX) += rsxx/
+@@ -45,3 +45,5 @@ obj-$(CONFIG_BLK_DEV_NULL_BLK)	+= null_blk.o
  
  nvme-y		:= nvme-core.o nvme-scsi.o
  swim_mod-y	:= swim.o swim_asm.o
@@ -64,7 +64,7 @@ index bb8d2d2..591bc88 100644
  	unsigned long                  user_vstart;
  
 diff --git a/drivers/block/blktap2/control.c b/drivers/block/blktap2/control.c
-index fa7042b..b35e1a7 100644
+index c879778..29e62e8d 100644
 --- a/drivers/block/blktap2/control.c
 +++ b/drivers/block/blktap2/control.c
 @@ -2,6 +2,7 @@
@@ -116,7 +116,7 @@ index fa7042b..b35e1a7 100644
  
  static struct miscdevice blktap_control = {
 diff --git a/drivers/block/blktap2/device.c b/drivers/block/blktap2/device.c
-index e88f729..0ed5e30 100644
+index e88f729..53dd227 100644
 --- a/drivers/block/blktap2/device.c
 +++ b/drivers/block/blktap2/device.c
 @@ -4,6 +4,7 @@
@@ -127,7 +127,25 @@ index e88f729..0ed5e30 100644
  
  #include "blktap.h"
  
-@@ -288,7 +289,7 @@ blktap_device_run_queue(struct blktap *tap)
+@@ -73,7 +74,7 @@ blktap_device_open(struct block_device *bdev, fmode_t mode)
+ 	return 0;
+ }
+ 
+-static int
++static void
+ blktap_device_release(struct gendisk *disk, fmode_t mode)
+ {
+ 	struct blktap_device *tapdev = disk->private_data;
+@@ -86,8 +87,6 @@ blktap_device_release(struct gendisk *disk, fmode_t mode)
+ 		set_bit(BLKTAP_DEVICE_CLOSED, &tap->dev_inuse);
+ 		blktap_ring_kick_user(tap);
+ 	}
+-
+-	return 0;
+ }
+ 
+ static int
+@@ -288,7 +287,7 @@ blktap_device_run_queue(struct blktap *tap)
  		if (!rq)
  			break;
  
@@ -136,7 +154,7 @@ index e88f729..0ed5e30 100644
  			__blktap_end_queued_rq(rq, -EOPNOTSUPP);
  			continue;
  		}
-@@ -337,21 +338,17 @@ blktap_device_configure(struct blktap *tap,
+@@ -337,21 +336,17 @@ blktap_device_configure(struct blktap *tap,
  	/* Hard sector size and max sectors impersonate the equiv. hardware. */
  	blk_queue_logical_block_size(rq, info->sector_size);
  	blk_queue_physical_block_size(rq, info->physical_sector_size);
@@ -160,7 +178,7 @@ index e88f729..0ed5e30 100644
  }
  
  static int
-@@ -431,8 +428,6 @@ __blktap_device_destroy(struct blktap *tap)
+@@ -431,8 +426,6 @@ __blktap_device_destroy(struct blktap *tap)
  
  	blk_cleanup_queue(gd->queue);
  
@@ -169,7 +187,7 @@ index e88f729..0ed5e30 100644
  	put_disk(gd);
  	tapdev->gd = NULL;
  
-@@ -550,11 +545,7 @@ __blktap_device_create(struct blktap *tap, struct blktap_device_info *info)
+@@ -550,11 +543,7 @@ __blktap_device_create(struct blktap *tap, struct blktap_device_info *info)
  		err = -ENOMEM;
  		goto fail;
  	}
@@ -182,7 +200,13 @@ index e88f729..0ed5e30 100644
  	elevator_init(rq, "noop");
  
  	gd->queue     = rq;
-@@ -574,8 +565,6 @@ __blktap_device_create(struct blktap *tap, struct blktap_device_info *info)
+@@ -569,13 +558,11 @@ __blktap_device_create(struct blktap *tap, struct blktap_device_info *info)
+ 	dev_info(disk_to_dev(gd), "sector-size: %u/%u capacity: %llu\n",
+ 		 queue_logical_block_size(rq),
+ 		 queue_physical_block_size(rq),
+-		 get_capacity(gd));
++		 (unsigned long long)get_capacity(gd));
+ 
  	return 0;
  
  fail:
@@ -191,8 +215,13 @@ index e88f729..0ed5e30 100644
  	if (gd)
  		del_gendisk(gd);
  	if (rq)
-@@ -615,10 +604,9 @@ blktap_device_debug(struct blktap *tap, char *buf, size_t size)
- 		      get_capacity(disk), queue_logical_block_size(q));
+@@ -612,13 +599,13 @@ blktap_device_debug(struct blktap *tap, char *buf, size_t size)
+ 
+ 	s += snprintf(s, end - s,
+ 		      "disk capacity:%llu sector size:%u\n",
+-		      get_capacity(disk), queue_logical_block_size(q));
++		      (unsigned long long)get_capacity(disk),
++		      queue_logical_block_size(q));
  
  	s += snprintf(s, end - s,
 -		      "queue flags:%#lx plugged:%d stopped:%d empty:%d\n",
@@ -334,7 +363,7 @@ index 5295eaf..8dc7efb 100644
  		return POLLIN | POLLRDNORM;
  
 diff --git a/drivers/block/blktap2/sysfs.c b/drivers/block/blktap2/sysfs.c
-index 4cbb0ce..626350b1 100644
+index 20d695d1..ca8a8ba5 100644
 --- a/drivers/block/blktap2/sysfs.c
 +++ b/drivers/block/blktap2/sysfs.c
 @@ -51,48 +51,7 @@ blktap_sysfs_get_name(struct device *dev, struct device_attribute *attr, char *b
