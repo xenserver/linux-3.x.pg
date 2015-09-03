@@ -1,23 +1,50 @@
+diff --git a/drivers/block/Kconfig b/drivers/block/Kconfig
+index c09fb86..cdfa63e 100644
+--- a/drivers/block/Kconfig
++++ b/drivers/block/Kconfig
+@@ -544,4 +544,13 @@ config BLK_DEV_RSXX
+ 	  To compile this driver as a module, choose M here: the
+ 	  module will be called rsxx.
+ 
++config BLK_DEV_TAP
++       tristate "Blktap userspace devices"
++       help
++         The block tap driver allows block device requests to be
++         redirected to processes, through a device interface.
++         Doing so allows user-space development of high-performance
++         block storage backends, where disk images may be implemented
++         as files, in memory, or on other hosts across the network.
++
+ endif # BLK_DEV
+diff --git a/drivers/block/Makefile b/drivers/block/Makefile
+index 03b3b4a..3726eec 100644
+--- a/drivers/block/Makefile
++++ b/drivers/block/Makefile
+@@ -45,3 +45,5 @@ obj-$(CONFIG_BLK_DEV_NULL_BLK)	+= null_blk.o
+ 
+ nvme-y		:= nvme-core.o nvme-scsi.o
+ swim_mod-y	:= swim.o swim_asm.o
++
++obj-$(CONFIG_BLK_DEV_TAP)	+= blktap2/
 diff --git a/drivers/block/blktap2/Makefile b/drivers/block/blktap2/Makefile
 new file mode 100644
-index 0000000..80a5be9
+index 0000000..6ea05a9
 --- /dev/null
 +++ b/drivers/block/blktap2/Makefile
-@@ -0,0 +1,8 @@
-+obj-$(CONFIG_XEN_BLKDEV_TAP) := blktap.o
+@@ -0,0 +1,7 @@
++obj-$(CONFIG_BLK_DEV_TAP) := blktap.o
 +
 +blktap-objs := control.o
 +blktap-objs += ring.o
 +blktap-objs += device.o
 +blktap-objs += request.o
 +blktap-objs += sysfs.o
-+blktap-objs += ioctx.o
 diff --git a/drivers/block/blktap2/blktap.h b/drivers/block/blktap2/blktap.h
 new file mode 100644
-index 0000000..bb8d2d2
+index 0000000..db47ce2
 --- /dev/null
 +++ b/drivers/block/blktap2/blktap.h
-@@ -0,0 +1,173 @@
+@@ -0,0 +1,183 @@
 +#ifndef _BLKTAP_H_
 +#define _BLKTAP_H_
 +
@@ -44,8 +71,7 @@ index 0000000..bb8d2d2
 +#define BTWARN(_f, _a...)            BTPRINTK(0, KERN_WARNING, 0, _f, ##_a)
 +#define BTERR(_f, _a...)             BTPRINTK(0, KERN_ERR, 0, _f, ##_a)
 +
-+#define MAX_BLKTAP_DEVICE            1024
-+
++#define MAX_BLKTAP_DEVICE            4096
 +#define BLKTAP_DEVICE                4
 +#define BLKTAP_DEVICE_CLOSED         5
 +#define BLKTAP_SHUTDOWN_REQUESTED    8
@@ -66,7 +92,7 @@ index 0000000..bb8d2d2
 +	struct task_struct            *task;
 +
 +	struct vm_area_struct         *vma;
-+	blktap_front_ring_t            ring;
++	struct blktap_front_ring       ring;
 +	unsigned long                  ring_vstart;
 +	unsigned long                  user_vstart;
 +
@@ -134,6 +160,15 @@ index 0000000..bb8d2d2
 +};
 +
 +struct blktap_page_pool {
++	/*
++	 * Use a pool-specific reference count for the current pool
++	 * users, rather than the kobject reference count. We can then
++	 * delete the kobject immediately (and safely) when there are
++	 * no users.
++	 *
++	 * See blktap_page_pool_get() and blktap_page_pool_put().
++	 */
++	atomic_t                       users;
 +	struct mempool_s              *bufs;
 +	spinlock_t                     lock;
 +	struct kobject                 kobj;
@@ -178,7 +213,9 @@ index 0000000..bb8d2d2
 +
 +int blktap_page_pool_init(struct kobject *);
 +void blktap_page_pool_exit(void);
-+struct blktap_page_pool *blktap_page_pool_get(const char *);
++void blktap_page_pool_get(struct blktap_page_pool *pool);
++void blktap_page_pool_put(struct blktap_page_pool *pool);
++struct blktap_page_pool *blktap_page_pool_get_by_name(const char *);
 +
 +size_t blktap_request_debug(struct blktap *, char *, size_t);
 +struct blktap_request *blktap_request_alloc(struct blktap *);
@@ -193,7 +230,7 @@ index 0000000..bb8d2d2
 +#endif
 diff --git a/drivers/block/blktap2/control.c b/drivers/block/blktap2/control.c
 new file mode 100644
-index 0000000..fa7042b
+index 0000000..63480d4
 --- /dev/null
 +++ b/drivers/block/blktap2/control.c
 @@ -0,0 +1,321 @@
@@ -201,6 +238,7 @@ index 0000000..fa7042b
 +#include <linux/sched.h>
 +#include <linux/miscdevice.h>
 +#include <linux/device.h>
++#include <linux/slab.h>
 +#include <asm/uaccess.h>
 +
 +#include "blktap.h"
@@ -232,22 +270,6 @@ index 0000000..fa7042b
 +
 +	if (minor == MAX_BLKTAP_DEVICE)
 +		goto fail;
-+
-+	if (minor == blktap_max_minor) {
-+		void *p;
-+		int n;
-+
-+		n = min(2 * blktap_max_minor, MAX_BLKTAP_DEVICE);
-+		p = krealloc(blktaps, n * sizeof(blktaps[0]), GFP_KERNEL);
-+		if (!p)
-+			goto fail;
-+
-+		blktaps          = p;
-+		minor            = blktap_max_minor;
-+		blktap_max_minor = n;
-+
-+		memset(&blktaps[minor], 0, (n - minor) * sizeof(blktaps[0]));
-+	}
 +
 +	tap->minor = minor;
 +	blktaps[minor] = tap;
@@ -282,7 +304,7 @@ index 0000000..fa7042b
 +	if (!tap)
 +		return NULL;
 +
-+	kobject_get(&default_pool->kobj);
++	blktap_page_pool_get(default_pool);
 +	tap->pool = default_pool;
 +
 +	err = blktap_ring_create(tap);
@@ -298,7 +320,7 @@ index 0000000..fa7042b
 +fail_ring:
 +	blktap_ring_destroy(tap);
 +fail_tap:
-+	kobject_put(&default_pool->kobj);
++	blktap_page_pool_put(default_pool);
 +	blktap_control_put_minor(tap);
 +
 +	return NULL;
@@ -313,7 +335,7 @@ index 0000000..fa7042b
 +	if (err)
 +		return err;
 +
-+	kobject_put(&tap->pool->kobj);
++	blktap_page_pool_put(tap->pool);
 +
 +	blktap_sysfs_destroy(tap);
 +
@@ -322,9 +344,9 @@ index 0000000..fa7042b
 +	return 0;
 +}
 +
-+static int
-+blktap_control_ioctl(struct inode *inode, struct file *filp,
-+		     unsigned int cmd, unsigned long arg)
++static long
++__blktap_control_ioctl(struct file *filp,
++		       unsigned int cmd, unsigned long arg)
 +{
 +	struct blktap *tap;
 +
@@ -366,9 +388,24 @@ index 0000000..fa7042b
 +	return -ENOIOCTLCMD;
 +}
 +
++static DEFINE_MUTEX(blktap_control_ioctl_mutex);
++
++static long
++blktap_control_ioctl(struct file *filp,
++		     unsigned int cmd, unsigned long arg)
++{
++	int ret;
++
++	mutex_lock(&blktap_control_ioctl_mutex);
++	ret = __blktap_control_ioctl(filp, cmd, arg);
++	mutex_unlock(&blktap_control_ioctl_mutex);
++
++	return ret;
++}
++
 +static struct file_operations blktap_control_file_operations = {
-+	.owner    = THIS_MODULE,
-+	.ioctl    = blktap_control_ioctl,
++	.owner          = THIS_MODULE,
++	.unlocked_ioctl = blktap_control_ioctl,
 +};
 +
 +static struct miscdevice blktap_control = {
@@ -394,12 +431,12 @@ index 0000000..fa7042b
 +{
 +	struct blktap_page_pool *pool, *tmp = default_pool;
 +
-+	pool = blktap_page_pool_get(buf);
++	pool = blktap_page_pool_get_by_name(buf);
 +	if (IS_ERR(pool))
 +		return PTR_ERR(pool);
 +
 +	default_pool = pool;
-+	kobject_put(&tmp->kobj);
++	blktap_page_pool_put(tmp);
 +
 +	return size;
 +}
@@ -432,7 +469,7 @@ index 0000000..fa7042b
 +
 +	control_device = blktap_control.this_device;
 +
-+	blktap_max_minor = min(64, MAX_BLKTAP_DEVICE);
++	blktap_max_minor = MAX_BLKTAP_DEVICE;
 +	blktaps = kzalloc(blktap_max_minor * sizeof(blktaps[0]), GFP_KERNEL);
 +	if (!blktaps) {
 +		BTERR("failed to allocate blktap minor map");
@@ -443,7 +480,7 @@ index 0000000..fa7042b
 +	if (err)
 +		return err;
 +
-+	default_pool = blktap_page_pool_get("default");
++	default_pool = blktap_page_pool_get_by_name("default");
 +	if (IS_ERR(default_pool)) {
 +		err = PTR_ERR(default_pool);
 +		default_pool = NULL;
@@ -461,7 +498,7 @@ index 0000000..fa7042b
 +blktap_control_exit(void)
 +{
 +	if (default_pool) {
-+		kobject_put(&default_pool->kobj);
++		blktap_page_pool_put(default_pool);
 +		default_pool = NULL;
 +	}
 +
@@ -520,16 +557,17 @@ index 0000000..fa7042b
 +MODULE_LICENSE("Dual BSD/GPL");
 diff --git a/drivers/block/blktap2/device.c b/drivers/block/blktap2/device.c
 new file mode 100644
-index 0000000..e88f729
+index 0000000..53dd227
 --- /dev/null
 +++ b/drivers/block/blktap2/device.c
-@@ -0,0 +1,658 @@
+@@ -0,0 +1,645 @@
 +#include <linux/fs.h>
 +#include <linux/blkdev.h>
 +#include <linux/cdrom.h>
 +#include <linux/hdreg.h>
 +#include <scsi/scsi.h>
 +#include <scsi/scsi_ioctl.h>
++#include <linux/module.h>
 +
 +#include "blktap.h"
 +
@@ -599,7 +637,7 @@ index 0000000..e88f729
 +	return 0;
 +}
 +
-+static int
++static void
 +blktap_device_release(struct gendisk *disk, fmode_t mode)
 +{
 +	struct blktap_device *tapdev = disk->private_data;
@@ -612,8 +650,6 @@ index 0000000..e88f729
 +		set_bit(BLKTAP_DEVICE_CLOSED, &tap->dev_inuse);
 +		blktap_ring_kick_user(tap);
 +	}
-+
-+	return 0;
 +}
 +
 +static int
@@ -814,7 +850,7 @@ index 0000000..e88f729
 +		if (!rq)
 +			break;
 +
-+		if (!blk_fs_request(rq)) {
++		if (rq->cmd_type != REQ_TYPE_FS) {
 +			__blktap_end_queued_rq(rq, -EOPNOTSUPP);
 +			continue;
 +		}
@@ -863,21 +899,17 @@ index 0000000..e88f729
 +	/* Hard sector size and max sectors impersonate the equiv. hardware. */
 +	blk_queue_logical_block_size(rq, info->sector_size);
 +	blk_queue_physical_block_size(rq, info->physical_sector_size);
-+	blk_queue_max_sectors(rq, 512);
++	blk_queue_max_hw_sectors(rq, 512);
 +
 +	/* Each segment in a request is up to an aligned page in size. */
 +	blk_queue_segment_boundary(rq, PAGE_SIZE - 1);
 +	blk_queue_max_segment_size(rq, PAGE_SIZE);
 +
 +	/* Ensure a merged request will fit in a single I/O ring slot. */
-+	blk_queue_max_phys_segments(rq, BLKTAP_SEGMENT_MAX);
-+	blk_queue_max_hw_segments(rq, BLKTAP_SEGMENT_MAX);
++	blk_queue_max_segments(rq, BLKTAP_SEGMENT_MAX);
 +
 +	/* Make sure buffer addresses are sector-aligned. */
 +	blk_queue_dma_alignment(rq, 511);
-+
-+	/* We are reordering, but cacheless. */
-+	blk_queue_ordered(rq, QUEUE_ORDERED_DRAIN, NULL);
 +}
 +
 +static int
@@ -956,8 +988,6 @@ index 0000000..e88f729
 +	gd->private_data = NULL;
 +
 +	blk_cleanup_queue(gd->queue);
-+
-+	blktap_ioctx_detach(tap);
 +
 +	put_disk(gd);
 +	tapdev->gd = NULL;
@@ -1076,11 +1106,7 @@ index 0000000..e88f729
 +		err = -ENOMEM;
 +		goto fail;
 +	}
-+
-+	err = blktap_ioctx_attach(tap, rq->node);
-+	if (err)
-+		goto fail;
-+
++ 
 +	elevator_init(rq, "noop");
 +
 +	gd->queue     = rq;
@@ -1095,13 +1121,11 @@ index 0000000..e88f729
 +	dev_info(disk_to_dev(gd), "sector-size: %u/%u capacity: %llu\n",
 +		 queue_logical_block_size(rq),
 +		 queue_physical_block_size(rq),
-+		 get_capacity(gd));
++		 (unsigned long long)get_capacity(gd));
 +
 +	return 0;
 +
 +fail:
-+	blktap_ioctx_detach(tap);
-+
 +	if (gd)
 +		del_gendisk(gd);
 +	if (rq)
@@ -1138,13 +1162,13 @@ index 0000000..e88f729
 +
 +	s += snprintf(s, end - s,
 +		      "disk capacity:%llu sector size:%u\n",
-+		      get_capacity(disk), queue_logical_block_size(q));
++		      (unsigned long long)get_capacity(disk),
++		      queue_logical_block_size(q));
 +
 +	s += snprintf(s, end - s,
-+		      "queue flags:%#lx plugged:%d stopped:%d empty:%d\n",
++		      "queue flags:%#lx stopped:%d\n",
 +		      q->queue_flags,
-+		      blk_queue_plugged(q), blk_queue_stopped(q),
-+		      elv_queue_empty(q));
++		      blk_queue_stopped(q));
 +
 +	bdev = bdget_disk(disk, 0);
 +	if (bdev) {
@@ -1182,95 +1206,18 @@ index 0000000..e88f729
 +	if (blktap_device_major)
 +		unregister_blkdev(blktap_device_major, "tapdev");
 +}
-diff --git a/drivers/block/blktap2/ioctx.c b/drivers/block/blktap2/ioctx.c
-new file mode 100644
-index 0000000..2d829ec
---- /dev/null
-+++ b/drivers/block/blktap2/ioctx.c
-@@ -0,0 +1,72 @@
-+/*
-+ * Copyright (c) 2010 Citrix Systems, Inc.
-+ */
-+
-+#include <linux/bio.h>
-+#include <linux/iocontext.h>
-+
-+#include "blktap.h"
-+
-+void
-+blktap_ioctx_detach(struct blktap *tap)
-+{
-+	struct special_io_context *sioc;
-+	struct io_context *ioc;
-+
-+	ioc  = tap->ioc;
-+	if (!ioc)
-+		return;
-+
-+	sioc = ioc->special;
-+	if (sioc && atomic_dec_and_test(&sioc->refs)) {
-+		bioset_free(sioc->bs);
-+		kfree(sioc);
-+		ioc->special = NULL;
-+	}
-+
-+	put_io_context(ioc);
-+	tap->ioc = NULL;
-+}
-+
-+int
-+blktap_ioctx_attach(struct blktap *tap, int node)
-+{
-+	struct special_io_context *sioc;
-+	struct io_context *ioc;
-+	int err;
-+
-+	err = -ENOMEM;
-+
-+	ioc = tap->ioc = get_io_context(GFP_KERNEL, node);
-+	if (!ioc)
-+		goto fail;
-+
-+	sioc = ioc->special;
-+	if (sioc)
-+		goto out;
-+
-+	sioc = kzalloc_node(sizeof(*sioc), GFP_KERNEL, node);
-+	if (!sioc)
-+		goto fail;
-+
-+	ioc->special = sioc;
-+
-+	/* NB. multi-vbd count. */
-+	atomic_set(&sioc->refs, 0);
-+
-+	/* NB. one warning per task and minute. */
-+	sioc->rs.interval = 60 * HZ;
-+	sioc->rs.burst    = 1;
-+
-+	sioc->bs = bioset_create(BLKTAP_BIO_POOL_SIZE, 0);
-+	if (!sioc->bs)
-+		goto fail;
-+
-+out:
-+	atomic_inc(&sioc->refs);
-+	return 0;
-+
-+fail:
-+	blktap_ioctx_detach(tap);
-+	return err;
-+}
 diff --git a/drivers/block/blktap2/request.c b/drivers/block/blktap2/request.c
 new file mode 100644
-index 0000000..03bbb56
+index 0000000..0b37254
 --- /dev/null
 +++ b/drivers/block/blktap2/request.c
-@@ -0,0 +1,450 @@
+@@ -0,0 +1,472 @@
 +#include <linux/mempool.h>
 +#include <linux/spinlock.h>
 +#include <linux/mutex.h>
 +#include <linux/sched.h>
 +#include <linux/device.h>
++#include <linux/slab.h>
 +
 +#include "blktap.h"
 +
@@ -1629,6 +1576,7 @@ index 0000000..03bbb56
 +	if (!pool)
 +		goto fail;
 +
++	atomic_set(&pool->users, 1);
 +	spin_lock_init(&pool->lock);
 +	INIT_LIST_HEAD(&pool->waiters);
 +
@@ -1655,8 +1603,22 @@ index 0000000..03bbb56
 +	return NULL;
 +}
 +
-+struct blktap_page_pool*
-+blktap_page_pool_get(const char *name)
++void blktap_page_pool_get(struct blktap_page_pool *pool)
++{
++	atomic_inc(&pool->users);
++}
++
++void blktap_page_pool_put(struct blktap_page_pool *pool)
++{
++	mutex_lock(&pool_set_mutex);
++	if (atomic_dec_and_test(&pool->users)) {
++		kobject_del(&pool->kobj);
++		kobject_put(&pool->kobj);
++	}
++	mutex_unlock(&pool_set_mutex);
++}
++
++struct blktap_page_pool *blktap_page_pool_get_by_name(const char *name)
 +{
 +	struct kobject *kobj;
 +
@@ -1666,6 +1628,12 @@ index 0000000..03bbb56
 +	if (!kobj)
 +		kobj = blktap_page_pool_create(name,
 +					       POOL_DEFAULT_PAGES);
++	else {
++		struct blktap_page_pool *pool = kobj_to_pool(kobj);
++
++		blktap_page_pool_get(pool);
++		kobject_put(kobj); /* Put ref from __blktap_kset_find_obj(). */
++	}
 +
 +	mutex_unlock(&pool_set_mutex);
 +
@@ -1718,16 +1686,17 @@ index 0000000..03bbb56
 +}
 diff --git a/drivers/block/blktap2/ring.c b/drivers/block/blktap2/ring.c
 new file mode 100644
-index 0000000..5295eaf
+index 0000000..8dc7efb
 --- /dev/null
 +++ b/drivers/block/blktap2/ring.c
-@@ -0,0 +1,587 @@
+@@ -0,0 +1,586 @@
 +
 +#include <linux/device.h>
 +#include <linux/signal.h>
 +#include <linux/sched.h>
 +#include <linux/poll.h>
 +#include <linux/blkdev.h>
++#include <linux/module.h>
 +
 +#include "blktap.h"
 +
@@ -2048,7 +2017,7 @@ index 0000000..5295eaf
 +{
 +	struct blktap *tap = filp->private_data;
 +	struct blktap_ring *ring = &tap->ring;
-+	blktap_sring_t *sring;
++	struct blktap_sring *sring;
 +	struct page *page = NULL;
 +	int err;
 +
@@ -2074,8 +2043,7 @@ index 0000000..5295eaf
 +
 +	vma->vm_private_data = tap;
 +
-+	vma->vm_flags |= VM_DONTCOPY;
-+	vma->vm_flags |= VM_RESERVED;
++	vma->vm_flags |= VM_DONTCOPY | VM_DONTEXPAND | VM_DONTDUMP;
 +
 +	vma->vm_ops = &blktap_ring_vm_operations;
 +
@@ -2189,7 +2157,6 @@ index 0000000..5295eaf
 +	RING_PUSH_REQUESTS(&ring->ring);
 +
 +	if (work ||
-+	    ring->ring.sring->private.tapif_user.msg ||
 +	    test_and_clear_bit(BLKTAP_DEVICE_CLOSED, &tap->dev_inuse))
 +		return POLLIN | POLLRDNORM;
 +
@@ -2311,10 +2278,10 @@ index 0000000..5295eaf
 +}
 diff --git a/drivers/block/blktap2/sysfs.c b/drivers/block/blktap2/sysfs.c
 new file mode 100644
-index 0000000..4cbb0ce
+index 0000000..34a3c5f
 --- /dev/null
 +++ b/drivers/block/blktap2/sysfs.c
-@@ -0,0 +1,288 @@
+@@ -0,0 +1,244 @@
 +#include <linux/types.h>
 +#include <linux/device.h>
 +#include <linux/module.h>
@@ -2368,48 +2335,7 @@ index 0000000..4cbb0ce
 +static DEVICE_ATTR(name, S_IRUGO|S_IWUSR,
 +		   blktap_sysfs_get_name, blktap_sysfs_set_name);
 +
-+static void
-+blktap_sysfs_remove_work(struct work_struct *work)
-+{
-+	struct blktap *tap
-+		= container_of(work, struct blktap, remove_work);
-+	blktap_control_destroy_tap(tap);
-+}
-+
-+static ssize_t
-+blktap_sysfs_remove_device(struct device *dev,
-+			   struct device_attribute *attr,
-+			   const char *buf, size_t size)
-+{
-+	struct blktap *tap;
-+	int err;
-+
-+	tap = dev_get_drvdata(dev);
-+	if (!tap)
-+		return size;
-+
-+	if (test_and_set_bit(BLKTAP_SHUTDOWN_REQUESTED, &tap->dev_inuse))
-+		goto wait;
-+
-+	if (tap->ring.vma) {
-+		blktap_sring_t *sring = tap->ring.ring.sring;
-+		sring->private.tapif_user.msg = BLKTAP_RING_MESSAGE_CLOSE;
-+		blktap_ring_kick_user(tap);
-+	} else {
-+		INIT_WORK(&tap->remove_work, blktap_sysfs_remove_work);
-+		schedule_work(&tap->remove_work);
-+	}
-+wait:
-+	err = wait_event_interruptible(tap->remove_wait,
-+				       !dev_get_drvdata(dev));
-+	if (err)
-+		return err;
-+
-+	return size;
-+}
-+static DEVICE_ATTR(remove, S_IWUSR, NULL, blktap_sysfs_remove_device);
-+
-+static ssize_t
++static ssize_t 
 +blktap_sysfs_debug_device(struct device *dev, struct device_attribute *attr, char *buf)
 +{
 +	struct blktap *tap;
@@ -2468,12 +2394,12 @@ index 0000000..4cbb0ce
 +	if (tap->device.gd)
 +		return -EBUSY;
 +
-+	pool = blktap_page_pool_get(buf);
++	pool = blktap_page_pool_get_by_name(buf);
 +	if (IS_ERR(pool))
 +		return PTR_ERR(pool);
 +
 +	tap->pool = pool;
-+	kobject_put(&tmp->kobj);
++	blktap_page_pool_put(tmp);
 +
 +	return size;
 +}
@@ -2487,16 +2413,12 @@ index 0000000..4cbb0ce
 +	struct device *dev;
 +	int err = 0;
 +
-+	init_waitqueue_head(&tap->remove_wait);
-+
 +	dev = device_create(class, NULL, ring->devno,
 +			    tap, "blktap/blktap%d", tap->minor);
 +	if (IS_ERR(dev))
 +		err = PTR_ERR(dev);
 +	if (!err)
 +		err = device_create_file(dev, &dev_attr_name);
-+	if (!err)
-+		err = device_create_file(dev, &dev_attr_remove);
 +	if (!err)
 +		err = device_create_file(dev, &dev_attr_debug);
 +	if (!err)
@@ -2523,20 +2445,20 @@ index 0000000..4cbb0ce
 +		return;
 +
 +	dev_set_drvdata(dev, NULL);
-+	wake_up(&tap->remove_wait);
-+
 +	device_unregister(dev);
 +	ring->dev = NULL;
 +}
 +
 +static ssize_t
-+blktap_sysfs_show_verbosity(struct class *class, char *buf)
++blktap_sysfs_show_verbosity(struct class *class, struct class_attribute *attr, 
++			    char *buf)
 +{
 +	return sprintf(buf, "%d\n", blktap_debug_level);
 +}
 +
 +static ssize_t
-+blktap_sysfs_set_verbosity(struct class *class, const char *buf, size_t size)
++blktap_sysfs_set_verbosity(struct class *class, struct class_attribute *attr,
++			   const char *buf, size_t size)
 +{
 +	int level;
 +
@@ -2551,7 +2473,8 @@ index 0000000..4cbb0ce
 +		  blktap_sysfs_show_verbosity, blktap_sysfs_set_verbosity);
 +
 +static ssize_t
-+blktap_sysfs_show_devices(struct class *class, char *buf)
++blktap_sysfs_show_devices(struct class *class, struct class_attribute *attr, 
++			  char *buf)
 +{
 +	int i, ret;
 +	struct blktap *tap;
@@ -2704,3 +2627,15 @@ index 0000000..eeee457
 +};
 +
 +#endif /* _LINUX_BLKTAP_H */
+diff --git a/include/uapi/linux/Kbuild b/include/uapi/linux/Kbuild
+index bdc6e87..5a32e88 100644
+--- a/include/uapi/linux/Kbuild
++++ b/include/uapi/linux/Kbuild
+@@ -65,6 +65,7 @@ header-y += baycom.h
+ header-y += bfs_fs.h
+ header-y += binfmts.h
+ header-y += blkpg.h
++header-y += blktap.h
+ header-y += blktrace_api.h
+ header-y += bpqether.h
+ header-y += bsg.h
