@@ -1,8 +1,8 @@
 diff --git a/arch/x86/xen/mmu.c b/arch/x86/xen/mmu.c
-index 7a8aea0..a8c9d99 100644
+index 9569462..09f58e37 100644
 --- a/arch/x86/xen/mmu.c
 +++ b/arch/x86/xen/mmu.c
-@@ -2445,7 +2445,8 @@ void __init xen_hvm_init_mmu_ops(void)
+@@ -2400,7 +2400,8 @@ void __init xen_hvm_init_mmu_ops(void)
  #define REMAP_BATCH_SIZE 16
  
  struct remap_data {
@@ -12,7 +12,7 @@ index 7a8aea0..a8c9d99 100644
  	pgprot_t prot;
  	struct mmu_update *mmu_update;
  };
-@@ -2454,7 +2455,12 @@ static int remap_area_mfn_pte_fn(pte_t *ptep, pgtable_t token,
+@@ -2409,7 +2410,12 @@ static int remap_area_mfn_pte_fn(pte_t *ptep, pgtable_t token,
  				 unsigned long addr, void *data)
  {
  	struct remap_data *rmd = data;
@@ -26,7 +26,7 @@ index 7a8aea0..a8c9d99 100644
  
  	rmd->mmu_update->ptr = virt_to_machine(ptep).maddr;
  	rmd->mmu_update->val = pte_val_ma(pte);
-@@ -2463,54 +2469,125 @@ static int remap_area_mfn_pte_fn(pte_t *ptep, pgtable_t token,
+@@ -2418,54 +2424,125 @@ static int remap_area_mfn_pte_fn(pte_t *ptep, pgtable_t token,
  	return 0;
  }
  
@@ -165,10 +165,10 @@ index 7a8aea0..a8c9d99 100644
  int xen_unmap_domain_mfn_range(struct vm_area_struct *vma,
  			       int numpgs, struct page **pages)
 diff --git a/drivers/xen/privcmd.c b/drivers/xen/privcmd.c
-index 2cfc24d..c2a0d06 100644
+index 2cfc24d..0a8b758 100644
 --- a/drivers/xen/privcmd.c
 +++ b/drivers/xen/privcmd.c
-@@ -154,6 +285,41 @@ static int traverse_pages(unsigned nelem, size_t size,
+@@ -154,6 +154,41 @@ static int traverse_pages(unsigned nelem, size_t size,
  	return ret;
  }
  
@@ -210,7 +210,7 @@ index 2cfc24d..c2a0d06 100644
  struct mmap_mfn_state {
  	unsigned long va;
  	struct vm_area_struct *vma;
-@@ -253,12 +423,14 @@ struct mmap_batch_state {
+@@ -253,12 +288,14 @@ struct mmap_batch_state {
  	int index;
  	/* A tristate:
  	 *      0 for no errors
@@ -227,7 +227,7 @@ index 2cfc24d..c2a0d06 100644
  
  	/* User-space mfn array to store errors in the second pass for V1. */
  	xen_pfn_t __user *user_mfn;
-@@ -269,7 +441,7 @@ struct mmap_batch_state {
+@@ -269,7 +306,7 @@ struct mmap_batch_state {
  /* auto translated dom0 note: if domU being created is PV, then mfn is
   * mfn(addr on bus). If it's auto xlated, then mfn is pfn (input to HAP).
   */
@@ -236,7 +236,7 @@ index 2cfc24d..c2a0d06 100644
  {
  	xen_pfn_t *mfnp = data;
  	struct mmap_batch_state *st = state;
-@@ -281,52 +453,73 @@ static int mmap_batch_fn(void *data, void *state)
+@@ -281,52 +318,73 @@ static int mmap_batch_fn(void *data, void *state)
  	if (xen_feature(XENFEAT_auto_translated_physmap))
  		cur_page = pages[st->index++];
  
@@ -334,7 +334,7 @@ index 2cfc24d..c2a0d06 100644
  		if (err)
  			return __put_user(err, st->user_err++);
  		else
-@@ -435,16 +633,18 @@ static long privcmd_ioctl_mmap_batch(void __user *udata, int version)
+@@ -435,16 +493,16 @@ static long privcmd_ioctl_mmap_batch(void __user *udata, int version)
  		}
  	}
  
@@ -351,37 +351,17 @@ index 2cfc24d..c2a0d06 100644
 +	state.global_error   = 0;
 +	state.version        = version;
 +	state.first_bad_page = NULL;
-+
-+	traverse_pages_block(m.num, sizeof(xen_pfn_t),
-+				    &pagelist, mmap_batch_fn, &state);
  
 -	/* mmap_batch_fn guarantees ret == 0 */
 -	BUG_ON(traverse_pages(m.num, sizeof(xen_pfn_t),
 -			     &pagelist, mmap_batch_fn, &state));
-+	int has_ENOENT = (state.global_error == -ENOENT) ? -ENOENT : 0;
++	traverse_pages_block(m.num, sizeof(xen_pfn_t),
++				    &pagelist, mmap_batch_fn, &state);
  
  	up_write(&mm->mmap_sem);
  
-@@ -454,13 +654,14 @@ static long privcmd_ioctl_mmap_batch(void __user *udata, int version)
- 		state.user_err = m.err;
- 		ret = traverse_pages(m.num, sizeof(xen_pfn_t),
- 							 &pagelist, mmap_return_errors, &state);
--	} else
-+	} else {
- 		ret = 0;
-+	}
- 
- 	/* If we have not had any EFAULT-like global errors then set the global
- 	 * error to -ENOENT if necessary. */
--	if ((ret == 0) && (state.global_error == -ENOENT))
--		ret = -ENOENT;
-+	if (ret == 0)
-+		ret = has_ENOENT;
- 
- out:
- 	free_page_list(&pagelist);
 diff --git a/include/xen/xen-ops.h b/include/xen/xen-ops.h
-index 4d75467..4100eb8 100644
+index 4d75467..55d58ec 100644
 --- a/include/xen/xen-ops.h
 +++ b/include/xen/xen-ops.h
 @@ -34,6 +34,12 @@ int xen_remap_domain_mfn_range(struct vm_area_struct *vma,
