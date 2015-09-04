@@ -117,10 +117,10 @@ This fixes callgraph support.
 
 Signed-off-by: Ross Lagerwall <ross.lagerwall@citrix.com>
 diff --git a/arch/x86/include/asm/xen/hypercall.h b/arch/x86/include/asm/xen/hypercall.h
-index 7d3cbfb..a0b1799 100644
+index ed335cb..b9a5200 100644
 --- a/arch/x86/include/asm/xen/hypercall.h
 +++ b/arch/x86/include/asm/xen/hypercall.h
-@@ -472,6 +472,12 @@ HYPERVISOR_tmem_op(
+@@ -481,6 +481,12 @@ HYPERVISOR_tmem_op(
  	return _hypercall1(int, tmem_op, op);
  }
  
@@ -329,10 +329,10 @@ index 0000000..3823e46
 +	return 0;
 +}
 diff --git a/arch/x86/xen/mmu.c b/arch/x86/xen/mmu.c
-index a8c9d99..b80dd26 100644
+index a610c45..85bd8e2 100644
 --- a/arch/x86/xen/mmu.c
 +++ b/arch/x86/xen/mmu.c
-@@ -2588,6 +2588,15 @@ int xen_remap_domain_mfn_array(struct vm_area_struct *vma,
+@@ -2543,6 +2543,15 @@ int xen_remap_domain_mfn_array(struct vm_area_struct *vma,
  
  EXPORT_SYMBOL_GPL(xen_remap_domain_mfn_array);
  
@@ -1060,10 +1060,10 @@ index 84a208d..7eb2286 100644
  	oprofilefs_create_ulong(sb, root, "buffer_watershed", &oprofile_buffer_watershed);
 diff --git a/drivers/xen/xenoprof/xenoprofile.c b/drivers/xen/xenoprof/xenoprofile.c
 new file mode 100644
-index 0000000..5323368
+index 0000000..b9f8adf
 --- /dev/null
 +++ b/drivers/xen/xenoprof/xenoprofile.c
-@@ -0,0 +1,551 @@
+@@ -0,0 +1,562 @@
 +/**
 + * @file xenoprofile.c
 + *
@@ -1152,7 +1152,7 @@ index 0000000..5323368
 +
 +static struct platform_device *oprofile_pdev;
 +
-+static void __init init_driverfs(void)
++static int __init init_driverfs(void)
 +{
 +	int ret;
 +
@@ -1178,8 +1178,16 @@ index 0000000..5323368
 +}
 +
 +#else
-+#define init_driverfs() do { } while (0)
-+#define exit_driverfs() do { } while (0)
++
++static inline int init_driverfs(void)
++{
++	return 0;
++}
++
++static inline void exit_driverfs(void)
++{
++}
++
 +#endif /* CONFIG_PM */
 +
 +static unsigned long long oprofile_samples;
@@ -1580,6 +1588,10 @@ index 0000000..5323368
 +
 +	ret = HYPERVISOR_xenoprof_op(XENOPROF_init, &init);
 +	if (!ret) {
++		ret = init_driverfs();
++		if (ret < 0)
++			goto out;
++
 +		xenoprof_arch_init_counter(&init);
 +		xenoprof_is_primary = init.is_primary;
 +
@@ -1588,7 +1600,6 @@ index 0000000..5323368
 +		strncpy(cpu_type, init.cpu_type, XENOPROF_CPU_TYPE_SIZE - 1);
 +		xenoprof_ops.cpu_type = cpu_type;
 +
-+		init_driverfs();
 +		using_xenoprof = 1;
 +		*ops = xenoprof_ops;
 +
@@ -1597,7 +1608,7 @@ index 0000000..5323368
 +
 +		active_defined = 0;
 +	}
-+
++  out:
 +	printk(KERN_INFO "%s: ret %d, events %d, xenoprof_is_primary %d\n",
 +	       __func__, ret, init.num_events, xenoprof_is_primary);
 +	return ret;
@@ -1838,12 +1849,12 @@ index 0000000..e80081b
 + * End:
 + */
 diff --git a/include/xen/xen-ops.h b/include/xen/xen-ops.h
-index 943e239..d63789b 100644
+index 0ec1906..a69909a 100644
 --- a/include/xen/xen-ops.h
 +++ b/include/xen/xen-ops.h
-@@ -34,6 +34,10 @@ int xen_remap_domain_mfn_range(struct vm_area_struct *vma,
- int xen_unmap_domain_mfn_range(struct vm_area_struct *vma,
- 			       int numpgs, struct page **pages);
+@@ -40,6 +40,10 @@ int xen_remap_domain_mfn_array(struct vm_area_struct *vma,
+ 			       pgprot_t prot, unsigned domid, 
+ 			       struct page **pages);
  
 +int xen_remap_domain_kernel_mfn_range(unsigned long addr,
 +			       unsigned long mfn, int nr,

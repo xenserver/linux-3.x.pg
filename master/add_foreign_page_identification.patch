@@ -1,8 +1,8 @@
 diff --git a/arch/x86/xen/p2m.c b/arch/x86/xen/p2m.c
-index 6404063..390daa7 100644
+index 248444b..2cf05b6 100644
 --- a/arch/x86/xen/p2m.c
 +++ b/arch/x86/xen/p2m.c
-@@ -929,6 +929,45 @@ static unsigned long mfn_hash(unsigned long mfn)
+@@ -952,6 +952,45 @@ static unsigned long mfn_hash(unsigned long mfn)
  	return hash_long(mfn, M2P_OVERRIDE_HASH_SHIFT);
  }
  
@@ -48,7 +48,7 @@ index 6404063..390daa7 100644
  int set_foreign_p2m_mapping(struct gnttab_map_grant_ref *map_ops,
  			    struct gnttab_map_grant_ref *kmap_ops,
  			    struct page **pages, unsigned int count)
-@@ -962,10 +1001,11 @@ int set_foreign_p2m_mapping(struct gnttab_map_grant_ref *map_ops,
+@@ -985,10 +1024,11 @@ int set_foreign_p2m_mapping(struct gnttab_map_grant_ref *map_ops,
  			mfn = PFN_DOWN(map_ops[i].dev_bus_addr);
  		}
  		pfn = page_to_pfn(pages[i]);
@@ -63,7 +63,7 @@ index 6404063..390daa7 100644
  		WARN( pfn_to_mfn(pfn) != INVALID_P2M_ENTRY, "Page must be ballooned.");
  
  		if (unlikely(!set_phys_to_machine(pfn, FOREIGN_FRAME(mfn)))) {
-@@ -1070,9 +1110,7 @@ int clear_foreign_p2m_mapping(struct gnttab_unmap_grant_ref *unmap_ops,
+@@ -1093,9 +1133,7 @@ int clear_foreign_p2m_mapping(struct gnttab_unmap_grant_ref *unmap_ops,
  			goto out;
  		}
  
@@ -74,7 +74,7 @@ index 6404063..390daa7 100644
  		set_phys_to_machine(pfn, INVALID_P2M_ENTRY);
  
  		if (kmap_ops)
-@@ -1188,24 +1226,7 @@ EXPORT_SYMBOL_GPL(m2p_remove_override);
+@@ -1211,24 +1249,7 @@ EXPORT_SYMBOL_GPL(m2p_remove_override);
  
  struct page *m2p_find_override(unsigned long mfn)
  {
@@ -101,10 +101,10 @@ index 6404063..390daa7 100644
  
  unsigned long m2p_find_override_pfn(unsigned long mfn, unsigned long pfn)
 diff --git a/drivers/net/xen-netback/netback.c b/drivers/net/xen-netback/netback.c
-index 6441318..b0c4b0c 100644
+index 5be160a..3a7bd8c 100644
 --- a/drivers/net/xen-netback/netback.c
 +++ b/drivers/net/xen-netback/netback.c
-@@ -314,9 +314,7 @@ static struct xenvif_rx_meta *get_next_rx_buffer(struct xenvif_queue *queue,
+@@ -269,9 +269,7 @@ static struct xenvif_rx_meta *get_next_rx_buffer(struct xenvif_queue *queue,
  static void xenvif_gop_frag_copy(struct xenvif_queue *queue, struct sk_buff *skb,
  				 struct netrx_pending_operations *npo,
  				 struct page *page, unsigned long size,
@@ -115,7 +115,7 @@ index 6441318..b0c4b0c 100644
  {
  	struct gnttab_copy *copy_gop;
  	struct xenvif_rx_meta *meta;
-@@ -361,9 +359,9 @@ static void xenvif_gop_frag_copy(struct xenvif_queue *queue, struct sk_buff *skb
+@@ -305,9 +303,9 @@ static void xenvif_gop_frag_copy(struct xenvif_queue *queue, struct sk_buff *skb
  		copy_gop->flags = GNTCOPY_dest_gref;
  		copy_gop->len = bytes;
  
@@ -128,7 +128,52 @@ index 6441318..b0c4b0c 100644
  			copy_gop->flags |= GNTCOPY_source_gref;
  		} else {
  			copy_gop->source.domid = DOMID_SELF;
-@@ -507,68 +505,16 @@ static int xenvif_gop_skb(struct sk_buff *skb,
+@@ -350,35 +348,6 @@ static void xenvif_gop_frag_copy(struct xenvif_queue *queue, struct sk_buff *skb
+ }
+ 
+ /*
+- * Find the grant ref for a given frag in a chain of struct ubuf_info's
+- * skb: the skb itself
+- * i: the frag's number
+- * ubuf: a pointer to an element in the chain. It should not be NULL
+- *
+- * Returns a pointer to the element in the chain where the page were found. If
+- * not found, returns NULL.
+- * See the definition of callback_struct in common.h for more details about
+- * the chain.
+- */
+-static const struct ubuf_info *xenvif_find_gref(const struct sk_buff *const skb,
+-						const int i,
+-						const struct ubuf_info *ubuf)
+-{
+-	struct xenvif_queue *foreign_queue = ubuf_to_queue(ubuf);
+-
+-	do {
+-		u16 pending_idx = ubuf->desc;
+-
+-		if (skb_shinfo(skb)->frags[i].page.p ==
+-		    foreign_queue->mmap_pages[pending_idx])
+-			break;
+-		ubuf = (struct ubuf_info *) ubuf->ctx;
+-	} while (ubuf);
+-
+-	return ubuf;
+-}
+-
+-/*
+  * Prepare an SKB to be transmitted to the frontend.
+  *
+  * This function is responsible for allocating grant operations, meta
+@@ -403,8 +372,6 @@ static int xenvif_gop_skb(struct sk_buff *skb,
+ 	int head = 1;
+ 	int old_meta_prod;
+ 	int gso_type;
+-	const struct ubuf_info *ubuf = skb_shinfo(skb)->destructor_arg;
+-	const struct ubuf_info *const head_ubuf = ubuf;
+ 
+ 	old_meta_prod = npo->meta_prod;
+ 
+@@ -451,68 +418,16 @@ static int xenvif_gop_skb(struct sk_buff *skb,
  			len = skb_tail_pointer(skb) - data;
  
  		xenvif_gop_frag_copy(queue, skb, npo,
