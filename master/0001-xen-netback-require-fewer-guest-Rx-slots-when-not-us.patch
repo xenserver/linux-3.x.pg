@@ -1,0 +1,120 @@
+From 5cf92d7d4ac738d08ab3f4ea203880150a11bd00 Mon Sep 17 00:00:00 2001
+From: David Vrabel <david.vrabel@citrix.com>
+Date: Mon, 7 Sep 2015 18:30:45 +0100
+Subject: [PATCH] xen-netback: require fewer guest Rx slots when not using GSO
+
+Commit f48da8b14d04ca87ffcffe68829afd45f926ec6a (xen-netback: fix
+unlimited guest Rx internal queue and carrier flapping) introduced a
+regression.
+
+The PV frontend in IPXE only places 4 requests on the guest Rx ring.
+Since netback required at least (MAX_SKB_FRAGS + 1) slots, IPXE could
+not receive any packets.
+
+a) If GSO is not enabled on the VIF, fewer guest Rx slots are required
+   for the largest possible packet.  Calculate the required slots
+   based on the maximum GSO size or the MTU.
+
+b) Reduce the Rx stall detection to checking for at least one
+   available Rx request.  This is fine since we're predominately
+   concerned with detecting interfaces which are down and thus have
+   zero available Rx requests.
+
+Signed-off-by: David Vrabel <david.vrabel@citrix.com>
+diff --git a/drivers/net/xen-netback/common.h b/drivers/net/xen-netback/common.h
+index 589fa25..bf35088 100644
+--- a/drivers/net/xen-netback/common.h
++++ b/drivers/net/xen-netback/common.h
+@@ -200,11 +200,6 @@ struct xenvif_queue { /* Per-queue data for xenvif */
+ 	struct xenvif_stats stats;
+ };
+ 
+-/* Maximum number of Rx slots a to-guest packet may use, including the
+- * slot needed for GSO meta-data.
+- */
+-#define XEN_NETBK_RX_SLOTS_MAX (MAX_SKB_FRAGS + 1)
+-
+ enum state_bit_shift {
+ 	/* This bit marks that the vif is connected */
+ 	VIF_STATUS_CONNECTED,
+@@ -302,11 +297,6 @@ int xenvif_dealloc_kthread(void *data);
+ 
+ void xenvif_rx_queue_tail(struct xenvif_queue *queue, struct sk_buff *skb);
+ 
+-/* Determine whether the needed number of slots (req) are available,
+- * and set req_event if not.
+- */
+-bool xenvif_rx_ring_slots_available(struct xenvif_queue *queue, int needed);
+-
+ void xenvif_carrier_on(struct xenvif *vif);
+ 
+ /* Callback from stack when TX packet can be released */
+diff --git a/drivers/net/xen-netback/netback.c b/drivers/net/xen-netback/netback.c
+index 9f60964..e3ec592 100644
+--- a/drivers/net/xen-netback/netback.c
++++ b/drivers/net/xen-netback/netback.c
+@@ -149,9 +149,20 @@ static inline pending_ring_idx_t pending_index(unsigned i)
+ 	return i & (MAX_PENDING_REQS-1);
+ }
+ 
+-bool xenvif_rx_ring_slots_available(struct xenvif_queue *queue, int needed)
++static int xenvif_rx_ring_slots_needed(struct xenvif *vif)
++{
++	if (vif->gso_mask)
++		return DIV_ROUND_UP(vif->dev->gso_max_size, PAGE_SIZE) + 1;
++	else
++		return DIV_ROUND_UP(vif->dev->mtu, PAGE_SIZE);
++}
++
++static bool xenvif_rx_ring_slots_available(struct xenvif_queue *queue)
+ {
+ 	RING_IDX prod, cons;
++	int needed;
++
++	needed = xenvif_rx_ring_slots_needed(queue->vif);
+ 
+ 	do {
+ 		prod = queue->rx.sring->req_prod;
+@@ -510,13 +521,13 @@ static void xenvif_rx_action(struct xenvif_queue *queue)
+ 
+ 	skb_queue_head_init(&rxq);
+ 
+-	while (xenvif_rx_ring_slots_available(queue, XEN_NETBK_RX_SLOTS_MAX)
++	while (xenvif_rx_ring_slots_available(queue)
+ 	       && (skb = xenvif_rx_dequeue(queue)) != NULL) {
+ 		RING_IDX old_req_cons;
+ 		RING_IDX ring_slots_used;
+ 
+ 		if (unlikely(ARRAY_SIZE(queue->meta) - npo.meta_prod
+-			     < XEN_NETBK_RX_SLOTS_MAX)) {
++			     < xenvif_rx_ring_slots_needed(queue->vif))) {
+ 			netdev_err(queue->vif->dev,
+ 				   "fatal Rx req prod overflow (prod %u, cons %u)\n",
+ 				   queue->rx.sring->req_prod, queue->rx.req_cons);
+@@ -1851,8 +1862,7 @@ static bool xenvif_rx_queue_stalled(struct xenvif_queue *queue)
+ 	prod = queue->rx.sring->req_prod;
+ 	cons = queue->rx.req_cons;
+ 
+-	return !queue->stalled
+-		&& prod - cons < XEN_NETBK_RX_SLOTS_MAX
++	return !queue->stalled && prod - cons < 1
+ 		&& time_after(jiffies,
+ 			      queue->last_rx_time + queue->vif->stall_timeout);
+ }
+@@ -1864,14 +1874,13 @@ static bool xenvif_rx_queue_ready(struct xenvif_queue *queue)
+ 	prod = queue->rx.sring->req_prod;
+ 	cons = queue->rx.req_cons;
+ 
+-	return queue->stalled
+-		&& prod - cons >= XEN_NETBK_RX_SLOTS_MAX;
++	return queue->stalled && prod - cons >= 1;
+ }
+ 
+ static bool xenvif_have_rx_work(struct xenvif_queue *queue)
+ {
+ 	return (!skb_queue_empty(&queue->rx_queue)
+-		&& xenvif_rx_ring_slots_available(queue, XEN_NETBK_RX_SLOTS_MAX))
++		&& xenvif_rx_ring_slots_available(queue))
+ 		|| (queue->vif->stall_timeout &&
+ 		    (xenvif_rx_queue_stalled(queue)
+ 		     || xenvif_rx_queue_ready(queue)))

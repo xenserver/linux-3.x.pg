@@ -563,6 +563,7 @@ netback-avoid-meta-overflow.patch
 0002-xen-netback-Check-queue-allocation-succeeds.patch
 0003-xen-netback-free-queues-after-freeing-the-net-device.patch
 0001-xen-netback-Wake-dealloc-thread-after-completing-zer.patch
+0001-xen-netback-require-fewer-guest-Rx-slots-when-not-us.patch
 
 # nvme driver backport
 backport-nvme-driver-from-3.17.patch
