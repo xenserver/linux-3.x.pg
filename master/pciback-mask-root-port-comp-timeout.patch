@@ -1,0 +1,52 @@
+diff --git a/drivers/xen/xen-pciback/pci_stub.c b/drivers/xen/xen-pciback/pci_stub.c
+index aa46452..05091913 100644
+--- a/drivers/xen/xen-pciback/pci_stub.c
++++ b/drivers/xen/xen-pciback/pci_stub.c
+@@ -439,6 +439,9 @@ static int pcistub_match(struct pci_dev *dev)
+ 	return found;
+ }
+ 
++#define INTEL_RP_UNCEDMASK 0x218
++#define INTEL_RP_COMP_TIME_OUT (1 << 14)
++
+ static int pcistub_init_device(struct pci_dev *dev)
+ {
+ 	struct xen_pcibk_dev_data *dev_data;
+@@ -523,6 +526,37 @@ static int pcistub_init_device(struct pci_dev *dev)
+ 					   PCI_EXP_RTCTL_SECEE);
+ 			}
+ 		}
++		if (tmp->vendor == PCI_VENDOR_ID_INTEL) {
++			u32 uncedmask;
++			switch (tmp->device)
++			{
++				/* Tylersburg (EP)/Boxboro (MP) chipsets (NHM-EP/EX, WSM-EP/EX) */
++				case 0x3408 ... 0x3411: case 0x3420 ... 0x3421: /* root ports */
++				/* JasperForest (Intel Xeon Processor C5500/C3500 */
++				case 0x3720 ... 0x3724: /* root ports */
++				/* Sandybridge-EP (Romley) */
++				case 0x3c01 ... 0x3c0b: /* root ports */
++				/* Ivy Bridge-EP (Romley) */
++				case 0x0e01 ... 0x0e0b: /* root ports */
++				/* Haswell-EP (Grantley) */
++				case 0x2f01 ... 0x2f0b: /* root ports */
++				/* Broadwell-EP (Grantley) */
++				case 0x6f01 ... 0x6f0b: /* root ports */
++				{
++					pci_read_config_dword(tmp, INTEL_RP_UNCEDMASK, &uncedmask);
++					/* Mask completion time out detect */
++					if (!(uncedmask & INTEL_RP_COMP_TIME_OUT)) {
++						uncedmask |= INTEL_RP_COMP_TIME_OUT;
++						pci_write_config_dword(tmp, INTEL_RP_UNCEDMASK, uncedmask);
++						dev_info(&dev->dev,
++						"Masking Uncorrectable error Completion time-"
++						"out on root port %02x:%02x.%d\n",
++						tmp->bus->number, PCI_SLOT(tmp->devfn),
++						PCI_FUNC(tmp->devfn));
++					}
++				}
++			}
++		}
+ 	}
+ 
+ 	/* We need the device active to save the state. */

@@ -538,6 +538,7 @@ fifo_page_fix.patch
 0001-pci-export-pci_probe_reset_function.patch
 0002-xen-pciback-provide-a-reset-sysfs-file-to-try-harder.patch
 pciback-disable-root-port-aer.patch
+pciback-mask-root-port-comp-timeout.patch
 
 # Preemptible privcmd hypercalls
 0001-x86-xen-allow-privcmd-hypercalls-to-be-preempted.patch
@@ -611,6 +612,9 @@ intel-gvt-g-enable-out-of-tree-compile.patch
 increase-kernel-thread-stack-size.patch
 allow-preempt-count-config.patch
 
+# PV-IOMMU support
+pv-iommu-support.patch
+
 #
 # Debugging/hacks
 #
@@ -621,4 +625,3 @@ allow-preempt-count-config.patch
 #
 kernel-configuration
 abi-version
-pv-iommu-support.patch
