@@ -1,9 +1,9 @@
 diff --git a/buildconfigs/linux-defconfig_xen_x86_64 b/buildconfigs/linux-defconfig_xen_x86_64
 new file mode 100644
-index 0000000..c37a216
+index 0000000..476ddcb
 --- /dev/null
 +++ b/buildconfigs/linux-defconfig_xen_x86_64
-@@ -0,0 +1,3849 @@
+@@ -0,0 +1,3847 @@
 +#
 +# Automatically generated file; DO NOT EDIT.
 +# Linux/x86_64 3.10.0+0 Kernel Configuration
@@ -3511,9 +3511,7 @@ index 0000000..c37a216
 +CONFIG_ARCH_HAS_DEBUG_STRICT_USER_COPY_CHECKS=y
 +# CONFIG_DEBUG_STRICT_USER_COPY_CHECKS is not set
 +CONFIG_PAGE_EXTENSION=y
-+CONFIG_DEBUG_PAGEALLOC=y
-+CONFIG_WANT_PAGE_DEBUG_FLAGS=y
-+CONFIG_PAGE_GUARD=y
++# CONFIG_DEBUG_PAGEALLOC is not set
 +CONFIG_USER_STACKTRACE_SUPPORT=y
 +CONFIG_NOP_TRACER=y
 +CONFIG_HAVE_FUNCTION_TRACER=y
