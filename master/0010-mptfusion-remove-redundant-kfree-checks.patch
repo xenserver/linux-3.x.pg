@@ -1,0 +1,52 @@
+From 5074b1b60edd47e0ce4485e57990f7ca75c3e67e Mon Sep 17 00:00:00 2001
+From: Joe Lawrence <joe.lawrence@stratus.com>
+Date: Wed, 25 Jun 2014 17:06:02 -0400
+Subject: [PATCH 10/26] mptfusion: remove redundant kfree checks
+
+Fixes the following smatch warnings:
+
+  drivers/message/fusion/mptfc.c:529 mptfc_target_destroy() info:
+    redundant null check on starget->hostdata calling kfree()
+
+  drivers/message/fusion/mptspi.c:465 mptspi_target_destroy() info:
+    redundant null check on starget->hostdata calling kfree()
+
+Signed-off-by: Joe Lawrence <joe.lawrence@stratus.com>
+Acked-by: Sreekanth Reddy <Sreekanth.Reddy@avagotech.com>
+Signed-off-by: Christoph Hellwig <hch@lst.de>
+---
+ drivers/message/fusion/mptfc.c  | 3 +--
+ drivers/message/fusion/mptspi.c | 3 +--
+ 2 files changed, 2 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/message/fusion/mptfc.c b/drivers/message/fusion/mptfc.c
+index bf2a2ce..d8bf84a 100644
+--- a/drivers/message/fusion/mptfc.c
++++ b/drivers/message/fusion/mptfc.c
+@@ -525,8 +525,7 @@ mptfc_target_destroy(struct scsi_target *starget)
+ 		if (ri)	/* better be! */
+ 			ri->starget = NULL;
+ 	}
+-	if (starget->hostdata)
+-		kfree(starget->hostdata);
++	kfree(starget->hostdata);
+ 	starget->hostdata = NULL;
+ }
+ 
+diff --git a/drivers/message/fusion/mptspi.c b/drivers/message/fusion/mptspi.c
+index 7b4db9a..787933d 100644
+--- a/drivers/message/fusion/mptspi.c
++++ b/drivers/message/fusion/mptspi.c
+@@ -461,8 +461,7 @@ static int mptspi_target_alloc(struct scsi_target *starget)
+ static void
+ mptspi_target_destroy(struct scsi_target *starget)
+ {
+-	if (starget->hostdata)
+-		kfree(starget->hostdata);
++	kfree(starget->hostdata);
+ 	starget->hostdata = NULL;
+ }
+ 
+-- 
+2.1.0
+

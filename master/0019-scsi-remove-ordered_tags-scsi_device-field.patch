@@ -1,0 +1,35 @@
+From 609aa22f3be76d470a334f39cc2197112dc91bd7 Mon Sep 17 00:00:00 2001
+From: Christoph Hellwig <hch@lst.de>
+Date: Thu, 30 Oct 2014 11:54:58 +0100
+Subject: [PATCH 19/26] scsi: remove ordered_tags scsi_device field
+
+Remove the ordered_tags field, we haven't been issuing ordered tags based
+on it since the big barrier rework in 2010.
+
+Signed-off-by: Christoph Hellwig <hch@lst.de>
+Reviewed-by: Mike Christie <michaelc@cs.wisc.edu>
+Reviewed-by: Bart Van Assche <bvanassche@acm.org>
+Reviewed-by: Martin K. Petersen <martin.petersen@oracle.com>
+---
+ drivers/message/fusion/mptscsih.c | 5 ++---
+ 1 file changed, 2 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/message/fusion/mptscsih.c b/drivers/message/fusion/mptscsih.c
+index e7dcb25..00bd13d 100644
+--- a/drivers/message/fusion/mptscsih.c
++++ b/drivers/message/fusion/mptscsih.c
+@@ -2400,9 +2400,8 @@ mptscsih_slave_configure(struct scsi_device *sdev)
+ 	mptscsih_change_queue_depth(sdev, MPT_SCSI_CMD_PER_DEV_HIGH,
+ 				    SCSI_QDEPTH_DEFAULT);
+ 	dsprintk(ioc, printk(MYIOC_s_DEBUG_FMT
+-		"tagged %d, simple %d, ordered %d\n",
+-		ioc->name,sdev->tagged_supported, sdev->simple_tags,
+-		sdev->ordered_tags));
++		"tagged %d, simple %d\n",
++		ioc->name,sdev->tagged_supported, sdev->simple_tags));
+ 
+ 	blk_queue_dma_alignment (sdev->request_queue, 512 - 1);
+ 
+-- 
+2.1.0
+

@@ -1,0 +1,31 @@
+From 5d46ad7d88a78cca36ff6472a5bdc7d1c9c22654 Mon Sep 17 00:00:00 2001
+From: Randy Dunlap <rdunlap@infradead.org>
+Date: Sat, 16 Aug 2014 14:15:15 -0700
+Subject: [PATCH 16/26] fusion: fix excess parameter kernel-doc warning
+
+Fix kernel-doc excess parameter warning:
+
+Warning(..//drivers/message/fusion/mptbase.c:1411): Excess function parameter 'prod_name' description in 'mpt_get_product_name'
+
+Signed-off-by: Randy Dunlap <rdunlap@infradead.org>
+Reviewed-by: Ewan D. Milne <emilne@redhat.com>
+Signed-off-by: Christoph Hellwig <hch@lst.de>
+---
+ drivers/message/fusion/mptbase.c | 1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/drivers/message/fusion/mptbase.c b/drivers/message/fusion/mptbase.c
+index 68f57d3..187f836 100644
+--- a/drivers/message/fusion/mptbase.c
++++ b/drivers/message/fusion/mptbase.c
+@@ -1400,7 +1400,6 @@ mpt_verify_adapter(int iocid, MPT_ADAPTER **iocpp)
+  *	@vendor: pci vendor id
+  *	@device: pci device id
+  *	@revision: pci revision id
+- *	@prod_name: string returned
+  *
+  *	Returns product string displayed when driver loads,
+  *	in /proc/mpt/summary and /sysfs/class/scsi_host/host<X>/version_product
+-- 
+2.1.0
+

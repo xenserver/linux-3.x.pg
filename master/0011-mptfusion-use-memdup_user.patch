@@ -1,0 +1,52 @@
+From 3e67c459d0ac945ac09639d85de299e65317aefe Mon Sep 17 00:00:00 2001
+From: Joe Lawrence <joe.lawrence@stratus.com>
+Date: Wed, 25 Jun 2014 17:06:12 -0400
+Subject: [PATCH 11/26] mptfusion: use memdup_user
+
+Let memdup_user handle the kmalloc, copy_from_user and error checking
+kfree code.
+
+Spotted by the following smatch (false positive) warning:
+
+  drivers/message/fusion/mptctl.c:1369 mptctl_getiocinfo() warn:
+    possible info leak 'karg'
+
+Signed-off-by: Joe Lawrence <joe.lawrence@stratus.com>
+Acked-by: Sreekanth Reddy <Sreekanth.Reddy@avagotech.com>
+Signed-off-by: Christoph Hellwig <hch@lst.de>
+---
+ drivers/message/fusion/mptctl.c | 18 +++++-------------
+ 1 file changed, 5 insertions(+), 13 deletions(-)
+
+diff --git a/drivers/message/fusion/mptctl.c b/drivers/message/fusion/mptctl.c
+index 8a050e8..b0a892a 100644
+--- a/drivers/message/fusion/mptctl.c
++++ b/drivers/message/fusion/mptctl.c
+@@ -1261,19 +1261,11 @@ mptctl_getiocinfo (unsigned long arg, unsigned int data_size)
+ 	else
+ 		return -EFAULT;
+ 
+-	karg = kmalloc(data_size, GFP_KERNEL);
+-	if (karg == NULL) {
+-		printk(KERN_ERR MYNAM "%s::mpt_ioctl_iocinfo() @%d - no memory available!\n",
+-				__FILE__, __LINE__);
+-		return -ENOMEM;
+-	}
+-
+-	if (copy_from_user(karg, uarg, data_size)) {
+-		printk(KERN_ERR MYNAM "%s@%d::mptctl_getiocinfo - "
+-			"Unable to read in mpt_ioctl_iocinfo struct @ %p\n",
+-				__FILE__, __LINE__, uarg);
+-		kfree(karg);
+-		return -EFAULT;
++	karg = memdup_user(uarg, data_size);
++	if (IS_ERR(karg)) {
++		printk(KERN_ERR MYNAM "%s@%d::mpt_ioctl_iocinfo() - memdup_user returned error [%ld]\n",
++				__FILE__, __LINE__, PTR_ERR(karg));
++		return PTR_ERR(karg);
+ 	}
+ 
+ 	if (((iocnum = mpt_verify_adapter(karg->hdr.iocnum, &ioc)) < 0) ||
+-- 
+2.1.0
+

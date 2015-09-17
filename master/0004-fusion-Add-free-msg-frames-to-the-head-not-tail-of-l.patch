@@ -1,0 +1,35 @@
+From ecc3bc982596cb66bd7f951e2f36503f4841c0c8 Mon Sep 17 00:00:00 2001
+From: Matthew Wilcox <matthew.r.wilcox@intel.com>
+Date: Thu, 27 Mar 2014 16:40:35 -0400
+Subject: [PATCH 04/26] fusion: Add free msg frames to the head, not tail of
+ list
+
+Reusing a msg frame quickly means it's still cache-hot.  This yields
+a small but noticable performance improvement in a well-known database
+benchmark.  This improvement is already present in the mpt3sas driver.
+
+Signed-off-by: Matthew Wilcox <matthew.r.wilcox@intel.com>
+Reviewed-by: Nicholas Bellinger <nab@linux-iscsi.org>
+Reviewed-by: Praveen Krishnamoorthy <Praveen.krishnamoorthy@lsi.com>
+Acked-by: Sreekanth Reddy <Sreekanth.reddy@lsi.com>
+Signed-off-by: Christoph Hellwig <hch@lst.de>
+---
+ drivers/message/fusion/mptbase.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/message/fusion/mptbase.c b/drivers/message/fusion/mptbase.c
+index 570b18a..ebc0af7 100644
+--- a/drivers/message/fusion/mptbase.c
++++ b/drivers/message/fusion/mptbase.c
+@@ -1037,7 +1037,7 @@ mpt_free_msg_frame(MPT_ADAPTER *ioc, MPT_FRAME_HDR *mf)
+ 		goto out;
+ 	/* signature to know if this mf is freed */
+ 	mf->u.frame.linkage.arg1 = cpu_to_le32(0xdeadbeaf);
+-	list_add_tail(&mf->u.frame.linkage.list, &ioc->FreeQ);
++	list_add(&mf->u.frame.linkage.list, &ioc->FreeQ);
+ #ifdef MFCNT
+ 	ioc->mfcnt--;
+ #endif
+-- 
+2.1.0
+

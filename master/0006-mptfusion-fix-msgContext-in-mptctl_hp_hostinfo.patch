@@ -1,0 +1,51 @@
+From 73d02c200b0e43762eae7a81e7f36d14adb26a37 Mon Sep 17 00:00:00 2001
+From: Tomas Henzl <thenzl@redhat.com>
+Date: Wed, 28 May 2014 18:04:20 +0200
+Subject: [PATCH 06/26] mptfusion: fix msgContext in mptctl_hp_hostinfo
+
+Hi,
+
+without this patch the istwiRWRequest->MsgContext is always set to zero,
+this patch saves the MsgContext in a msgcontext variable and then restores
+the value.
+Thanks to  David Jeffery who found the issue and did the analysis.
+
+Signed-off-by: Tomas Henzl <thenzl@redhat.com>
+Acked-by: Desai, Kashyap <Kashyap.Desai@lsi.com>
+Signed-off-by: Christoph Hellwig <hch@lst.de>
+---
+ drivers/message/fusion/mptctl.c | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/message/fusion/mptctl.c b/drivers/message/fusion/mptctl.c
+index dcc8385..8a050e8 100644
+--- a/drivers/message/fusion/mptctl.c
++++ b/drivers/message/fusion/mptctl.c
+@@ -2432,9 +2432,9 @@ mptctl_hp_hostinfo(unsigned long arg, unsigned int data_size)
+ 	int			rc, cim_rev;
+ 	ToolboxIstwiReadWriteRequest_t	*IstwiRWRequest;
+ 	MPT_FRAME_HDR		*mf = NULL;
+-	MPIHeader_t		*mpi_hdr;
+ 	unsigned long		timeleft;
+ 	int			retval;
++	u32			msgcontext;
+ 
+ 	/* Reset long to int. Should affect IA64 and SPARC only
+ 	 */
+@@ -2581,11 +2581,11 @@ mptctl_hp_hostinfo(unsigned long arg, unsigned int data_size)
+ 	}
+ 
+ 	IstwiRWRequest = (ToolboxIstwiReadWriteRequest_t *)mf;
+-	mpi_hdr = (MPIHeader_t *) mf;
++	msgcontext = IstwiRWRequest->MsgContext;
+ 	memset(IstwiRWRequest,0,sizeof(ToolboxIstwiReadWriteRequest_t));
++	IstwiRWRequest->MsgContext = msgcontext;
+ 	IstwiRWRequest->Function = MPI_FUNCTION_TOOLBOX;
+ 	IstwiRWRequest->Tool = MPI_TOOLBOX_ISTWI_READ_WRITE_TOOL;
+-	IstwiRWRequest->MsgContext = mpi_hdr->MsgContext;
+ 	IstwiRWRequest->Flags = MPI_TB_ISTWI_FLAGS_READ;
+ 	IstwiRWRequest->NumAddressBytes = 0x01;
+ 	IstwiRWRequest->DataLength = cpu_to_le16(0x04);
+-- 
+2.1.0
+

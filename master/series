@@ -469,6 +469,42 @@ xen-netback-revert-to-v3.10
 0001-drm-i915-compute-wait_ioctl-timeout-correctly.patch
 
 #
+# LSI mptsas backports
+#
+# ecc3bc982596cb66bd7f951e2f36503f4841c0c8 (3.15-rc5)
+0004-fusion-Add-free-msg-frames-to-the-head-not-tail-of-l.patch
+# a48ac9e5d4f3555bdec2fd61e49fc71b26810d68 (3.15-rc5)
+0005-fusion-Remove-use-of-DEF_SCSI_QCMD.patch
+# 73d02c200b0e43762eae7a81e7f36d14adb26a37 (3.15-rc5)
+0006-mptfusion-fix-msgContext-in-mptctl_hp_hostinfo.patch
+# 5767d25f0d0933ebba111dfb6ae5c820add8d8e4 (3.16-rc5)
+0009-mptfusion-mark-file-private-functions-as-static.patch
+# 5074b1b60edd47e0ce4485e57990f7ca75c3e67e (3.16-rc5)
+0010-mptfusion-remove-redundant-kfree-checks.patch
+# 3e67c459d0ac945ac09639d85de299e65317aefe (3.16-rc5)
+0011-mptfusion-use-memdup_user.patch
+# c9834c70efbaaa1461ec04289d97a842244fb294 (3.16-rc5)
+0012-mptfusion-make-adapter-prod_name-a-pointer.patch
+# 32696198745a74b37bc27498a5ade169d2c04c5e (3.16-rc5)
+0013-mptfusion-combine-fw_event_work-and-its-event_data.patch
+# 9f21316fc2f297efd32b40a57083d5cecb4bda26 (3.16-rc5)
+0014-mptfusion-tweak-null-pointer-checks.patch
+# f6e495a2b317fd7f3693d7c9217abfe943cbb3c6 (3.17-rc5)
+0015-mptfusion-simplify-rounding.patch
+# 5d46ad7d88a78cca36ff6472a5bdc7d1c9c22654 (3.17-rc5)
+0016-fusion-fix-excess-parameter-kernel-doc-warning.patch
+# 609aa22f3be76d470a334f39cc2197112dc91bd7 (3.18-rc4)
+0019-scsi-remove-ordered_tags-scsi_device-field.patch
+# 8f88dc41927f6a9bbb03d5d0496d04ba3775dc8d (3.18-rc4)
+0020-mptfusion-don-t-change-queue-type-in-change_queue_de.patch
+# 2865c073257eaf1ede043a4dbc77afc71b6de175 (4.1-rc1)
+0024-mptsas-fix-depth-param-in-scsi_track_queue_full.patch
+# 8cd1943bf0e87f467a1b498c63483f70b18b43d7 (4.1-rc1)
+0025-fusion-remove-dead-MTRR-code.patch
+# e819cdb198319cccf4af4fc12ac4d796109d8c23 (4.2-rc2)
+0026-mptfusion-prevent-some-memory-corruption.patch
+
+#
 # Build system integration
 #
 kbuild-AFTER_LINK.patch

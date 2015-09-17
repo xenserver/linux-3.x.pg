@@ -1,0 +1,59 @@
+From f6e495a2b317fd7f3693d7c9217abfe943cbb3c6 Mon Sep 17 00:00:00 2001
+From: Rasmus Villemoes <linux@rasmusvillemoes.dk>
+Date: Tue, 1 Jul 2014 14:56:20 +0200
+Subject: [PATCH 15/26] mptfusion: simplify rounding
+
+Rounding up to a multiple of 4 should be done using the ALIGN
+macro. As a bonus, this also makes the generated code smaller.
+
+In GetIocFacts(), sz is assigned to a few lines below without being
+read in the meantime, so it is ok that it doesn't end up with the same
+value as facts->FWImageSize.
+
+Signed-off-by: Rasmus Villemoes <linux@rasmusvillemoes.dk>
+Reviewed-by: Joe Lawrence <joe.lawrence@stratus.com>
+Signed-off-by: Christoph Hellwig <hch@lst.de>
+---
+ drivers/message/fusion/mptbase.c | 7 +------
+ drivers/message/fusion/mptctl.c  | 7 +------
+ 2 files changed, 2 insertions(+), 12 deletions(-)
+
+diff --git a/drivers/message/fusion/mptbase.c b/drivers/message/fusion/mptbase.c
+index a896d94..68f57d3 100644
+--- a/drivers/message/fusion/mptbase.c
++++ b/drivers/message/fusion/mptbase.c
+@@ -3172,12 +3172,7 @@ GetIocFacts(MPT_ADAPTER *ioc, int sleepFlag, int reason)
+ 			facts->FWImageSize = le32_to_cpu(facts->FWImageSize);
+ 		}
+ 
+-		sz = facts->FWImageSize;
+-		if ( sz & 0x01 )
+-			sz += 1;
+-		if ( sz & 0x02 )
+-			sz += 2;
+-		facts->FWImageSize = sz;
++		facts->FWImageSize = ALIGN(facts->FWImageSize, 4);
+ 
+ 		if (!facts->RequestFrameSize) {
+ 			/*  Something is wrong!  */
+diff --git a/drivers/message/fusion/mptctl.c b/drivers/message/fusion/mptctl.c
+index b0a892a..70bb753 100644
+--- a/drivers/message/fusion/mptctl.c
++++ b/drivers/message/fusion/mptctl.c
+@@ -1741,12 +1741,7 @@ mptctl_replace_fw (unsigned long arg)
+ 
+ 	/* Allocate memory for the new FW image
+ 	 */
+-	newFwSize = karg.newImageSize;
+-
+-	if (newFwSize & 0x01)
+-		newFwSize += 1;
+-	if (newFwSize & 0x02)
+-		newFwSize += 2;
++	newFwSize = ALIGN(karg.newImageSize, 4);
+ 
+ 	mpt_alloc_fw_memory(ioc, newFwSize);
+ 	if (ioc->cached_fw == NULL)
+-- 
+2.1.0
+

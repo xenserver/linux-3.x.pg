@@ -1,0 +1,45 @@
+From 8f88dc41927f6a9bbb03d5d0496d04ba3775dc8d Mon Sep 17 00:00:00 2001
+From: Christoph Hellwig <hch@lst.de>
+Date: Mon, 3 Nov 2014 14:49:39 +0100
+Subject: [PATCH 20/26] mptfusion: don't change queue type in
+ ->change_queue_depth
+
+This function shouldn't change the queue type, just the depth.
+
+Signed-off-by: Christoph Hellwig <hch@lst.de>
+Reviewed-by: Mike Christie <michaelc@cs.wisc.edu>
+Reviewed-by: Martin K. Petersen <martin.petersen@oracle.com>
+Reviewed-by: Hannes Reinecke <hare@suse.de>
+---
+ drivers/message/fusion/mptscsih.c | 7 +------
+ 1 file changed, 1 insertion(+), 6 deletions(-)
+
+diff --git a/drivers/message/fusion/mptscsih.c b/drivers/message/fusion/mptscsih.c
+index 00bd13d..c0d84a0 100644
+--- a/drivers/message/fusion/mptscsih.c
++++ b/drivers/message/fusion/mptscsih.c
+@@ -2322,7 +2322,6 @@ mptscsih_change_queue_depth(struct scsi_device *sdev, int qdepth, int reason)
+ 	VirtTarget 		*vtarget;
+ 	struct scsi_target 	*starget;
+ 	int			max_depth;
+-	int			tagged;
+ 	MPT_ADAPTER		*ioc = hd->ioc;
+ 
+ 	starget = scsi_target(sdev);
+@@ -2347,12 +2346,8 @@ mptscsih_change_queue_depth(struct scsi_device *sdev, int qdepth, int reason)
+ 
+ 	if (qdepth > max_depth)
+ 		qdepth = max_depth;
+-	if (qdepth == 1)
+-		tagged = 0;
+-	else
+-		tagged = MSG_SIMPLE_TAG;
+ 
+-	scsi_adjust_queue_depth(sdev, tagged, qdepth);
++	scsi_adjust_queue_depth(sdev, scsi_get_tag_type(sdev), qdepth);
+ 	return sdev->queue_depth;
+ }
+ 
+-- 
+2.1.0
+
