@@ -1,0 +1,22 @@
+x86/xen: Do not clip xen_e820_map to xen_e820_map_entries when sanitizing map
+
+Sanitizing the e820 map may produce extra E820 entries which would result in
+the topmost E820 entries being removed. The removed entries would typically
+include the top E820 usable RAM region and thus result in the domain having
+signicantly less RAM available to it. 
+
+Fix by allowing sanitize_e820_map to use the full size of the allocated E820
+array.
+diff --git a/arch/x86/xen/setup.c b/arch/x86/xen/setup.c
+index 5fb2a04..bc6e738 100644
+--- a/arch/x86/xen/setup.c
++++ b/arch/x86/xen/setup.c
+@@ -382,7 +382,7 @@ char * __init xen_memory_setup(void)
+ 	}
+ 
+ 	/* Make sure the Xen-supplied memory map is well-ordered. */
+-	sanitize_e820_map(map, memmap.nr_entries, &memmap.nr_entries);
++	sanitize_e820_map(map, ARRAY_SIZE(map), &memmap.nr_entries);
+ 
+ 	max_pages = xen_get_max_pages();
+ 	if (max_pages > max_pfn)
