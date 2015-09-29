@@ -597,14 +597,15 @@ safe_grant_unmap.patch
 netback-xenvif_idx_release-race-fix.patch
 0001-xen-netback-return-correct-ethtool-stats.patch
 0002-xen-netback-unref-frags-when-handling-a-from-guest-s.patch
-netback-avoid-meta-overflow.patch
 0001-xen-netback-Properly-initialize-credit_bytes.patch
 0001-xen-netback-Allocate-fraglist-early-to-avoid-complex.patch
 0001-xen-netback-delete-NAPI-instance-when-queue-fails-to.patch
 0002-xen-netback-Check-queue-allocation-succeeds.patch
 0003-xen-netback-free-queues-after-freeing-the-net-device.patch
 0001-xen-netback-Wake-dealloc-thread-after-completing-zer.patch
-#0001-xen-netback-require-fewer-guest-Rx-slots-when-not-us.patch
+0001-xen-netback-require-fewer-guest-Rx-slots-when-not-us.patch
+0002-xen-netback-use-skb-to-determine-number-of-required-.patch
+0003-xen-netback-check-for-guest-Rx-req-prod-overflow.patch
 
 # nvme driver backport
 backport-nvme-driver-from-3.17.patch
