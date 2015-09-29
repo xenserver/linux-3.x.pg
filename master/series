@@ -98,6 +98,8 @@ nullblk_3_13.patch
 0001-tuntap-Fix-for-a-race-in-accessing-numqueues.patch
 # ed1f50c3a7c1ad1b1b4d584308eab77d57a330f8 (3.14-rc1)
 0001-net-add-skb_checksum_setup.patch
+# 7f256020cc599bc0b736c57d702b864dbbefcefb (3.14-rc1)
+0001-xen-grants-Remove-gnttab_max_grant_frames-dependency.patch
 # 81201baa15df09decc1475f3eab86089b7f24d1d (xen/tip.git devel/for-linus-3.15)
 0001-xen-grant-table-Refactor-gnttab_-un-map_refs-to-avoi.patch
 # 93ae4f978ca7f26d17df915ac7afc919c1dd0353 (3.15-rc1)
@@ -118,6 +120,8 @@ nullblk_3_13.patch
 0005-x86-xen-set-regions-above-the-end-of-RAM-as-1-1.patch
 # f59c5145dc6a079b14b349c388d44362eb813cdf (3.16-rc1)
 0006-x86-xen-do-not-use-_PAGE_IOMAP-in-xen_remap_domain_m.patch
+# 162e371712768248a38646eefa71af38b6e0f8ce (3.17-rc1)
+0001-x86-xen-safely-map-and-unmap-grant-frames-when-in-at.patch
 # 31668511424110ad470315c6a63dec9a10f1a7ba (3.18-rc1)
 0007-x86-skip-check-for-spurious-faults-for-non-present-f.patch
 # 7f2f88224517cdaad68b772b2a2095b87dc72886 (3.18-rc1)
