@@ -1,6 +1,6 @@
-From 5cf92d7d4ac738d08ab3f4ea203880150a11bd00 Mon Sep 17 00:00:00 2001
+From 1d5d48523900a4b0f25d6b52f1a93c84bd671186 Mon Sep 17 00:00:00 2001
 From: David Vrabel <david.vrabel@citrix.com>
-Date: Mon, 7 Sep 2015 18:30:45 +0100
+Date: Tue, 8 Sep 2015 14:25:14 +0100
 Subject: [PATCH] xen-netback: require fewer guest Rx slots when not using GSO
 
 Commit f48da8b14d04ca87ffcffe68829afd45f926ec6a (xen-netback: fix
@@ -15,14 +15,25 @@ a) If GSO is not enabled on the VIF, fewer guest Rx slots are required
    for the largest possible packet.  Calculate the required slots
    based on the maximum GSO size or the MTU.
 
+   This calculation of the number of required slots relies on
+   1650d5455bd2 (xen-netback: always fully coalesce guest Rx packets)
+   which present in 4.0-rc1 and later.
+
 b) Reduce the Rx stall detection to checking for at least one
    available Rx request.  This is fine since we're predominately
    concerned with detecting interfaces which are down and thus have
    zero available Rx requests.
 
 Signed-off-by: David Vrabel <david.vrabel@citrix.com>
+Reviewed-by: Wei Liu <wei.liu2@citrix.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ drivers/net/xen-netback/common.h  | 10 ----------
+ drivers/net/xen-netback/netback.c | 23 ++++++++++++++++-------
+ 2 files changed, 16 insertions(+), 17 deletions(-)
+
 diff --git a/drivers/net/xen-netback/common.h b/drivers/net/xen-netback/common.h
-index 589fa25..bf35088 100644
+index 6dc76c1..a7bf747 100644
 --- a/drivers/net/xen-netback/common.h
 +++ b/drivers/net/xen-netback/common.h
 @@ -200,11 +200,6 @@ struct xenvif_queue { /* Per-queue data for xenvif */
@@ -37,7 +48,7 @@ index 589fa25..bf35088 100644
  enum state_bit_shift {
  	/* This bit marks that the vif is connected */
  	VIF_STATUS_CONNECTED,
-@@ -302,11 +297,6 @@ int xenvif_dealloc_kthread(void *data);
+@@ -317,11 +312,6 @@ int xenvif_dealloc_kthread(void *data);
  
  void xenvif_rx_queue_tail(struct xenvif_queue *queue, struct sk_buff *skb);
  
@@ -50,7 +61,7 @@ index 589fa25..bf35088 100644
  
  /* Callback from stack when TX packet can be released */
 diff --git a/drivers/net/xen-netback/netback.c b/drivers/net/xen-netback/netback.c
-index 9f60964..e3ec592 100644
+index 42569b9..b588b1a 100644
 --- a/drivers/net/xen-netback/netback.c
 +++ b/drivers/net/xen-netback/netback.c
 @@ -149,9 +149,20 @@ static inline pending_ring_idx_t pending_index(unsigned i)
@@ -75,23 +86,16 @@ index 9f60964..e3ec592 100644
  
  	do {
  		prod = queue->rx.sring->req_prod;
-@@ -510,13 +521,13 @@ static void xenvif_rx_action(struct xenvif_queue *queue)
+@@ -513,7 +524,7 @@ static void xenvif_rx_action(struct xenvif_queue *queue)
  
  	skb_queue_head_init(&rxq);
  
 -	while (xenvif_rx_ring_slots_available(queue, XEN_NETBK_RX_SLOTS_MAX)
 +	while (xenvif_rx_ring_slots_available(queue)
  	       && (skb = xenvif_rx_dequeue(queue)) != NULL) {
- 		RING_IDX old_req_cons;
- 		RING_IDX ring_slots_used;
+ 		queue->last_rx_time = jiffies;
  
- 		if (unlikely(ARRAY_SIZE(queue->meta) - npo.meta_prod
--			     < XEN_NETBK_RX_SLOTS_MAX)) {
-+			     < xenvif_rx_ring_slots_needed(queue->vif))) {
- 			netdev_err(queue->vif->dev,
- 				   "fatal Rx req prod overflow (prod %u, cons %u)\n",
- 				   queue->rx.sring->req_prod, queue->rx.req_cons);
-@@ -1851,8 +1862,7 @@ static bool xenvif_rx_queue_stalled(struct xenvif_queue *queue)
+@@ -1938,8 +1949,7 @@ static bool xenvif_rx_queue_stalled(struct xenvif_queue *queue)
  	prod = queue->rx.sring->req_prod;
  	cons = queue->rx.req_cons;
  
@@ -101,7 +105,7 @@ index 9f60964..e3ec592 100644
  		&& time_after(jiffies,
  			      queue->last_rx_time + queue->vif->stall_timeout);
  }
-@@ -1864,14 +1874,13 @@ static bool xenvif_rx_queue_ready(struct xenvif_queue *queue)
+@@ -1951,14 +1961,13 @@ static bool xenvif_rx_queue_ready(struct xenvif_queue *queue)
  	prod = queue->rx.sring->req_prod;
  	cons = queue->rx.req_cons;
  
@@ -118,3 +122,6 @@ index 9f60964..e3ec592 100644
  		|| (queue->vif->stall_timeout &&
  		    (xenvif_rx_queue_stalled(queue)
  		     || xenvif_rx_queue_ready(queue)))
+-- 
+2.1.4
+

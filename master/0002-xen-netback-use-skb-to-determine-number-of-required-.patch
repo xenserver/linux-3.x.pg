@@ -1,0 +1,61 @@
+From 75e1a6f698d2e2b3dae37596e6c3d0001343b2e6 Mon Sep 17 00:00:00 2001
+From: David Vrabel <david.vrabel@citrix.com>
+Date: Fri, 18 Sep 2015 11:05:58 +0100
+Subject: [PATCH 2/3] xen-netback: use skb to determine number of required
+ guest Rx requests
+
+Using the MTU or GSO size to determine the number of required guest Rx
+requests for an skb was subtly broken since these value may change at
+runtime.
+
+Signed-off-by: David Vrabel <david.vrabel@citrix.com>
+---
+ drivers/net/xen-netback/netback.c | 20 +++++++++-----------
+ 1 file changed, 9 insertions(+), 11 deletions(-)
+
+diff --git a/drivers/net/xen-netback/netback.c b/drivers/net/xen-netback/netback.c
+index ec98d43..44bea37 100644
+--- a/drivers/net/xen-netback/netback.c
++++ b/drivers/net/xen-netback/netback.c
+@@ -149,20 +149,19 @@ static inline pending_ring_idx_t pending_index(unsigned i)
+ 	return i & (MAX_PENDING_REQS-1);
+ }
+ 
+-static int xenvif_rx_ring_slots_needed(struct xenvif *vif)
+-{
+-	if (vif->gso_mask)
+-		return DIV_ROUND_UP(vif->dev->gso_max_size, PAGE_SIZE) + 1;
+-	else
+-		return DIV_ROUND_UP(vif->dev->mtu, PAGE_SIZE);
+-}
+-
+ static bool xenvif_rx_ring_slots_available(struct xenvif_queue *queue)
+ {
+ 	RING_IDX prod, cons;
++	struct sk_buff *skb;
+ 	int needed;
+ 
+-	needed = xenvif_rx_ring_slots_needed(queue->vif);
++	skb = skb_peek(&queue->rx_queue);
++	if (!skb)
++		return false;
++
++	needed = DIV_ROUND_UP(skb->len, PAGE_SIZE);
++	if (skb_is_gso(skb))
++		needed++;
+ 
+ 	do {
+ 		prod = queue->rx.sring->req_prod;
+@@ -1966,8 +1965,7 @@ static bool xenvif_rx_queue_ready(struct xenvif_queue *queue)
+ 
+ static bool xenvif_have_rx_work(struct xenvif_queue *queue)
+ {
+-	return (!skb_queue_empty(&queue->rx_queue)
+-		&& xenvif_rx_ring_slots_available(queue))
++	return xenvif_rx_ring_slots_available(queue)
+ 		|| (queue->vif->stall_timeout &&
+ 		    (xenvif_rx_queue_stalled(queue)
+ 		     || xenvif_rx_queue_ready(queue)))
+-- 
+2.1.4
+

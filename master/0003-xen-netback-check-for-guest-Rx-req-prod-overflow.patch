@@ -1,0 +1,42 @@
+From b00a2fbd5f1e71b97df1cb09c9e9c2a60396c93c Mon Sep 17 00:00:00 2001
+From: David Vrabel <david.vrabel@citrix.com>
+Date: Tue, 29 Sep 2015 13:22:29 +0100
+Subject: [PATCH 3/3] xen-netback: check for guest Rx req prod overflow
+
+A frontend could set an invalid Rx request producer value, making
+netback think there are more Rx requests than the ring has space for.
+If this happens, netback may overflow the Rx meta array and crash.
+
+When checking for available Rx requests, check that the Rx req prod is
+valid, disabling the VIF if it has become invalid.
+
+Signed-off-by: David Vrabel <david.vrabel@citrix.com>
+---
+ drivers/net/xen-netback/netback.c | 11 +++++++++++
+ 1 file changed, 11 insertions(+)
+
+diff --git a/drivers/net/xen-netback/netback.c b/drivers/net/xen-netback/netback.c
+index 44bea37..87e2fbe 100644
+--- a/drivers/net/xen-netback/netback.c
++++ b/drivers/net/xen-netback/netback.c
+@@ -167,6 +167,17 @@ static bool xenvif_rx_ring_slots_available(struct xenvif_queue *queue)
+ 		prod = queue->rx.sring->req_prod;
+ 		cons = queue->rx.req_cons;
+ 
++		/* prod overflow? */
++		if (unlikely(prod - queue->rx.rsp_prod_pvt
++			     > XEN_NETIF_RX_RING_SIZE)) {
++			netdev_err(queue->vif->dev,
++				   "fatal Rx req prod overflow (prod %u, cons %u)\n",
++				   queue->rx.sring->req_prod,
++				   queue->rx.req_cons);
++			queue->vif->disabled = true;
++			return false;
++		}
++
+ 		if (prod - cons >= needed)
+ 			return true;
+ 
+-- 
+2.1.4
+
