@@ -463,6 +463,10 @@ xen-netback-revert-to-v3.10
 0001-ACPI-PM-Export-acpi_target_system_state-to-modules.patch
 # a4de05268e674e8ed31df6348269e22d6c6a1803 (v3.15-rc8)
 0001-drm-i915-Kick-out-vga-console.patch
+# b93e0b8fa819c3d5641794ed9a07e643416aa0fd (v3.16-rc1)
+0001-irq_work-Split-raised-and-lazy-lists.patch
+# 478850160636c4f0b2558451df0e42f8c5a10939 (v3.16-rc1)
+0001-irq_work-Implement-remote-queueing.patch
 # d560fed6abe0f9975b509e4fb824e08ac19adc93 (v3.16-rc5)
 0001-time-Export-nsecs_to_jiffies.patch
 # 766a53d059d1500c9755c8af017bd411bd8f1b20 (v3.17-rc4)
