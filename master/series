@@ -610,6 +610,7 @@ netback-xenvif_idx_release-race-fix.patch
 0001-xen-netback-require-fewer-guest-Rx-slots-when-not-us.patch
 0002-xen-netback-use-skb-to-determine-number-of-required-.patch
 0003-xen-netback-check-for-guest-Rx-req-prod-overflow.patch
+xen-netback-record-rx-queue-for-skb.patch
 
 # nvme driver backport
 backport-nvme-driver-from-3.17.patch

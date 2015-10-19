@@ -1,0 +1,13 @@
+diff --git a/drivers/net/xen-netback/netback.c b/drivers/net/xen-netback/netback.c
+index 705e9dc..9c2ede9 100644
+--- a/drivers/net/xen-netback/netback.c
++++ b/drivers/net/xen-netback/netback.c
+@@ -1536,6 +1536,8 @@ static int xenvif_tx_submit(struct xenvif_queue *queue)
+ 			queue->stats.tx_zerocopy_sent++;
+ 		}
+ 
++		skb_record_rx_queue(skb, queue->id);
++
+ 		netif_receive_skb(skb);
+ 	}
+ 
