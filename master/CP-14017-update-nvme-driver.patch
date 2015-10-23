@@ -1,0 +1,61 @@
+diff --git a/drivers/block/nvme-core.c b/drivers/block/nvme-core.c
+index 8579e93..43de7c1 100644
+--- a/drivers/block/nvme-core.c
++++ b/drivers/block/nvme-core.c
+@@ -641,6 +641,9 @@ static int nvme_split_and_submit(struct bio *bio, struct nvme_queue *nvmeq,
+ 	if (!bp)
+ 		return -ENOMEM;
+ 
++	trace_block_split(bdev_get_queue(bio->bi_bdev), bio,
++					bio->bi_sector);
++
+ 	if (!waitqueue_active(&nvmeq->sq_full))
+ 		add_wait_queue(&nvmeq->sq_full, &nvmeq->sq_cong_wait);
+ 	bio_list_add(&nvmeq->sq_cong, &bp->b1);
+@@ -787,15 +790,22 @@ static int nvme_submit_iod(struct nvme_queue *nvmeq, struct nvme_iod *iod)
+ 	return 0;
+ }
+ 
+-
+-int nvme_submit_flush_data(struct nvme_queue *nvmeq, struct nvme_ns *ns)
++static int nvme_split_flush_data(struct nvme_queue *nvmeq, struct bio *bio)
+ {
+-	int cmdid = alloc_cmdid(nvmeq, (void *)CMD_CTX_FLUSH,
+-					special_completion, NVME_IO_TIMEOUT);
+-	if (unlikely(cmdid < 0))
+-		return cmdid;
++	struct nvme_bio_pair *bp = nvme_bio_split(bio, 0, 0, 0);
++	if (!bp)
++		return -ENOMEM;
++
++	bp->b1.bi_phys_segments = 0;
++	bp->b2.bi_rw &= ~REQ_FLUSH;
+ 
+-	return nvme_submit_flush(nvmeq, ns, cmdid);
++	if (!waitqueue_active(&nvmeq->sq_full))
++		add_wait_queue(&nvmeq->sq_full, &nvmeq->sq_cong_wait);
++	bio_list_add(&nvmeq->sq_cong, &bp->b1);
++	bio_list_add(&nvmeq->sq_cong, &bp->b2);
++	wake_up(&nvmeq->sq_full);
++
++	return 0;
+ }
+ 
+ /*
+@@ -809,7 +819,7 @@ static int nvme_submit_bio_queue(struct nvme_queue *nvmeq, struct nvme_ns *ns,
+ 	int result;
+ 
+ 	if ((bio->bi_rw & REQ_FLUSH) && psegs)
+-		return nvme_submit_flush_data(nvmeq, ns);
++		return nvme_split_flush_data(nvmeq, bio);
+ 
+ 	iod = nvme_alloc_iod(psegs, bio->bi_size, GFP_ATOMIC);
+ 	if (!iod)
+@@ -1990,6 +2000,7 @@ static struct nvme_ns *nvme_alloc_ns(struct nvme_dev *dev, unsigned nsid,
+ 	ns->queue->queue_flags = QUEUE_FLAG_DEFAULT;
+ 	queue_flag_set_unlocked(QUEUE_FLAG_NOMERGES, ns->queue);
+ 	queue_flag_set_unlocked(QUEUE_FLAG_NONROT, ns->queue);
++	queue_flag_clear_unlocked(QUEUE_FLAG_ADD_RANDOM, ns->queue);
+ 	blk_queue_make_request(ns->queue, nvme_make_request);
+ 	ns->dev = dev;
+ 	ns->queue->queuedata = ns;
