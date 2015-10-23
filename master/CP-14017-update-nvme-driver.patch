@@ -1,18 +1,8 @@
 diff --git a/drivers/block/nvme-core.c b/drivers/block/nvme-core.c
-index 8579e93..43de7c1 100644
+index 8579e93..5d3692e 100644
 --- a/drivers/block/nvme-core.c
 +++ b/drivers/block/nvme-core.c
-@@ -641,6 +641,9 @@ static int nvme_split_and_submit(struct bio *bio, struct nvme_queue *nvmeq,
- 	if (!bp)
- 		return -ENOMEM;
- 
-+	trace_block_split(bdev_get_queue(bio->bi_bdev), bio,
-+					bio->bi_sector);
-+
- 	if (!waitqueue_active(&nvmeq->sq_full))
- 		add_wait_queue(&nvmeq->sq_full, &nvmeq->sq_cong_wait);
- 	bio_list_add(&nvmeq->sq_cong, &bp->b1);
-@@ -787,15 +790,22 @@ static int nvme_submit_iod(struct nvme_queue *nvmeq, struct nvme_iod *iod)
+@@ -787,15 +787,22 @@ static int nvme_submit_iod(struct nvme_queue *nvmeq, struct nvme_iod *iod)
  	return 0;
  }
  
@@ -42,7 +32,7 @@ index 8579e93..43de7c1 100644
  }
  
  /*
-@@ -809,7 +819,7 @@ static int nvme_submit_bio_queue(struct nvme_queue *nvmeq, struct nvme_ns *ns,
+@@ -809,7 +816,7 @@ static int nvme_submit_bio_queue(struct nvme_queue *nvmeq, struct nvme_ns *ns,
  	int result;
  
  	if ((bio->bi_rw & REQ_FLUSH) && psegs)
@@ -51,7 +41,7 @@ index 8579e93..43de7c1 100644
  
  	iod = nvme_alloc_iod(psegs, bio->bi_size, GFP_ATOMIC);
  	if (!iod)
-@@ -1990,6 +2000,7 @@ static struct nvme_ns *nvme_alloc_ns(struct nvme_dev *dev, unsigned nsid,
+@@ -1990,6 +1997,7 @@ static struct nvme_ns *nvme_alloc_ns(struct nvme_dev *dev, unsigned nsid,
  	ns->queue->queue_flags = QUEUE_FLAG_DEFAULT;
  	queue_flag_set_unlocked(QUEUE_FLAG_NOMERGES, ns->queue);
  	queue_flag_set_unlocked(QUEUE_FLAG_NONROT, ns->queue);
