@@ -538,6 +538,7 @@ mmapbatch-performance-improvment.patch
 0001-xen-install-xen-gntdev.h-and-xen-gntalloc.h.patch
 xenbus_xs_errors.patch
 x86-fix-xen-save-fl.patch
+0001-x86-xen-add-reschedule-point-when-mapping-foreign-GF.patch
 
 # Balloon memory hotplug
 0001-x86-xen-fix-set_phys_to_machine-when-the-entry-is-id.patch

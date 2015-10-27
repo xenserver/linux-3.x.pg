@@ -1,0 +1,28 @@
+From 929bc291717c611b629fd1969b6320431a7bfe58 Mon Sep 17 00:00:00 2001
+From: David Vrabel <david.vrabel@citrix.com>
+Date: Tue, 27 Oct 2015 11:29:15 +0000
+Subject: [PATCH] x86/xen: add reschedule point when mapping foreign GFNs
+
+Mapping a large range of foreign GFNs can take a long time, add a
+reschedule point after each batch of 16 GFNs.
+
+Signed-off-by: David Vrabel <david.vrabel@citrix.com>
+---
+ arch/x86/xen/mmu.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/arch/x86/xen/mmu.c b/arch/x86/xen/mmu.c
+index 9c479fe..734fa84 100644
+--- a/arch/x86/xen/mmu.c
++++ b/arch/x86/xen/mmu.c
+@@ -2882,6 +2882,7 @@ static int do_remap_gfn(struct vm_area_struct *vma,
+ 				mapped += done;
+ 			batch_left -= done;
+ 			index += done;
++			cond_resched();
+ 		} while (batch_left);
+ 
+ 		nr -= batch;
+-- 
+2.1.4
+
