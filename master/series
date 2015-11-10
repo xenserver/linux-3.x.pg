@@ -67,6 +67,8 @@
 0003-net-export-physical-port-id-via-sysfs.patch
 # 2b2b614dd24e4e6474fcf2dcf69c95c908838959 (3.12-rc2)
 0001-tracing-events-Add-bounce-tracing-to-swiotbl.patch
+# 0e4ccb1505a9e29c50170742ce26ac4655baab2d (3.12.rc2)
+guest-kernel-disallow-modification-msi-mask.patch
 # 24f69373e212d4356268fbb1d01c5735423c300d (3.12-rc3)
 0007-xen-balloon-don-t-alloc-page-while-non-preemptible.patch
 # 2f6c9479633780ba4a3484bba7eba5a721a5cf20 (3.12-rc6)
