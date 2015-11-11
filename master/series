@@ -188,8 +188,6 @@ nullblk_3_13.patch
 0001-genirq-Set-initial-affinity-in-irq_set_affinity_hint.patch
 # 4fe7ffb7e17ca6ad9173b8de35f260c9c8fc2f79 (4.0-rc1)
 0002-genirq-Fix-null-pointer-reference-in-irq_set_affinit.patch
-# 1401c00e59ea021c575f74612fe2dbba36d6a4ee (4.0-rc1)
-0001-xen-gntdev-convert-priv-lock-to-a-mutex.patch
 
 #
 # xen-netback backports
