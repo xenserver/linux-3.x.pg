@@ -83,6 +83,8 @@ CA-165060-CIFS-Enable-files-greater-than-2GB.patch
 0003-PCI-Add-Virtual-Channel-to-save-restore-support.patch
 # dca692880e887739a669f6c41a80ca68ce2b09fc (3.13-rc1)
 CIFS-O_DIRECT-opens-should-work-on-directio-mounts.patch
+# ac8344c4c0bf74c7efaf962cf2a6404331678ce4 (3.13.rc1)
+drop-irq-count-param-from-restore_msi_irqs.patch
 # 32e475d76a3e40879cd9ee4f69b19615062280d7 (3.13-rc3)
 0001-sched-Expose-preempt_schedule_irq.patch
 # 518d00b7498c5894be94545848d55e5b9c55749e (v3.13-rc8) in nullblk_3_13.patch
