@@ -112,6 +112,8 @@ nullblk_3_13.patch
 0002-hwmon-coretemp-Fix-CPU-hotplug-callback-registration.patch
 # d5c9fde3dae750889168807038243ff36431d276 (3.15-rc4)
 0001-mm-page-writeback.c-fix-divide-by-zero-in-pos_ratio_.patch
+# a87c9ad956676d84d459739fc14ec5a3c3565717 (v3.15-rc6)
+0001-cifs-fix-actimeo-0-corner-case-when-cifs_i-time-jiff.patch
 # fcca2e3119f3771dcfd0b03b3718b3c51b5f21c3 (3.16-rc1)
 0001-x86-xen-rename-early_p2m_alloc-and-early_p2m_alloc_m.patch
 # a9b5bff66b2a63f7d0f42434f5da9024b442159c (3.16-rc1)
@@ -186,10 +188,14 @@ nullblk_3_13.patch
 0001-mm-page_owner-keep-track-of-page-owners.patch
 # 9a92a6ce6f842713ccd0025c5228fe8bea61234c (v3.19-rc1)
 0001-stacktrace-introduce-snprint_stack_trace-for-buffer-.patch
+# 9e6d722f3d91c94f2a303d67ddd8fb1ca4c0d375 (v3.19-rc3)
+0002-cifs-make-new-inode-cache-when-file-type-is-differen.patch
 # e2e64a932556cdfae455497dbe94a8db151fc9fa (4.0-rc1)
 0001-genirq-Set-initial-affinity-in-irq_set_affinity_hint.patch
 # 4fe7ffb7e17ca6ad9173b8de35f260c9c8fc2f79 (4.0-rc1)
 0002-genirq-Fix-null-pointer-reference-in-irq_set_affinit.patch
+# 7196ac113a4f38b7ca1a3282fd9edf328bd22287 (v4.1-rc6)
+0003-Fix-to-check-Unique-id-and-FileType-when-client-refe.patch
 
 #
 # xen-netback backports
@@ -625,6 +631,11 @@ CP-14017-update-nvme-driver.patch
 # EFI
 0001-efivarfs-Ensure-VariableName-is-NULL-terminated.patch
 
+# CIFS read caching patches
+0004-Check-uniqueid-for-SMB2-and-return-ESTALE-if-necessa.patch
+cifs-o_direct-loose-cache.patch
+cifs-revalidate-loose-mapping.patch
+
 #
 # Local patches.
 #
@@ -644,7 +655,6 @@ CA-135938-nfs-disconnect-on-rpc-retry.patch
 CP-9457-blkback-kthread-pid.patch
 0001-Revert-xen-Send-spinlock-IPI-to-all-waiters.patch
 0002-x86-xen-never-re-enable-IRQs-in-spinlock-slow-path.patch
-CA-173529-disable-oplocks-for-CIFS.patch
 x86-xen-correctly-sanitize-e820-map.patch
 
 # Local bonding and bridging patches

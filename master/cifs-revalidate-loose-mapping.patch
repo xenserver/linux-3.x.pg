@@ -1,0 +1,26 @@
+Reimplement commit 08bc03539d38 ("cifs: revalidate mapping prior to
+satisfying read_iter request with cache=loose") on top of v3.10.
+
+diff --git a/fs/cifs/cifsfs.c b/fs/cifs/cifsfs.c
+index e8a359b..4a35cd8 100644
+--- a/fs/cifs/cifsfs.c
++++ b/fs/cifs/cifsfs.c
+@@ -745,9 +745,18 @@ ssize_t
+ cifs_file_aio_read(struct kiocb *iocb, const struct iovec *iov,
+ 		   unsigned long nr_segs, loff_t pos)
+ {
++	struct inode *inode = file_inode(iocb->ki_filp);
++	int rc;
++
+ 	if (iocb->ki_filp->f_flags & O_DIRECT)
+ 		return cifs_user_readv(iocb, iov, nr_segs, pos);
+ 
++        if (CIFS_I(inode)->invalid_mapping) {
++		rc = cifs_invalidate_mapping(inode);
++		if (rc)
++			return rc;
++	}
++
+ 	return generic_file_aio_read(iocb, iov, nr_segs, pos);
+ }
+ 

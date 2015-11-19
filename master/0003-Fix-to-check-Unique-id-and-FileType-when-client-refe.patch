@@ -1,0 +1,78 @@
+From c6ec6cdbb631d3afa51d943c2ae0ce95b0f2295a Mon Sep 17 00:00:00 2001
+From: Nakajima Akira <nakajima.akira@nttcom.co.jp>
+Date: Wed, 22 Apr 2015 15:24:44 +0900
+Subject: [PATCH 3/4] Fix to check Unique id and FileType when client refer
+ file directly.
+
+When you refer file directly on cifs client,
+ (e.g. ls -li <filename>, cd <dir>, stat <filename>)
+ the function return old inode number and filetype from old inode cache,
+ though server has different inode number or filetype.
+
+When server is Windows, cifs client has same problem.
+When Server is Windows
+, This patch fixes bug in different filetype,
+  but does not fix bug in different inode number.
+Because QUERY_PATH_INFO response by Windows does not include inode number(Index Number) .
+
+BUG INFO
+https://bugzilla.kernel.org/show_bug.cgi?id=90021
+https://bugzilla.kernel.org/show_bug.cgi?id=90031
+
+Reported-by: Nakajima Akira <nakajima.akira@nttcom.co.jp>
+Signed-off-by: Nakajima Akira <nakajima.akira@nttcom.co.jp>
+Reviewed-by: Shirish Pargaonkar <shirishpargaonkar@gmail.com>
+Signed-off-by: Steve French <smfrench@gmail.com>
+---
+ fs/cifs/inode.c |   25 +++++++++++++++++++++++++
+ 1 file changed, 25 insertions(+)
+
+diff --git a/fs/cifs/inode.c b/fs/cifs/inode.c
+index 0b9f6c4..e82eb81 100644
+--- a/fs/cifs/inode.c
++++ b/fs/cifs/inode.c
+@@ -369,9 +369,25 @@ int cifs_get_inode_info_unix(struct inode **pinode,
+ 			rc = -ENOMEM;
+ 	} else {
+ 		/* we already have inode, update it */
++
++		/* if uniqueid is different, return error */
++		if (unlikely(cifs_sb->mnt_cifs_flags & CIFS_MOUNT_SERVER_INUM &&
++		    CIFS_I(*pinode)->uniqueid != fattr.cf_uniqueid)) {
++			rc = -ESTALE;
++			goto cgiiu_exit;
++		}
++
++		/* if filetype is different, return error */
++		if (unlikely(((*pinode)->i_mode & S_IFMT) !=
++		    (fattr.cf_mode & S_IFMT))) {
++			rc = -ESTALE;
++			goto cgiiu_exit;
++		}
++
+ 		cifs_fattr_to_inode(*pinode, &fattr);
+ 	}
+ 
++cgiiu_exit:
+ 	return rc;
+ }
+ 
+@@ -774,6 +790,15 @@ cifs_get_inode_info(struct inode **inode, const char *full_path,
+ 		if (!*inode)
+ 			rc = -ENOMEM;
+ 	} else {
++		/* we already have inode, update it */
++
++		/* if filetype is different, return error */
++		if (unlikely(((*inode)->i_mode & S_IFMT) !=
++		    (fattr.cf_mode & S_IFMT))) {
++			rc = -ESTALE;
++			goto cgii_exit;
++		}
++
+ 		cifs_fattr_to_inode(*inode, &fattr);
+ 	}
+ 
+-- 
+1.7.10.4
+

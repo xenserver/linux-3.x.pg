@@ -1,0 +1,69 @@
+cifs: Allow using O_DIRECT with cache=loose
+
+Currently O_DIRECT is supported with cache=none and cache=strict, but
+not cache=loose. Add support for using O_DIRECT when mounted with
+cache=loose.
+
+Signed-off-by: Ross Lagerwall <ross.lagerwall@citrix.com>
+
+diff --git a/fs/cifs/cifsfs.c b/fs/cifs/cifsfs.c
+index 0917f80..792995d 100644
+--- a/fs/cifs/cifsfs.c
++++ b/fs/cifs/cifsfs.c
+@@ -713,9 +713,21 @@ static ssize_t cifs_file_aio_write(struct kiocb *iocb, const struct iovec *iov,
+ 				   unsigned long nr_segs, loff_t pos)
+ {
+ 	struct inode *inode = file_inode(iocb->ki_filp);
++	struct cifsInodeInfo *cinode = CIFS_I(inode);
+ 	ssize_t written;
+ 	int rc;
+ 
++	if (iocb->ki_filp->f_flags & O_DIRECT) {
++		written = cifs_user_writev(iocb, iov, nr_segs, pos);
++		if (written > 0 && cinode->clientCanCacheRead) {
++			cifs_invalidate_mapping(inode);
++			cifs_dbg(FYI, "Set no oplock for inode=%p after a write operation\n",
++				 inode);
++			cinode->clientCanCacheRead = false;
++		}
++		return written;
++	}
++
+ 	written = generic_file_aio_write(iocb, iov, nr_segs, pos);
+ 
+ 	if (CIFS_I(inode)->clientCanCacheAll)
+@@ -729,6 +741,16 @@ static ssize_t cifs_file_aio_write(struct kiocb *iocb, const struct iovec *iov,
+ 	return written;
+ }
+ 
++ssize_t
++cifs_file_aio_read(struct kiocb *iocb, const struct iovec *iov,
++		   unsigned long nr_segs, loff_t pos)
++{
++	if (iocb->ki_filp->f_flags & O_DIRECT)
++		return cifs_user_readv(iocb, iov, nr_segs, pos);
++
++	return generic_file_aio_read(iocb, iov, nr_segs, pos);
++}
++
+ static loff_t cifs_llseek(struct file *file, loff_t offset, int whence)
+ {
+ 	/*
+@@ -859,7 +881,7 @@ const struct inode_operations cifs_symlink_inode_ops = {
+ const struct file_operations cifs_file_ops = {
+ 	.read = do_sync_read,
+ 	.write = do_sync_write,
+-	.aio_read = generic_file_aio_read,
++	.aio_read = cifs_file_aio_read,
+ 	.aio_write = cifs_file_aio_write,
+ 	.open = cifs_open,
+ 	.release = cifs_close,
+@@ -917,7 +939,7 @@ const struct file_operations cifs_file_direct_ops = {
+ const struct file_operations cifs_file_nobrl_ops = {
+ 	.read = do_sync_read,
+ 	.write = do_sync_write,
+-	.aio_read = generic_file_aio_read,
++	.aio_read = cifs_file_aio_read,
+ 	.aio_write = cifs_file_aio_write,
+ 	.open = cifs_open,
+ 	.release = cifs_close,

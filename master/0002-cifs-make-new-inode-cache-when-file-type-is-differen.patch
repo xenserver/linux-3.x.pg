@@ -1,0 +1,60 @@
+From f6be4c12417eb5a04b1b81b7f580ba72bd8b6811 Mon Sep 17 00:00:00 2001
+From: Nakajima Akira <nakajima.akira@nttcom.co.jp>
+Date: Fri, 19 Dec 2014 15:38:14 +0900
+Subject: [PATCH 2/4] cifs: make new inode cache when file type is different
+
+In spite of different file type,
+ if file is same name and same inode number, old inode cache is used.
+This causes that you can not cd directory, can not cat SymbolicLink.
+So this patch is that if file type is different, return error.
+
+Reproducible sample :
+1. create file 'a' at cifs client.
+2. repeat rm and mkdir 'a' 4 times at server, then direcotry 'a' having same inode number is created.
+   (Repeat 4 times, then same inode number is recycled.)
+   (When server is under RHEL 6.6, 1 time is O.K.  Always same inode number is recycled.)
+3. ls -li at client, then you can not cd directory, can not remove directory.
+
+SymbolicLink has same problem.
+
+Bug link:
+https://bugzilla.kernel.org/show_bug.cgi?id=90011
+
+Signed-off-by: Nakajima Akira <nakajima.akira@nttcom.co.jp>
+Acked-by: Jeff Layton <jlayton@primarydata.com>
+Signed-off-by: Steve French <steve.french@primarydata.com>
+---
+ fs/cifs/readdir.c |   10 +++++++---
+ 1 file changed, 7 insertions(+), 3 deletions(-)
+
+diff --git a/fs/cifs/readdir.c b/fs/cifs/readdir.c
+index 85ebdaa..f995c6e 100644
+--- a/fs/cifs/readdir.c
++++ b/fs/cifs/readdir.c
+@@ -69,7 +69,8 @@ static inline void dump_cifs_file_struct(struct file *file, char *label)
+  * Attempt to preload the dcache with the results from the FIND_FIRST/NEXT
+  *
+  * Find the dentry that matches "name". If there isn't one, create one. If it's
+- * a negative dentry or the uniqueid changed, then drop it and recreate it.
++ * a negative dentry or the uniqueid or filetype(mode) changed,
++ * then drop it and recreate it.
+  */
+ static void
+ cifs_prime_dcache(struct dentry *parent, struct qstr *name,
+@@ -99,8 +100,11 @@ cifs_prime_dcache(struct dentry *parent, struct qstr *name,
+ 			if (!(cifs_sb->mnt_cifs_flags & CIFS_MOUNT_SERVER_INUM))
+ 				fattr->cf_uniqueid = CIFS_I(inode)->uniqueid;
+ 
+-			/* update inode in place if i_ino didn't change */
+-			if (CIFS_I(inode)->uniqueid == fattr->cf_uniqueid) {
++			/* update inode in place
++			 * if both i_ino and i_mode didn't change */
++			if (CIFS_I(inode)->uniqueid == fattr->cf_uniqueid &&
++			    (inode->i_mode & S_IFMT) ==
++			    (fattr->cf_mode & S_IFMT)) {
+ 				cifs_fattr_to_inode(inode, fattr);
+ 				goto out;
+ 			}
+-- 
+1.7.10.4
+
