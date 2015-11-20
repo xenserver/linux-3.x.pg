@@ -6,10 +6,10 @@ Use GIT macros instead of HG ones
 
 diff --git a/mk/Makefile b/mk/Makefile
 new file mode 100644
-index 0000000..c189b78
+index 0000000..5594e97
 --- /dev/null
 +++ b/mk/Makefile
-@@ -0,0 +1,184 @@
+@@ -0,0 +1,188 @@
 +USE_BRANDING := yes
 +IMPORT_BRANDING := yes
 +REPONAME=linux-3.x
@@ -39,6 +39,7 @@ index 0000000..c189b78
 +
 +SOURCES = $(RPM_SOURCESDIR)/linux-$(PKG_VERSION)-$(PKG_RELEASE).tar.bz2 \
 +	  $(ARCHS:%=$(RPM_SOURCESDIR)/kernel-%.config) \
++          $(RPM_SOURCESDIR)/macros.kernel \
 +          $(RPM_SPECSDIR)/kernel.spec
 +
 +SRPM = $(RPM_SRPMSDIR)/kernel-$(PKG_VERSION)-$(PKG_RELEASE).src.rpm
@@ -63,6 +64,9 @@ index 0000000..c189b78
 +	cp -f $< $@
 +
 +$(RPM_SOURCESDIR)/kernel-x86_64.config: ../buildconfigs/linux-defconfig_xen_x86_64 $(RPM_DIRECTORIES)
++	cp -f $< $@
++
++$(RPM_SOURCESDIR)/macros.kernel: ../mk/macros.kernel $(RPM_DIRECTORIES)
 +	cp -f $< $@
 +
 +$(RPM_SPECSDIR)/kernel.spec: kernel.spec.in $(RPM_DIRECTORIES)
@@ -415,10 +419,10 @@ index 0000000..f8ae816
 +./lib/modules/*/kernel/drivers/net/ethernet/brocade/bna/bna.ko
 diff --git a/mk/kernel.spec.in b/mk/kernel.spec.in
 new file mode 100644
-index 0000000..8e7f329
+index 0000000..c559b4e
 --- /dev/null
 +++ b/mk/kernel.spec.in
-@@ -0,0 +1,299 @@
+@@ -0,0 +1,303 @@
 +# -*- rpm-spec -*-
 +
 +# The full kernel uname version
@@ -494,6 +498,7 @@ index 0000000..8e7f329
 +
 +Source0: linux-%{version}-%{release}.tar.bz2
 +Source1: kernel-%{arch}.config
++Source2: macros.kernel
 +
 +BuildRoot: %{_tmppath}/kernel-%{version}-root
 +
@@ -600,6 +605,8 @@ index 0000000..8e7f329
 +
 +# Install -devel files
 +install -d -m 755 $RPM_BUILD_ROOT/usr/src/kernels/%{uname}-%{target}
++install -d -m 755 $RPM_BUILD_ROOT%{_rpmconfigdir}/macros.d
++install -m 644 %{SOURCE2} $RPM_BUILD_ROOT%{_rpmconfigdir}/macros.d
 +
 +# Setup -devel links correctly
 +SOURCE=/usr/src/kernels/%{uname}-%{target}
@@ -712,9 +719,33 @@ index 0000000..8e7f329
 +/lib/modules/%{uname}/build
 +/lib/modules/%{uname}/source
 +%verify(not mtime) /usr/src/kernels/%{uname}-%{target}
++%{_rpmconfigdir}/macros.d/macros.kernel
 +
 +%changelog
 +* Wed Sep 25 2013 Malcolm Crossley <malcolm.crossley@eu.citrix.com> - 3.10
 +- Synced with elrepo kernel-ml packaging style
 +* Thu Mar 29 2012 Simon Rowe <simon.rowe@eu.citrix.com> - 3.3.0-rc3
 +- Packaged for XenServer
+diff --git a/mk/macros.kernel b/mk/macros.kernel
+new file mode 100644
+index 0000000..03e6e85
+--- /dev/null
++++ b/mk/macros.kernel
+@@ -0,0 +1,17 @@
++%regenerate_initrd_post() \
++touch %{_localstatedir}/lib/rpm-state/regenerate-initrd-%{kernel_version} \
++%{nil}
++
++%regenerate_initrd_postun() \
++if [ $1 -eq 0 ]; then \
++    mkinitrd -f /boot/initrd-%{kernel_version}.img %{kernel_version} \
++else \
++    touch %{_localstatedir}/lib/rpm-state/regenerate-initrd-%{kernel_version} \
++fi \
++%{nil}
++
++%regenerate_initrd_posttrans() \
++if [ -e %{_localstatedir}/lib/rpm-state/regenerate-initrd-%{kernel_version} ]; then \
++    rm %{_localstatedir}/lib/rpm-state/regenerate-initrd-%{kernel_version} \
++    mkinitrd -f /boot/initrd-%{kernel_version}.img %{kernel_version} \
++fi \
