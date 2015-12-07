@@ -136,6 +136,8 @@ nullblk_3_13.patch
 0009-x86-remove-the-Xen-specific-_PAGE_IOMAP-PTE-flag.patch
 # fb9a0c443691ceaab3daba966bbbd9f5ff3aa26f (3.16-rc6)
 0002-xen-balloon-set-ballooned-out-pages-as-invalid-in-p2.patch
+# 230fa253df6352af12ad0a16128760b5cb3f92df (3.18-rc3)
+0001-kernel-Provide-READ_ONCE-and-ASSIGN_ONCE.patch
 # 3ab5d207c221f061ff99c1f39af468ed948e3577 (linux-vfio tree)
 0001-PCI-Allow-device-quirks-to-exclude-D3-D0-PM-reset.patch
 # 3d7a34ecf6bb446bf0928aa7d7f51acaa8816063 (linux-vfio tree)
@@ -638,6 +640,10 @@ CP-14017-update-nvme-driver.patch
 0004-Check-uniqueid-for-SMB2-and-return-ESTALE-if-necessa.patch
 cifs-o_direct-loose-cache.patch
 cifs-revalidate-loose-mapping.patch
+
+netback-xsa155.patch
+pciback-xsa155.patch
+blkback-xsa155.patch
 
 #
 # Local patches.
