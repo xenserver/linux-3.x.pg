@@ -22,12 +22,6 @@ Cc: Wei Liu <wei.liu2@citrix.com>
 Cc: Ian Campbell <ian.campbell@citrix.com>
 Acked-by: Wei Liu <wei.liu2@citrix.com>
 Signed-off-by: David S. Miller <davem@davemloft.net>
----
- drivers/net/xen-netback/common.h    |    1 +
- drivers/net/xen-netback/interface.c |   26 ++++++++++----------------
- drivers/net/xen-netback/xenbus.c    |   17 ++++++++++++-----
- 3 files changed, 23 insertions(+), 21 deletions(-)
-
 diff --git a/drivers/net/xen-netback/common.h b/drivers/net/xen-netback/common.h
 index a197743..5715318 100644
 --- a/drivers/net/xen-netback/common.h
@@ -108,10 +102,10 @@ index 77fee1d..01bb854 100644
 +	module_put(THIS_MODULE);
  }
 diff --git a/drivers/net/xen-netback/xenbus.c b/drivers/net/xen-netback/xenbus.c
-index 1fe48fe3..a53782e 100644
+index e999bac..3aba340 100644
 --- a/drivers/net/xen-netback/xenbus.c
 +++ b/drivers/net/xen-netback/xenbus.c
-@@ -42,7 +42,7 @@ static int netback_remove(struct xenbus_device *dev)
+@@ -44,7 +44,7 @@ static int netback_remove(struct xenbus_device *dev)
  	if (be->vif) {
  		kobject_uevent(&dev->dev.kobj, KOBJ_OFFLINE);
  		xenbus_rm(XBT_NIL, dev->nodename, "hotplug-status");
@@ -119,8 +113,8 @@ index 1fe48fe3..a53782e 100644
 +		xenvif_free(be->vif);
  		be->vif = NULL;
  	}
- 	kfree(be);
-@@ -213,9 +213,18 @@ static void disconnect_backend(struct xenbus_device *dev)
+ 	kfree(be->hotplug_script);
+@@ -218,9 +218,18 @@ static void disconnect_backend(struct xenbus_device *dev)
  {
  	struct backend_info *be = dev_get_drvdata(&dev->dev);
  
@@ -140,7 +134,7 @@ index 1fe48fe3..a53782e 100644
  		be->vif = NULL;
  	}
  }
-@@ -246,14 +255,11 @@ static void frontend_changed(struct xenbus_device *dev,
+@@ -251,14 +260,11 @@ static void frontend_changed(struct xenbus_device *dev,
  	case XenbusStateConnected:
  		if (dev->state == XenbusStateConnected)
  			break;
@@ -155,7 +149,7 @@ index 1fe48fe3..a53782e 100644
  		disconnect_backend(dev);
  		xenbus_switch_state(dev, XenbusStateClosing);
  		break;
-@@ -262,6 +268,7 @@ static void frontend_changed(struct xenbus_device *dev,
+@@ -267,6 +273,7 @@ static void frontend_changed(struct xenbus_device *dev,
  		xenbus_switch_state(dev, XenbusStateClosed);
  		if (xenbus_dev_is_online(dev))
  			break;
@@ -163,6 +157,3 @@ index 1fe48fe3..a53782e 100644
  		/* fall through if not online */
  	case XenbusStateUnknown:
  		device_unregister(&dev->dev);
--- 
-1.7.10.4
-

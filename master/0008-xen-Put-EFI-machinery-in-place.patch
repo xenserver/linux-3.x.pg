@@ -29,7 +29,7 @@ Reviewed-by: David Vrabel <david.vrabel@citrix.com>
 Acked-by: Stefano Stabellini <stefano.stabellini@eu.citrix.com
 Signed-off-by: Matt Fleming <matt.fleming@intel.com>
 diff --git a/arch/x86/xen/enlighten.c b/arch/x86/xen/enlighten.c
-index a492be2..afc3f27 100644
+index 08d273d..e18a236 100644
 --- a/arch/x86/xen/enlighten.c
 +++ b/arch/x86/xen/enlighten.c
 @@ -32,6 +32,7 @@
@@ -38,9 +38,9 @@ index a492be2..afc3f27 100644
  #include <linux/edd.h>
 +#include <linux/efi.h>
  
- #include <xen/xen.h>
- #include <xen/events.h>
-@@ -1422,6 +1423,7 @@ asmlinkage void __init xen_start_kernel(void)
+ #ifdef CONFIG_KEXEC
+ #include <linux/kexec.h>
+@@ -1460,6 +1461,7 @@ asmlinkage void __init xen_start_kernel(void)
  {
  	struct physdev_set_iopl set_iopl;
  	int rc;
@@ -48,7 +48,7 @@ index a492be2..afc3f27 100644
  
  	if (!xen_start_info)
  		return;
-@@ -1613,6 +1615,19 @@ asmlinkage void __init xen_start_kernel(void)
+@@ -1644,6 +1646,19 @@ asmlinkage void __init xen_start_kernel(void)
  
  	xen_setup_runstate_info(0);
  

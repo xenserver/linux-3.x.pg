@@ -235,7 +235,7 @@ index 70b830f..8c20935 100644
  		return true;
  	}
 diff --git a/drivers/net/xen-netback/xenbus.c b/drivers/net/xen-netback/xenbus.c
-index 8a9e875..410018c 100644
+index e0cf18c..bad4ee3 100644
 --- a/drivers/net/xen-netback/xenbus.c
 +++ b/drivers/net/xen-netback/xenbus.c
 @@ -24,12 +24,6 @@
@@ -251,7 +251,7 @@ index 8a9e875..410018c 100644
  	enum xenbus_state frontend_state;
  	struct xenbus_watch hotplug_status_watch;
  	u8 have_hotplug_status_watch:1;
-@@ -39,20 +33,16 @@ static int connect_rings(struct backend_info *);
+@@ -41,20 +35,16 @@ static int connect_rings(struct backend_info *);
  static void connect(struct backend_info *);
  static void backend_create_xenvif(struct backend_info *be);
  static void unregister_hotplug_status_watch(struct backend_info *be);
@@ -272,8 +272,8 @@ index 8a9e875..410018c 100644
 +		xenvif_disconnect(be->vif);
  		be->vif = NULL;
  	}
- 	kfree(be);
-@@ -136,8 +126,6 @@ static int netback_probe(struct xenbus_device *dev,
+ 	kfree(be->hotplug_script);
+@@ -149,8 +139,6 @@ static int netback_probe(struct xenbus_device *dev,
  	if (err)
  		goto fail;
  
@@ -282,7 +282,7 @@ index 8a9e875..410018c 100644
  	/* This kicks hotplug scripts, so do it immediately. */
  	backend_create_xenvif(be);
  
-@@ -210,113 +198,15 @@ static void backend_create_xenvif(struct backend_info *be)
+@@ -215,113 +203,15 @@ static void backend_create_xenvif(struct backend_info *be)
  	kobject_uevent(&dev->dev.kobj, KOBJ_ONLINE);
  }
  
@@ -402,7 +402,7 @@ index 8a9e875..410018c 100644
  	}
  }
  
-@@ -328,33 +218,43 @@ static void frontend_changed(struct xenbus_device *dev,
+@@ -333,33 +223,43 @@ static void frontend_changed(struct xenbus_device *dev,
  {
  	struct backend_info *be = dev_get_drvdata(&dev->dev);
  
@@ -452,7 +452,7 @@ index 8a9e875..410018c 100644
  		device_unregister(&dev->dev);
  		break;
  
-@@ -447,9 +347,7 @@ static void hotplug_status_changed(struct xenbus_watch *watch,
+@@ -452,9 +352,7 @@ static void hotplug_status_changed(struct xenbus_watch *watch,
  	if (IS_ERR(str))
  		return;
  	if (len == sizeof("connected")-1 && !memcmp(str, "connected", len)) {
@@ -463,7 +463,7 @@ index 8a9e875..410018c 100644
  		/* Not interested in this watch anymore. */
  		unregister_hotplug_status_watch(be);
  	}
-@@ -479,8 +377,12 @@ static void connect(struct backend_info *be)
+@@ -484,8 +382,12 @@ static void connect(struct backend_info *be)
  	err = xenbus_watch_pathfmt(dev, &be->hotplug_status_watch,
  				   hotplug_status_changed,
  				   "%s/%s", dev->nodename, "hotplug-status");

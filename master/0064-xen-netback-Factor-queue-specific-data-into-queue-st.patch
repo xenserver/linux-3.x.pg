@@ -20,13 +20,6 @@ skb_get_hash() to compute the queue index otherwise.
 Signed-off-by: Andrew J. Bennieston <andrew.bennieston@citrix.com>
 Signed-off-by: Wei Liu <wei.liu2@citrix.com>
 Signed-off-by: David S. Miller <davem@davemloft.net>
----
- drivers/net/xen-netback/common.h    |  102 +++--
- drivers/net/xen-netback/interface.c |  502 ++++++++++++++++---------
- drivers/net/xen-netback/netback.c   |  710 +++++++++++++++++------------------
- drivers/net/xen-netback/xenbus.c    |   95 +++--
- 4 files changed, 819 insertions(+), 590 deletions(-)
-
 diff --git a/drivers/net/xen-netback/common.h b/drivers/net/xen-netback/common.h
 index 2c283d6..b6885cf 100644
 --- a/drivers/net/xen-netback/common.h
@@ -212,7 +205,7 @@ index 2c283d6..b6885cf 100644
  
  /* Callback from stack when TX packet can be released */
 diff --git a/drivers/net/xen-netback/interface.c b/drivers/net/xen-netback/interface.c
-index 8fdedac..6005b5d 100644
+index 9e2da57..be65cc7 100644
 --- a/drivers/net/xen-netback/interface.c
 +++ b/drivers/net/xen-netback/interface.c
 @@ -34,7 +34,6 @@
@@ -2692,10 +2685,10 @@ index 7367208..a5484e8 100644
  	return 0;
  }
 diff --git a/drivers/net/xen-netback/xenbus.c b/drivers/net/xen-netback/xenbus.c
-index 7a206cf..358602f 100644
+index 270bccf..bfcd779 100644
 --- a/drivers/net/xen-netback/xenbus.c
 +++ b/drivers/net/xen-netback/xenbus.c
-@@ -19,6 +19,8 @@
+@@ -20,6 +20,8 @@
  */
  
  #include "common.h"
@@ -2704,8 +2697,8 @@ index 7a206cf..358602f 100644
  
  struct backend_info {
  	struct xenbus_device *dev;
-@@ -34,8 +36,9 @@ struct backend_info {
- 	u8 have_hotplug_status_watch:1;
+@@ -37,8 +39,9 @@ struct backend_info {
+ 	const char *hotplug_script;
  };
  
 -static int connect_rings(struct backend_info *);
@@ -2716,7 +2709,7 @@ index 7a206cf..358602f 100644
  static void backend_create_xenvif(struct backend_info *be);
  static void unregister_hotplug_status_watch(struct backend_info *be);
  static void set_backend_state(struct backend_info *be,
-@@ -485,10 +488,10 @@ static void connect(struct backend_info *be)
+@@ -491,10 +494,10 @@ static void connect(struct backend_info *be)
  {
  	int err;
  	struct xenbus_device *dev = be->dev;
@@ -2731,7 +2724,7 @@ index 7a206cf..358602f 100644
  
  	err = xen_net_read_mac(dev, be->vif->fe_dev_addr);
  	if (err) {
-@@ -496,9 +499,34 @@ static void connect(struct backend_info *be)
+@@ -502,9 +505,34 @@ static void connect(struct backend_info *be)
  		return;
  	}
  
@@ -2769,7 +2762,7 @@ index 7a206cf..358602f 100644
  
  	unregister_hotplug_status_watch(be);
  	err = xenbus_watch_pathfmt(dev, &be->hotplug_status_watch,
-@@ -507,18 +535,26 @@ static void connect(struct backend_info *be)
+@@ -513,18 +541,26 @@ static void connect(struct backend_info *be)
  	if (!err)
  		be->have_hotplug_status_watch = 1;
  
@@ -2801,7 +2794,7 @@ index 7a206cf..358602f 100644
  
  	err = xenbus_gather(XBT_NIL, dev->otherend,
  			    "tx-ring-ref", "%lu", &tx_ring_ref,
-@@ -546,6 +582,27 @@ static int connect_rings(struct backend_info *be)
+@@ -552,6 +588,27 @@ static int connect_rings(struct backend_info *be)
  		rx_evtchn = tx_evtchn;
  	}
  
@@ -2829,7 +2822,7 @@ index 7a206cf..358602f 100644
  	err = xenbus_scanf(XBT_NIL, dev->otherend, "request-rx-copy", "%u",
  			   &rx_copy);
  	if (err == -ENOENT) {
-@@ -621,16 +678,6 @@ static int connect_rings(struct backend_info *be)
+@@ -627,16 +684,6 @@ static int connect_rings(struct backend_info *be)
  		val = 0;
  	vif->ipv6_csum = !!val;
  
@@ -2846,6 +2839,3 @@ index 7a206cf..358602f 100644
  	return 0;
  }
  
--- 
-1.7.10.4
-

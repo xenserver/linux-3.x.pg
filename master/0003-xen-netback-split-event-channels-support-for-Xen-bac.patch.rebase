@@ -20,13 +20,6 @@ Original commit id e1f00a69ec26e3eb9847c61c665b8fb3f0c6b477:
     Signed-off-by: David S. Miller <davem@davemloft.net>
 
 Signed-off-by: Paul Durrant <paul.durrant@citrix.com>
----
- drivers/net/xen-netback/common.h    |   13 ++++--
- drivers/net/xen-netback/interface.c |   85 ++++++++++++++++++++++++++++-------
- drivers/net/xen-netback/netback.c   |   11 ++++-
- drivers/net/xen-netback/xenbus.c    |   41 ++++++++++++++---
- 4 files changed, 123 insertions(+), 27 deletions(-)
-
 diff --git a/drivers/net/xen-netback/common.h b/drivers/net/xen-netback/common.h
 index 6102a6c..8a4d77e 100644
 --- a/drivers/net/xen-netback/common.h
@@ -253,12 +246,12 @@ index 0060e46..a0b50ad 100644
  
  static struct xen_netif_rx_response *make_rx_response(struct xenvif *vif,
 diff --git a/drivers/net/xen-netback/xenbus.c b/drivers/net/xen-netback/xenbus.c
-index d230c14..04bd860 100644
+index 050d25a..d2b896c 100644
 --- a/drivers/net/xen-netback/xenbus.c
 +++ b/drivers/net/xen-netback/xenbus.c
-@@ -122,6 +122,16 @@ static int netback_probe(struct xenbus_device *dev,
- 		goto fail;
- 	}
+@@ -135,6 +135,16 @@ static int netback_probe(struct xenbus_device *dev,
+ 
+ 	be->hotplug_script = script;
  
 +	/*
 +	 * Split event channels support, this is optional so it is not
@@ -273,7 +266,7 @@ index d230c14..04bd860 100644
  	err = xenbus_switch_state(dev, XenbusStateInitWait);
  	if (err)
  		goto fail;
-@@ -393,21 +403,36 @@ static int connect_rings(struct backend_info *be)
+@@ -398,21 +408,36 @@ static int connect_rings(struct backend_info *be)
  	struct xenvif *vif = be->vif;
  	struct xenbus_device *dev = be->dev;
  	unsigned long tx_ring_ref, rx_ring_ref;
@@ -314,7 +307,7 @@ index d230c14..04bd860 100644
  	err = xenbus_scanf(XBT_NIL, dev->otherend, "request-rx-copy", "%u",
  			   &rx_copy);
  	if (err == -ENOENT) {
-@@ -454,11 +479,13 @@ static int connect_rings(struct backend_info *be)
+@@ -459,11 +484,13 @@ static int connect_rings(struct backend_info *be)
  	vif->csum = !val;
  
  	/* Map the shared frame, irq etc. */
@@ -331,6 +324,3 @@ index d230c14..04bd860 100644
  		return err;
  	}
  	return 0;
--- 
-1.7.10.4
-

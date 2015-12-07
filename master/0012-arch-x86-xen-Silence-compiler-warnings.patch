@@ -27,14 +27,6 @@ warning on x86 32-bit architecture.
 Signed-off-by: Daniel Kiper <daniel.kiper@oracle.com>
 Reviewed-by: Konrad Rzeszutek Wilk <Konrad.wilk@oracle.com>
 Signed-off-by: Matt Fleming <matt.fleming@intel.com>
----
- arch/x86/xen/Makefile    |    1 +
- arch/x86/xen/efi.c       |   43 +++++++++++++++++++++++++++++++++++++++++++
- arch/x86/xen/enlighten.c |   15 +--------------
- arch/x86/xen/xen-ops.h   |    8 ++++++++
- 4 files changed, 53 insertions(+), 14 deletions(-)
- create mode 100644 arch/x86/xen/efi.c
-
 diff --git a/arch/x86/xen/Makefile b/arch/x86/xen/Makefile
 index 96ab2c0..7322755 100644
 --- a/arch/x86/xen/Makefile
@@ -94,7 +86,7 @@ index 0000000..a02e09e
 +	set_bit(EFI_64BIT, &efi.flags);
 +}
 diff --git a/arch/x86/xen/enlighten.c b/arch/x86/xen/enlighten.c
-index bc89647..2cd0463 100644
+index e18a236..74234fa 100644
 --- a/arch/x86/xen/enlighten.c
 +++ b/arch/x86/xen/enlighten.c
 @@ -32,7 +32,6 @@
@@ -103,9 +95,9 @@ index bc89647..2cd0463 100644
  #include <linux/edd.h>
 -#include <linux/efi.h>
  
- #include <xen/xen.h>
- #include <xen/events.h>
-@@ -1521,7 +1520,6 @@ asmlinkage __visible void __init xen_start_kernel(void)
+ #ifdef CONFIG_KEXEC
+ #include <linux/kexec.h>
+@@ -1461,7 +1460,6 @@ asmlinkage void __init xen_start_kernel(void)
  {
  	struct physdev_set_iopl set_iopl;
  	int rc;
@@ -113,7 +105,7 @@ index bc89647..2cd0463 100644
  
  	if (!xen_start_info)
  		return;
-@@ -1717,18 +1715,7 @@ asmlinkage __visible void __init xen_start_kernel(void)
+@@ -1646,18 +1644,7 @@ asmlinkage void __init xen_start_kernel(void)
  
  	xen_setup_runstate_info(0);
  
@@ -134,10 +126,10 @@ index bc89647..2cd0463 100644
  	/* Start the world */
  #ifdef CONFIG_X86_32
 diff --git a/arch/x86/xen/xen-ops.h b/arch/x86/xen/xen-ops.h
-index c834d4b..75f98fe 100644
+index 063d3e6..5992c8e 100644
 --- a/arch/x86/xen/xen-ops.h
 +++ b/arch/x86/xen/xen-ops.h
-@@ -104,6 +104,14 @@ static inline void __init xen_init_apic(void)
+@@ -100,6 +100,14 @@ static inline void __init xen_init_apic(void)
  }
  #endif
  
@@ -152,6 +144,3 @@ index c834d4b..75f98fe 100644
  /* Declare an asm function, along with symbols needed to make it
     inlineable */
  #define DECL_ASM(ret, name, ...)		\
--- 
-1.7.10.4
-
