@@ -644,6 +644,11 @@ cifs-revalidate-loose-mapping.patch
 netback-xsa155.patch
 pciback-xsa155.patch
 blkback-xsa155.patch
+pciback-xsa-157-1.patch
+pciback-xsa-157-2.patch
+pciback-xsa-157-3.patch
+pciback-xsa-157-4.patch
+pciback-xsa-157-5.patch
 
 #
 # Local patches.
