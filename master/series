@@ -631,6 +631,9 @@ CP-14017-update-nvme-driver.patch
 # EFI
 0001-efivarfs-Ensure-VariableName-is-NULL-terminated.patch
 
+# PCI
+0001-PCI-update-VPD-size-with-correct-length.patch
+
 # CIFS read caching patches
 0004-Check-uniqueid-for-SMB2-and-return-ESTALE-if-necessa.patch
 cifs-o_direct-loose-cache.patch
