@@ -684,11 +684,6 @@ xen-ioemu-inject-msi.patch
 intel-gvt-g-kernel-support.patch
 intel-gvt-g-enable-out-of-tree-compile.patch
 
-# Melio
-increase-kernel-thread-stack-size.patch
-allow-preempt-count-config.patch
-add-generic-make-sync-request-support.patch
-
 # PV-IOMMU support
 pv-iommu-support.patch
 

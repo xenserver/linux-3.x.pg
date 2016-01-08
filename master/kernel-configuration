@@ -1,9 +1,9 @@
 diff --git a/buildconfigs/linux-defconfig_xen_x86_64 b/buildconfigs/linux-defconfig_xen_x86_64
 new file mode 100644
-index 0000000..476ddcb
+index 0000000..03d28df
 --- /dev/null
 +++ b/buildconfigs/linux-defconfig_xen_x86_64
-@@ -0,0 +1,3847 @@
+@@ -0,0 +1,3846 @@
 +#
 +# Automatically generated file; DO NOT EDIT.
 +# Linux/x86_64 3.10.0+0 Kernel Configuration
@@ -392,7 +392,6 @@ index 0000000..476ddcb
 +# CONFIG_PREEMPT_NONE is not set
 +CONFIG_PREEMPT_VOLUNTARY=y
 +# CONFIG_PREEMPT is not set
-+CONFIG_PREEMPT_COUNT=y
 +CONFIG_X86_LOCAL_APIC=y
 +CONFIG_X86_IO_APIC=y
 +CONFIG_X86_REROUTE_FOR_BROKEN_BOOT_IRQS=y
