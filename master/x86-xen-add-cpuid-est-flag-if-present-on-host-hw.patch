@@ -1,0 +1,14 @@
+diff --git a/arch/x86/xen/enlighten.c b/arch/x86/xen/enlighten.c
+index 74234fa..8c4b966 100644
+--- a/arch/x86/xen/enlighten.c
++++ b/arch/x86/xen/enlighten.c
+@@ -448,7 +448,8 @@ static void __init xen_init_cpuid_mask(void)
+ 	if ((cx & xsave_mask) != xsave_mask)
+ 		cpuid_leaf1_ecx_mask &= ~xsave_mask; /* disable XSAVE & OSXSAVE */
+ 	if (xen_check_mwait())
+-		cpuid_leaf1_ecx_set_mask = (1 << (X86_FEATURE_MWAIT % 32));
++		cpuid_leaf1_ecx_set_mask = (1 << (X86_FEATURE_MWAIT % 32)
++					   | 1 << (X86_FEATURE_EST % 32));
+ }
+ 
+ static void xen_set_debugreg(int reg, unsigned long val)
