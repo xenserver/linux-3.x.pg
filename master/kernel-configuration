@@ -1,6 +1,6 @@
 diff --git a/buildconfigs/linux-defconfig_xen_x86_64 b/buildconfigs/linux-defconfig_xen_x86_64
 new file mode 100644
-index 0000000..03d28df
+index 0000000..fb374d5
 --- /dev/null
 +++ b/buildconfigs/linux-defconfig_xen_x86_64
 @@ -0,0 +1,3846 @@
@@ -72,7 +72,7 @@ index 0000000..03d28df
 +CONFIG_SYSVIPC_SYSCTL=y
 +CONFIG_POSIX_MQUEUE=y
 +CONFIG_POSIX_MQUEUE_SYSCTL=y
-+# CONFIG_FHANDLE is not set
++CONFIG_FHANDLE=y
 +CONFIG_AUDIT=y
 +CONFIG_AUDITSYSCALL=y
 +CONFIG_AUDIT_WATCH=y
@@ -3213,7 +3213,7 @@ index 0000000..03d28df
 +# CONFIG_BTRFS_DEBUG is not set
 +# CONFIG_NILFS2_FS is not set
 +CONFIG_FS_POSIX_ACL=y
-+CONFIG_EXPORTFS=m
++CONFIG_EXPORTFS=y
 +CONFIG_FILE_LOCKING=y
 +CONFIG_FSNOTIFY=y
 +CONFIG_DNOTIFY=y
