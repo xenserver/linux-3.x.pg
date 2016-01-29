@@ -670,6 +670,7 @@ CP-9457-blkback-kthread-pid.patch
 0001-Revert-xen-Send-spinlock-IPI-to-all-waiters.patch
 0002-x86-xen-never-re-enable-IRQs-in-spinlock-slow-path.patch
 x86-xen-correctly-sanitize-e820-map.patch
+x86-xen-add-cpuid-est-flag-if-present-on-host-hw.patch
 
 # Local bonding and bridging patches
 bonding-balance-slb.patch
