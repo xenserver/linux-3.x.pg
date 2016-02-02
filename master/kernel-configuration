@@ -1,6 +1,6 @@
 diff --git a/buildconfigs/linux-defconfig_xen_x86_64 b/buildconfigs/linux-defconfig_xen_x86_64
 new file mode 100644
-index 0000000..03d28df
+index 0000000..52de70a
 --- /dev/null
 +++ b/buildconfigs/linux-defconfig_xen_x86_64
 @@ -0,0 +1,3846 @@
@@ -3609,7 +3609,7 @@ index 0000000..03d28df
 +CONFIG_KEYS=y
 +CONFIG_TRUSTED_KEYS=m
 +CONFIG_ENCRYPTED_KEYS=m
-+# CONFIG_KEYS_DEBUG_PROC_KEYS is not set
++CONFIG_KEYS_DEBUG_PROC_KEYS=y
 +# CONFIG_SECURITY_DMESG_RESTRICT is not set
 +CONFIG_SECURITY=y
 +CONFIG_SECURITYFS=y
