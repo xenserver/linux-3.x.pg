@@ -198,6 +198,8 @@ nullblk_3_13.patch
 0002-genirq-Fix-null-pointer-reference-in-irq_set_affinit.patch
 # 7196ac113a4f38b7ca1a3282fd9edf328bd22287 (v4.1-rc6)
 0003-Fix-to-check-Unique-id-and-FileType-when-client-refe.patch
+# 23567fd052a9abb6d67fe8e7a9ccdd9800a540f2 (4.5-rc1)
+0001-KEYS-Fix-keyring-ref-leak-in-join_session_keyring.patch
 
 #
 # xen-netback backports
