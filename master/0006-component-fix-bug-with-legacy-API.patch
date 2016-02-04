@@ -1,0 +1,39 @@
+From b509cc802239a8b5ba7d1d2cc5adfb9d984b7ed8 Mon Sep 17 00:00:00 2001
+From: Russell King <rmk+kernel@arm.linux.org.uk>
+Date: Fri, 4 Jul 2014 13:23:46 +0100
+Subject: [PATCH 6/6] component: fix bug with legacy API
+
+Sachin Kamat reports that "component: add support for component match
+array" broke Exynos DRM due to a NULL pointer deref.  Fix this.
+
+Reported-by: Sachin Kamat <sachin.kamat@samsung.com>
+Tested-by: Sachin Kamat <sachin.kamat@samsung.com>
+Signed-off-by: Russell King <rmk+kernel@arm.linux.org.uk>
+---
+ drivers/base/component.c | 10 ++++++----
+ 1 file changed, 6 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/base/component.c b/drivers/base/component.c
+index b4236dae..f748430 100644
+--- a/drivers/base/component.c
++++ b/drivers/base/component.c
+@@ -293,10 +293,12 @@ int component_master_add_with_match(struct device *dev,
+ 	if (ops->add_components && match)
+ 		return -EINVAL;
+ 
+-	/* Reallocate the match array for its true size */
+-	match = component_match_realloc(dev, match, match->num);
+-	if (IS_ERR(match))
+-		return PTR_ERR(match);
++	if (match) {
++		/* Reallocate the match array for its true size */
++		match = component_match_realloc(dev, match, match->num);
++		if (IS_ERR(match))
++			return PTR_ERR(match);
++	}
+ 
+ 	master = kzalloc(sizeof(*master), GFP_KERNEL);
+ 	if (!master)
+-- 
+1.7.12.4
+

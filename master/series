@@ -25,6 +25,24 @@
 0001-CIFS-fix-static-checker-warning.patch
 # 2a2c41c07c710f2c1afe3748bdde40db9ea9d9e6 (3.11-rc1)
 0001-revalidate-directories-instiantiated-via-FIND_-in-or.patch
+# 39ef311204941ddd01ea2950d6220c8ccc710d15 (3.11-rc1)
+0001-driver-core-Introduce-device_create_groups.patch
+# ced321bf9151535f85779b0004c93529f860b2a4 (3.11-rc1)
+0001-driver-core-device.h-add-RW-and-RO-attribute-macros.patch
+# b9b3259746d77f4fcb786e2a43c25bcc40773755 (3.11-rc1)
+0001-sysfs.h-add-__ATTR_RW-macro.patch
+# 6ab9cea16075ea707022753395f340b67f64304c (3.11-rc1)
+0001-sysfs-add-support-for-binary-attributes-in-groups.patch
+# 1105200480b4faeb673d1b23658650b003302c06 (3.11-rc1)
+0001-lib-scatterlist-factor-out-sg_miter_get_next_page-fr.patch
+# df642cea25c90dc7d5dcd9d3b480b6b59de7d787 (3.11-rc1)
+0001-lib-scatterlist-introduce-sg_pcopy_from_buffer-and-s.patch
+# 27daabd9b6a157c34a6e7a7f509fa26866e6420f (3.11-rc1)
+0001-lib-scatterlist-error-handling-in-__sg_alloc_table.patch
+# e7152b97f38f1f5b915c719e6a3040697a700a16 (3.11-rc1)
+0001-err.h-IS_ERR-can-accept-__user-pointers.patch
+# 6e8b8726ad503214ba66e34aed69aff41de33489 (3.11-rc1)
+0001-PTR_RET-is-now-PTR_ERR_OR_ZERO.patch
 # 64e8674fbe6bc848333a9b7e19f8cc019dde9eab (3.11-rc2)
 0001-PCI-Add-pci_reset_bridge_secondary_bus.patch
 # 5c32b35b004f5ef70dcf62bbc42b8bed1e50b471 (3.11-rc2)
@@ -71,8 +89,14 @@
 guest-kernel-disallow-modification-msi-mask.patch
 # 24f69373e212d4356268fbb1d01c5735423c300d (3.12-rc3)
 0007-xen-balloon-don-t-alloc-page-while-non-preemptible.patch
+# 64c862a839a8db2c02bbaa88b923d13e1208919d (3.12-rc3)
+0001-devres-add-kernel-standard-devm_k.alloc-functions.patch
 # 2f6c9479633780ba4a3484bba7eba5a721a5cf20 (3.12-rc6)
 CA-165060-CIFS-Enable-files-greater-than-2GB.patch
+# 8120e2e5141a420edee725ff28f18aa264795f7a (3.12)
+0001-list-change-list_for_each_entry-to-use-list_-_entry.patch
+# 93be3c2eb3371f022ad88acf1ab6bee8e3c38378 (3.12)
+0001-list-introduce-list_last_entry-use-list_-first-last-.patch
 # 74d332c13b2148ae934ea94dac1745ae92efe8e5 (3.13-rc1)
 0001-net-extend-net_device-allocation-to-vmalloc.patch
 # 157e876ffe0b28821a0d82d8ac944fe7363bbe87 (3.13-rc1)
@@ -98,6 +122,8 @@ drop-irq-count-param-from-restore_msi_irqs.patch
 # 044c8d4b15743f6e0a4cb6f2aeb32745a116ebff (v3.13-rc1) in nullblk_3_13.patch
 # f2298c0403b0dfcaef637eba0c02c4a06d7a25ab (v3.13-rc1) in nullblk_3_13.patch
 nullblk_3_13.patch
+# 89a0714106aac7309c7dfa0f004b39e1e89d2942 (3.13)
+0001-kernel.h-define-u8-s8-u32-etc.-limits.patch
 # fa35864e0bb7f7c13b9c6d6751ddac9b42d4810f (3.14-rc1)
 0001-tuntap-Fix-for-a-race-in-accessing-numqueues.patch
 # ed1f50c3a7c1ad1b1b4d584308eab77d57a330f8 (3.14-rc1)
@@ -106,10 +132,14 @@ nullblk_3_13.patch
 0001-xen-grants-Remove-gnttab_max_grant_frames-dependency.patch
 # 81201baa15df09decc1475f3eab86089b7f24d1d (xen/tip.git devel/for-linus-3.15)
 0001-xen-grant-table-Refactor-gnttab_-un-map_refs-to-avoi.patch
+# a5ed3cee944abf2c80ae146b06f9055d7da03f94 (3.14)
+0001-err.h-use-bool-for-IS_ERR-and-IS_ERR_OR_NULL.patch
 # 93ae4f978ca7f26d17df915ac7afc919c1dd0353 (3.15-rc1)
 0001-CPU-hotplug-Provide-lockless-versions-of-callback-re.patch
 # 3289705fe2b429569f37730ecf660719b8924420 (3.15-rc1)
 0002-hwmon-coretemp-Fix-CPU-hotplug-callback-registration.patch
+# 39f1f78d53b9bcbca91967380c5f0f2305a5c55f (3.15-rc1)
+0001-nick-kvfree-from-apparmor.patch
 # d5c9fde3dae750889168807038243ff36431d276 (3.15-rc4)
 0001-mm-page-writeback.c-fix-divide-by-zero-in-pos_ratio_.patch
 # a87c9ad956676d84d459739fc14ec5a3c3565717 (v3.15-rc6)
@@ -196,10 +226,36 @@ nullblk_3_13.patch
 0001-genirq-Set-initial-affinity-in-irq_set_affinity_hint.patch
 # 4fe7ffb7e17ca6ad9173b8de35f260c9c8fc2f79 (4.0-rc1)
 0002-genirq-Fix-null-pointer-reference-in-irq_set_affinit.patch
+# f766093ecb647f5a87bfa456715abbbccee547ce (4.0)
+0001-kernel.h-implement-DIV_ROUND_CLOSEST_ULL.patch
+# 8bcbde5480f9777f8b74d71493722c663e22c21b (4.1-rc4)
+0001-sched-preempt-mm-fault-Count-pagefault_disable-level.patch
 # 7196ac113a4f38b7ca1a3282fd9edf328bd22287 (v4.1-rc6)
 0003-Fix-to-check-Unique-id-and-FileType-when-client-refe.patch
 # 23567fd052a9abb6d67fe8e7a9ccdd9800a540f2 (4.5-rc1)
 0001-KEYS-Fix-keyring-ref-leak-in-join_session_keyring.patch
+
+# Backport component subsystem. 
+# 2a41e6070dd7ef539d0f3b1652b4839d04378e11 (3.14-rc1)
+0001-drivers-base-provide-an-infrastructure-for-component.patch
+# 9e1ccb4a7700fcb3ddfe2767e0bbb6131f8ab54e (3.14-rc3)
+0002-drivers-base-fix-devres-handling-for-master-device.patch
+# c334940ea26cb58f5514dcbb225a3f397b2684ad (3.17-rc1)
+0003-component-fix-missed-cleanup-in-case-of-devres-failu.patch
+# fcbcebce7159c928692dc6a5e88869f6e44438b9 (3.17-rc1)
+0004-component-ignore-multiple-additions-of-the-same-comp.patch
+# 6955b58254c2bcee8a7b55ce06468a645dc98ec5 (3.17-rc1)
+0005-component-add-support-for-component-match-array.patch
+# b509cc802239a8b5ba7d1d2cc5adfb9d984b7ed8 (3.17-rc1)
+0006-component-fix-bug-with-legacy-API.patch
+# fae9e2e07af07baabb8c26a31b3f7d8fdf89809e (4.5-rc1)
+0007-component-remove-old-add_components-method.patch
+# 29f1c7fd61a31e0335ce41d4b2788959ad7c468d (4.5-rc1)
+0008-component-move-check-for-unbound-master-into-try_to_.patch
+# ffc30b74fd6d01588bd3fdebc3b1acc0857e6fc8 (4.5-rc1)
+0009-component-track-components-via-array-rather-than-lis.patch
+# ce657b1cddf1f88c56ae683efa7130341c92808b (4.5-rc1)
+0010-component-add-support-for-releasing-match-data.patch
 
 #
 # xen-netback backports
