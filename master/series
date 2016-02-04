@@ -632,6 +632,11 @@ nvme-driver-fixes-to-build-3.10.patch
 nvme-zero-sg_io_hdr_msg_status-field.patch
 CP-14017-update-nvme-driver.patch
 
+# GFS2 backport from RHEL 7.2
+backport-rhel7.2-list_lru.patch
+backport-rhel7.2-lockref.patch
+backport-rhel7.2-gfs2.patch
+
 # EFI
 0001-efivarfs-Ensure-VariableName-is-NULL-terminated.patch
 
