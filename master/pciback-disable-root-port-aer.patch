@@ -18,7 +18,7 @@ Disabling Fatal Error reporting in the PCI Express root port prevents the
 error from propogating to system firmware and removes that attack vector for
 triggering host crashes.
 diff --git a/drivers/xen/xen-pciback/pci_stub.c b/drivers/xen/xen-pciback/pci_stub.c
-index d6c29aa..aa46452 100644
+index d6c29aa..2c7905b 100644
 --- a/drivers/xen/xen-pciback/pci_stub.c
 +++ b/drivers/xen/xen-pciback/pci_stub.c
 @@ -31,6 +31,9 @@ wait_queue_head_t xen_pcibk_aer_wait_queue;
@@ -39,7 +39,7 @@ index d6c29aa..aa46452 100644
  
  	dev_dbg(&dev->dev, "initializing...\n");
  
-@@ -494,6 +498,33 @@ static int pcistub_init_device(struct pci_dev *dev)
+@@ -494,6 +498,37 @@ static int pcistub_init_device(struct pci_dev *dev)
  				err);
  	}
  
@@ -47,9 +47,13 @@ index d6c29aa..aa46452 100644
 +		/* Find the root port for this device and disable AER reporting */
 +		tmp = dev;
 +		do {
-+			if (pci_is_root_bus(tmp->bus))
++			struct pci_bus *bus = tmp->bus;
++
++			if (pci_is_root_bus(bus))
 +				break;
-+			tmp = tmp->bus->self;
++			while (!bus->self && bus->parent)
++				bus = bus->parent;
++			tmp = bus->self;
 +		} while (tmp != NULL);
 +
 +		if ((tmp != dev) && (tmp != NULL)) {
