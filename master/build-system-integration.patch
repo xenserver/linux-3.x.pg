@@ -6,10 +6,10 @@ Use GIT macros instead of HG ones
 
 diff --git a/mk/Makefile b/mk/Makefile
 new file mode 100644
-index 0000000..5594e97
+index 0000000..d9aa78b
 --- /dev/null
 +++ b/mk/Makefile
-@@ -0,0 +1,188 @@
+@@ -0,0 +1,169 @@
 +USE_BRANDING := yes
 +IMPORT_BRANDING := yes
 +REPONAME=linux-3.x
@@ -18,7 +18,6 @@ index 0000000..5594e97
 +
 +DRIVER_MANIFEST   = $(MY_OUTPUT_DIR)/driver-manifest.txt
 +RPM_BUILT_COOKIE  = $(MY_OBJ_DIR)/.pvops_rpm_built_cookie
-+FILES_COOKIE      = $(MY_OBJ_DIR)/.files.cookie
 +REPO              = $(call git_loc,$(REPONAME))
 +REPOSTAMP         = $(call git_req,$(REPONAME))
 +
@@ -45,7 +44,7 @@ index 0000000..5594e97
 +SRPM = $(RPM_SRPMSDIR)/kernel-$(PKG_VERSION)-$(PKG_RELEASE).src.rpm
 +
 +.PHONY: build
-+build: $(RPM_BUILT_COOKIE) $(FILES_COOKIE) $(MY_OUTPUT_DIR)/kernel.inc $(BRANDING) $(MY_SOURCES)/MANIFEST $(DRIVER_MANIFEST) check-kernel-abi
++build: $(RPM_BUILT_COOKIE) $(MY_OUTPUT_DIR)/kernel.inc $(BRANDING) $(MY_SOURCES)/MANIFEST $(DRIVER_MANIFEST) check-kernel-abi
 +	@ :
 +
 +.PHONY: clean
@@ -97,30 +96,12 @@ index 0000000..5594e97
 +
 +VMLINUX_PATH := /usr/lib/debug/lib/modules/$(LINUX_KABI_VERSION)/vmlinux
 +
-+$(FILES_COOKIE): $(RPM_BUILT_COOKIE) $(MY_INSTALLER_FILES)/.dirstamp $(MY_MAIN_CDFILES)/.dirstamp
-+	mkdir -p $(MY_INSTALLER_FILES)
-+	rpm2cpio $(MY_OUTPUT_DIR)/RPMS/$(DOMAIN0_ARCH_OPTIMIZED)/$(OUTPUT_RPM) | ( cd $(MY_INSTALLER_FILES) ; cpio -id )
-+
-+	mkdir -p $(MY_MAIN_CDFILES)/boot/
-+	mv $(MY_INSTALLER_FILES)/boot/vmlinuz-$(LINUX_KABI_VERSION) $(MY_MAIN_CDFILES)/boot/vmlinuz
-+
-+#
-+# The install-image component requires a gzipped, stripped vmlinux
-+# file to build some of the more esoteric installers.
-+#
-+	rpm2cpio $(MY_OUTPUT_DIR)/RPMS/$(DOMAIN0_ARCH_OPTIMIZED)/$(OUTPUT_DEBUG_RPM) \
-+		| cpio -i --to-stdout .$(VMLINUX_PATH) > $(MY_INSTALLER_FILES)/boot/vmlinux
-+	objcopy --strip-debug --strip-unneeded $(MY_INSTALLER_FILES)/boot/vmlinux
-+	gzip < $(MY_INSTALLER_FILES)/boot/vmlinux > $(MY_MAIN_CDFILES)/boot/vmlinux.gz
-+
-+	rm -rf $(MY_INSTALLER_FILES)/boot
-+	touch $@
-+
 +$(MY_OUTPUT_DIR)/kernel.inc: $(MY_OUTPUT_DIR)/.dirstamp
 +	( echo KERNEL_PKG_NAME := kernel-$(LINUX_KABI_VERSION) ;\
 +	  echo KERNEL_PKG_VERSION := $(PKG_VERSION) ;\
 +	  echo KERNEL_PKG_ARCH := $(DOMAIN0_ARCH_OPTIMIZED) ;\
 +	  echo KERNEL_PKG_FILE := RPMS/$(DOMAIN0_ARCH_OPTIMIZED)/$(OUTPUT_RPM) ;\
++	  echo KERNEL_DEBUGINFO_PKG_FILE := RPMS/$(DOMAIN0_ARCH_OPTIMIZED)/$(OUTPUT_DEBUG_RPM) ;\
 +	  echo LINUX_KABI_VERSION := $(LINUX_KABI_VERSION) ;\
 +	) >$@
 +
