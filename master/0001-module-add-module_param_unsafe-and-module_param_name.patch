@@ -1,0 +1,82 @@
+From 3baee201b06cfaff84c2c5ddc551b192bb3eaed3 Mon Sep 17 00:00:00 2001
+From: Jani Nikula <jani.nikula@intel.com>
+Date: Wed, 27 Aug 2014 06:23:23 +0930
+Subject: [PATCH] module: add module_param_unsafe and
+ module_param_named_unsafe
+
+Add the helpers to be used by modules wishing to expose unsafe debugging
+or testing module parameters that taint the kernel when set.
+
+Cc: Rusty Russell <rusty@rustcorp.com.au>
+Cc: Jean Delvare <khali@linux-fr.org>
+Cc: Andrew Morton <akpm@linux-foundation.org>
+Cc: Li Zhong <zhong@linux.vnet.ibm.com>
+Cc: Jon Mason <jon.mason@intel.com>
+Cc: Daniel Vetter <daniel.vetter@ffwll.ch>
+Signed-off-by: Jani Nikula <jani.nikula@intel.com>
+Signed-off-by: Rusty Russell <rusty@rustcorp.com.au>
+diff --git a/drivers/gpu/drm/drm_dp_helper.c b/drivers/gpu/drm/drm_dp_helper.c
+index 291734e..8eb4085 100644
+--- a/drivers/gpu/drm/drm_dp_helper.c
++++ b/drivers/gpu/drm/drm_dp_helper.c
+@@ -504,7 +504,7 @@ static int drm_dp_i2c_retry_count(const struct drm_dp_aux_msg *msg,
+  * to require it. We should query/set the speed via DPCD if supported.
+  */
+ static int dp_aux_i2c_speed_khz __read_mostly = 10;
+-module_param_unsafe(dp_aux_i2c_speed_khz, int, 0644);
++module_param(dp_aux_i2c_speed_khz, int, 0644);
+ MODULE_PARM_DESC(dp_aux_i2c_speed_khz,
+ 		 "Assumed speed of the i2c bus in kHz, (1-400, default 10)");
+ 
+@@ -642,7 +642,7 @@ static int drm_dp_i2c_drain_msg(struct drm_dp_aux *aux, struct drm_dp_aux_msg *o
+  * succeed. Hence the default is maximum.
+  */
+ static int dp_aux_i2c_transfer_size __read_mostly = DP_AUX_MAX_PAYLOAD_BYTES;
+-module_param_unsafe(dp_aux_i2c_transfer_size, int, 0644);
++module_param(dp_aux_i2c_transfer_size, int, 0644);
+ MODULE_PARM_DESC(dp_aux_i2c_transfer_size,
+ 		 "Number of bytes to transfer in a single I2C over DP AUX CH message, (1-16, default 16)");
+ 
+diff --git a/include/linux/moduleparam.h b/include/linux/moduleparam.h
+index 137b419..70c2196 100644
+--- a/include/linux/moduleparam.h
++++ b/include/linux/moduleparam.h
+@@ -102,6 +102,12 @@ struct kparam_array
+ 	module_param_named(name, name, type, perm)
+ 
+ /**
++ * module_param_unsafe - same as module_param but taints kernel
++ */
++#define module_param_unsafe(name, type, perm)			\
++	module_param_named_unsafe(name, name, type, perm)
++
++/**
+  * module_param_named - typesafe helper for a renamed module/cmdline parameter
+  * @name: a valid C identifier which is the parameter name.
+  * @value: the actual lvalue to alter.
+@@ -118,6 +124,14 @@ struct kparam_array
+ 	__MODULE_PARM_TYPE(name, #type)
+ 
+ /**
++ * module_param_named_unsafe - same as module_param_named but taints kernel
++ */
++#define module_param_named_unsafe(name, value, type, perm)		\
++	param_check_##type(name, &(value));				\
++	module_param_cb_unsafe(name, &param_ops_##type, &value, perm);	\
++	__MODULE_PARM_TYPE(name, #type)
++
++/**
+  * module_param_cb - general callback for a module/cmdline parameter
+  * @name: a valid C identifier which is the parameter name.
+  * @ops: the set & get operations for this parameter.
+@@ -128,6 +142,10 @@ struct kparam_array
+ #define module_param_cb(name, ops, arg, perm)				      \
+ 	__module_param_call(MODULE_PARAM_PREFIX, name, ops, arg, perm, -1)
+ 
++#define module_param_cb_unsafe(name, ops, arg, perm)			      \
++	__module_param_call(MODULE_PARAM_PREFIX, name, ops, arg, perm, -1,    \
++			    KERNEL_PARAM_FL_UNSAFE)
++
+ /**
+  * <level>_param_cb - general callback for a module/cmdline parameter
+  *                    to be evaluated before certain initcall level

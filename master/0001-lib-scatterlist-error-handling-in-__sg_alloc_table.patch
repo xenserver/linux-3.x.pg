@@ -1,0 +1,40 @@
+From 27daabd9b6a157c34a6e7a7f509fa26866e6420f Mon Sep 17 00:00:00 2001
+From: Dan Carpenter <dan.carpenter@oracle.com>
+Date: Mon, 8 Jul 2013 16:01:58 -0700
+Subject: [PATCH] lib/scatterlist: error handling in __sg_alloc_table()
+
+I was reviewing code which I suspected might allocate a zero size SG
+table.  That will cause memory corruption.  Also we can't return before
+doing the memset or we could end up using uninitialized memory in the
+cleanup path.
+
+Signed-off-by: Dan Carpenter <dan.carpenter@oracle.com>
+Cc: Akinobu Mita <akinobu.mita@gmail.com>
+Cc: Imre Deak <imre.deak@intel.com>
+Cc: Tejun Heo <tj@kernel.org>
+Cc: Daniel Vetter <daniel.vetter@ffwll.ch>
+Cc: Maxim Levitsky <maximlevitsky@gmail.com>
+Signed-off-by: Andrew Morton <akpm@linux-foundation.org>
+Signed-off-by: Linus Torvalds <torvalds@linux-foundation.org>
+diff --git a/lib/scatterlist.c b/lib/scatterlist.c
+index 1eaae14..d16fa29 100644
+--- a/lib/scatterlist.c
++++ b/lib/scatterlist.c
+@@ -247,13 +247,15 @@ int __sg_alloc_table(struct sg_table *table, unsigned int nents,
+ 	struct scatterlist *sg, *prv;
+ 	unsigned int left;
+ 
++	memset(table, 0, sizeof(*table));
++
++	if (nents == 0)
++		return -EINVAL;
+ #ifndef ARCH_HAS_SG_CHAIN
+ 	if (WARN_ON_ONCE(nents > max_ents))
+ 		return -EINVAL;
+ #endif
+ 
+-	memset(table, 0, sizeof(*table));
+-
+ 	left = nents;
+ 	prv = NULL;
+ 	do {

@@ -38,10 +38,10 @@ index fd9cb76..0b687be 100644
  DEFINE_GUEST_HANDLE(int);
  DEFINE_GUEST_HANDLE(void);
 diff --git a/arch/x86/xen/mmu.c b/arch/x86/xen/mmu.c
-index 09f58e37..a610c45 100644
+index 897653d..334275f 100644
 --- a/arch/x86/xen/mmu.c
 +++ b/arch/x86/xen/mmu.c
-@@ -2553,3 +2553,57 @@ int xen_unmap_domain_mfn_range(struct vm_area_struct *vma,
+@@ -2555,3 +2555,57 @@ int xen_unmap_domain_mfn_range(struct vm_area_struct *vma,
  	return -EINVAL;
  }
  EXPORT_SYMBOL_GPL(xen_unmap_domain_mfn_range);
@@ -100,10 +100,10 @@ index 09f58e37..a610c45 100644
 +}
 +EXPORT_SYMBOL_GPL(xen_unmap_domain_mfn_range_in_kernel);
 diff --git a/drivers/pci/quirks.c b/drivers/pci/quirks.c
-index 1705dea..993a012 100644
+index f974165..e81a7c6 100644
 --- a/drivers/pci/quirks.c
 +++ b/drivers/pci/quirks.c
-@@ -2933,6 +2933,12 @@ static void fixup_debug_report(struct pci_dev *dev, ktime_t calltime,
+@@ -2936,6 +2936,12 @@ static void fixup_debug_report(struct pci_dev *dev, ktime_t calltime,
  	}
  }
  
@@ -116,7 +116,7 @@ index 1705dea..993a012 100644
  /*
   * Some BIOS implementations leave the Intel GPU interrupts enabled,
   * even though no one is handling them (f.e. i915 driver is never loaded).
-@@ -2967,6 +2973,7 @@ static void disable_igfx_irq(struct pci_dev *dev)
+@@ -2970,6 +2976,7 @@ static void disable_igfx_irq(struct pci_dev *dev)
  DECLARE_PCI_FIXUP_FINAL(PCI_VENDOR_ID_INTEL, 0x0102, disable_igfx_irq);
  DECLARE_PCI_FIXUP_FINAL(PCI_VENDOR_ID_INTEL, 0x010a, disable_igfx_irq);
  DECLARE_PCI_FIXUP_FINAL(PCI_VENDOR_ID_INTEL, 0x0152, disable_igfx_irq);
@@ -124,6 +124,22 @@ index 1705dea..993a012 100644
  
  /*
   * Some devices may pass our check in pci_intx_mask_supported if
+diff --git a/include/uapi/linux/connector.h b/include/uapi/linux/connector.h
+index 4cb2835..306a084 100644
+--- a/include/uapi/linux/connector.h
++++ b/include/uapi/linux/connector.h
+@@ -46,9 +46,10 @@
+ #define CN_KVP_VAL			0x1	/* queries from the kernel */
+ #define CN_VSS_IDX			0xA     /* HyperV VSS */
+ #define CN_VSS_VAL			0x1     /* queries from the kernel */
++#define CN_IDX_VGT			0xB	/* VGT */
+ 
+ 
+-#define CN_NETLINK_USERS		11	/* Highest index + 1 */
++#define CN_NETLINK_USERS		12	/* Highest index + 1 */
+ 
+ /*
+  * Maximum connector's message size.
 diff --git a/include/xen/interface/hvm/hvm_op.h b/include/xen/interface/hvm/hvm_op.h
 index 83aeb64..c6e2a24 100644
 --- a/include/xen/interface/hvm/hvm_op.h

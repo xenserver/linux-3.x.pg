@@ -1,0 +1,317 @@
+diff --git a/include/linux/list_lru.h b/include/linux/list_lru.h
+new file mode 100644
+index 0000000..f343453
+--- /dev/null
++++ b/include/linux/list_lru.h
+@@ -0,0 +1,137 @@
++/*
++ * Copyright (c) 2013 Red Hat, Inc. and Parallels Inc. All rights reserved.
++ * Authors: David Chinner and Glauber Costa
++ *
++ * Generic LRU infrastructure
++ */
++#ifndef _LRU_LIST_H
++#define _LRU_LIST_H
++
++#include <linux/list.h>
++#include <linux/nodemask.h>
++
++/* list_lru_walk_cb has to always return one of those */
++enum lru_status {
++	LRU_REMOVED,		/* item removed from list */
++	LRU_REMOVED_RETRY,	/* item removed, but lock has been
++				   dropped and reacquired */
++	LRU_ROTATE,		/* item referenced, give another pass */
++	LRU_SKIP,		/* item cannot be locked, skip */
++	LRU_RETRY,		/* item not freeable. May drop the lock
++				   internally, but has to return locked. */
++};
++
++struct list_lru_node {
++	spinlock_t		lock;
++	struct list_head	list;
++	/* kept as signed so we can catch imbalance bugs */
++	long			nr_items;
++} ____cacheline_aligned_in_smp;
++
++struct list_lru {
++	struct list_lru_node	*node;
++	nodemask_t		active_nodes;
++};
++
++void list_lru_destroy(struct list_lru *lru);
++int list_lru_init_key(struct list_lru *lru, struct lock_class_key *key);
++static inline int list_lru_init(struct list_lru *lru)
++{
++	return list_lru_init_key(lru, NULL);
++}
++
++/**
++ * list_lru_add: add an element to the lru list's tail
++ * @list_lru: the lru pointer
++ * @item: the item to be added.
++ *
++ * If the element is already part of a list, this function returns doing
++ * nothing. Therefore the caller does not need to keep state about whether or
++ * not the element already belongs in the list and is allowed to lazy update
++ * it. Note however that this is valid for *a* list, not *this* list. If
++ * the caller organize itself in a way that elements can be in more than
++ * one type of list, it is up to the caller to fully remove the item from
++ * the previous list (with list_lru_del() for instance) before moving it
++ * to @list_lru
++ *
++ * Return value: true if the list was updated, false otherwise
++ */
++bool list_lru_add(struct list_lru *lru, struct list_head *item);
++
++/**
++ * list_lru_del: delete an element to the lru list
++ * @list_lru: the lru pointer
++ * @item: the item to be deleted.
++ *
++ * This function works analogously as list_lru_add in terms of list
++ * manipulation. The comments about an element already pertaining to
++ * a list are also valid for list_lru_del.
++ *
++ * Return value: true if the list was updated, false otherwise
++ */
++bool list_lru_del(struct list_lru *lru, struct list_head *item);
++
++/**
++ * list_lru_count_node: return the number of objects currently held by @lru
++ * @lru: the lru pointer.
++ * @nid: the node id to count from.
++ *
++ * Always return a non-negative number, 0 for empty lists. There is no
++ * guarantee that the list is not updated while the count is being computed.
++ * Callers that want such a guarantee need to provide an outer lock.
++ */
++unsigned long list_lru_count_node(struct list_lru *lru, int nid);
++static inline unsigned long list_lru_count(struct list_lru *lru)
++{
++	long count = 0;
++	int nid;
++
++	for_each_node_mask(nid, lru->active_nodes)
++		count += list_lru_count_node(lru, nid);
++
++	return count;
++}
++
++typedef enum lru_status
++(*list_lru_walk_cb)(struct list_head *item, spinlock_t *lock, void *cb_arg);
++/**
++ * list_lru_walk_node: walk a list_lru, isolating and disposing freeable items.
++ * @lru: the lru pointer.
++ * @nid: the node id to scan from.
++ * @isolate: callback function that is resposible for deciding what to do with
++ *  the item currently being scanned
++ * @cb_arg: opaque type that will be passed to @isolate
++ * @nr_to_walk: how many items to scan.
++ *
++ * This function will scan all elements in a particular list_lru, calling the
++ * @isolate callback for each of those items, along with the current list
++ * spinlock and a caller-provided opaque. The @isolate callback can choose to
++ * drop the lock internally, but *must* return with the lock held. The callback
++ * will return an enum lru_status telling the list_lru infrastructure what to
++ * do with the object being scanned.
++ *
++ * Please note that nr_to_walk does not mean how many objects will be freed,
++ * just how many objects will be scanned.
++ *
++ * Return value: the number of objects effectively removed from the LRU.
++ */
++unsigned long list_lru_walk_node(struct list_lru *lru, int nid,
++				 list_lru_walk_cb isolate, void *cb_arg,
++				 unsigned long *nr_to_walk);
++
++static inline unsigned long
++list_lru_walk(struct list_lru *lru, list_lru_walk_cb isolate,
++	      void *cb_arg, unsigned long nr_to_walk)
++{
++	long isolated = 0;
++	int nid;
++
++	for_each_node_mask(nid, lru->active_nodes) {
++		isolated += list_lru_walk_node(lru, nid, isolate,
++					       cb_arg, &nr_to_walk);
++		if (nr_to_walk <= 0)
++			break;
++	}
++	return isolated;
++}
++#endif /* _LRU_LIST_H */
+diff --git a/mm/Makefile b/mm/Makefile
+index 0ac1f11..742481d 100644
+--- a/mm/Makefile
++++ b/mm/Makefile
+@@ -17,7 +17,7 @@ obj-y			:= filemap.o mempool.o oom_kill.o fadvise.o \
+ 			   util.o mmzone.o vmstat.o backing-dev.o \
+ 			   mm_init.o mmu_context.o percpu.o slab_common.o \
+ 			   compaction.o balloon_compaction.o \
+-			   interval_tree.o $(mmu-y)
++			   interval_tree.o list_lru.o $(mmu-y)
+ 
+ obj-y += init-mm.o
+ 
+diff --git a/mm/list_lru.c b/mm/list_lru.c
+new file mode 100644
+index 0000000..f1a0db1
+--- /dev/null
++++ b/mm/list_lru.c
+@@ -0,0 +1,152 @@
++/*
++ * Copyright (c) 2013 Red Hat, Inc. and Parallels Inc. All rights reserved.
++ * Authors: David Chinner and Glauber Costa
++ *
++ * Generic LRU infrastructure
++ */
++#include <linux/kernel.h>
++#include <linux/module.h>
++#include <linux/mm.h>
++#include <linux/list_lru.h>
++#include <linux/slab.h>
++
++bool list_lru_add(struct list_lru *lru, struct list_head *item)
++{
++	int nid = page_to_nid(virt_to_page(item));
++	struct list_lru_node *nlru = &lru->node[nid];
++
++	spin_lock(&nlru->lock);
++	WARN_ON_ONCE(nlru->nr_items < 0);
++	if (list_empty(item)) {
++		list_add_tail(item, &nlru->list);
++		if (nlru->nr_items++ == 0)
++			node_set(nid, lru->active_nodes);
++		spin_unlock(&nlru->lock);
++		return true;
++	}
++	spin_unlock(&nlru->lock);
++	return false;
++}
++EXPORT_SYMBOL_GPL(list_lru_add);
++
++bool list_lru_del(struct list_lru *lru, struct list_head *item)
++{
++	int nid = page_to_nid(virt_to_page(item));
++	struct list_lru_node *nlru = &lru->node[nid];
++
++	spin_lock(&nlru->lock);
++	if (!list_empty(item)) {
++		list_del_init(item);
++		if (--nlru->nr_items == 0)
++			node_clear(nid, lru->active_nodes);
++		WARN_ON_ONCE(nlru->nr_items < 0);
++		spin_unlock(&nlru->lock);
++		return true;
++	}
++	spin_unlock(&nlru->lock);
++	return false;
++}
++EXPORT_SYMBOL_GPL(list_lru_del);
++
++unsigned long
++list_lru_count_node(struct list_lru *lru, int nid)
++{
++	unsigned long count = 0;
++	struct list_lru_node *nlru = &lru->node[nid];
++
++	spin_lock(&nlru->lock);
++	WARN_ON_ONCE(nlru->nr_items < 0);
++	count += nlru->nr_items;
++	spin_unlock(&nlru->lock);
++
++	return count;
++}
++EXPORT_SYMBOL_GPL(list_lru_count_node);
++
++unsigned long
++list_lru_walk_node(struct list_lru *lru, int nid, list_lru_walk_cb isolate,
++		   void *cb_arg, unsigned long *nr_to_walk)
++{
++
++	struct list_lru_node	*nlru = &lru->node[nid];
++	struct list_head *item, *n;
++	unsigned long isolated = 0;
++
++	spin_lock(&nlru->lock);
++restart:
++	list_for_each_safe(item, n, &nlru->list) {
++		enum lru_status ret;
++
++		/*
++		 * decrement nr_to_walk first so that we don't livelock if we
++		 * get stuck on large numbesr of LRU_RETRY items
++		 */
++		if (!*nr_to_walk)
++			break;
++		--*nr_to_walk;
++
++		ret = isolate(item, &nlru->lock, cb_arg);
++		switch (ret) {
++		case LRU_REMOVED_RETRY:
++			assert_spin_locked(&nlru->lock);
++		case LRU_REMOVED:
++			if (--nlru->nr_items == 0)
++				node_clear(nid, lru->active_nodes);
++			WARN_ON_ONCE(nlru->nr_items < 0);
++			isolated++;
++			/*
++			 * If the lru lock has been dropped, our list
++			 * traversal is now invalid and so we have to
++			 * restart from scratch.
++			 */
++			if (ret == LRU_REMOVED_RETRY)
++				goto restart;
++			break;
++		case LRU_ROTATE:
++			list_move_tail(item, &nlru->list);
++			break;
++		case LRU_SKIP:
++			break;
++		case LRU_RETRY:
++			/*
++			 * The lru lock has been dropped, our list traversal is
++			 * now invalid and so we have to restart from scratch.
++			 */
++			assert_spin_locked(&nlru->lock);
++			goto restart;
++		default:
++			BUG();
++		}
++	}
++
++	spin_unlock(&nlru->lock);
++	return isolated;
++}
++EXPORT_SYMBOL_GPL(list_lru_walk_node);
++
++int list_lru_init_key(struct list_lru *lru, struct lock_class_key *key)
++{
++	int i;
++	size_t size = sizeof(*lru->node) * nr_node_ids;
++
++	lru->node = kzalloc(size, GFP_KERNEL);
++	if (!lru->node)
++		return -ENOMEM;
++
++	nodes_clear(lru->active_nodes);
++	for (i = 0; i < nr_node_ids; i++) {
++		spin_lock_init(&lru->node[i].lock);
++		if (key)
++			lockdep_set_class(&lru->node[i].lock, key);
++		INIT_LIST_HEAD(&lru->node[i].list);
++		lru->node[i].nr_items = 0;
++	}
++	return 0;
++}
++EXPORT_SYMBOL_GPL(list_lru_init_key);
++
++void list_lru_destroy(struct list_lru *lru)
++{
++	kfree(lru->node);
++}
++EXPORT_SYMBOL_GPL(list_lru_destroy);
+-- 
+1.7.10.4
+

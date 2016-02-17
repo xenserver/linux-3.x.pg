@@ -1,0 +1,62 @@
+From e7152b97f38f1f5b915c719e6a3040697a700a16 Mon Sep 17 00:00:00 2001
+From: Dan Carpenter <dan.carpenter@oracle.com>
+Date: Wed, 3 Jul 2013 15:04:54 -0700
+Subject: [PATCH] err.h: IS_ERR() can accept __user pointers
+
+Sparse generates a false positive when you pass a __user or __iomem
+pointer to the IS_ERR() functions.
+
+  drivers/rtc/rtc-ds1286.c:344:36: sparse: incorrect type in argument 1 (different address spaces)
+  drivers/rtc/rtc-ds1286.c:344:36:    expected void const *ptr
+  drivers/rtc/rtc-ds1286.c:344:36:    got unsigned int [noderef] [usertype] <asn:2>*rtcregs
+
+We can silence these by adding a __force here and upgrading to Sparse
+v0.4.5-rc1 or later.
+
+This change has no effect when using current Sparse releases.
+
+Signed-off-by: Dan Carpenter <dan.carpenter@oracle.com>
+Acked-by: Christopher Li <sparse@chrisli.org>
+Signed-off-by: Andrew Morton <akpm@linux-foundation.org>
+Signed-off-by: Linus Torvalds <torvalds@linux-foundation.org>
+diff --git a/include/linux/err.h b/include/linux/err.h
+index f2edce2..221fcfb 100644
+--- a/include/linux/err.h
++++ b/include/linux/err.h
+@@ -24,17 +24,17 @@ static inline void * __must_check ERR_PTR(long error)
+ 	return (void *) error;
+ }
+ 
+-static inline long __must_check PTR_ERR(const void *ptr)
++static inline long __must_check PTR_ERR(__force const void *ptr)
+ {
+ 	return (long) ptr;
+ }
+ 
+-static inline long __must_check IS_ERR(const void *ptr)
++static inline long __must_check IS_ERR(__force const void *ptr)
+ {
+ 	return IS_ERR_VALUE((unsigned long)ptr);
+ }
+ 
+-static inline long __must_check IS_ERR_OR_NULL(const void *ptr)
++static inline long __must_check IS_ERR_OR_NULL(__force const void *ptr)
+ {
+ 	return !ptr || IS_ERR_VALUE((unsigned long)ptr);
+ }
+@@ -46,13 +46,13 @@ static inline long __must_check IS_ERR_OR_NULL(const void *ptr)
+  * Explicitly cast an error-valued pointer to another pointer type in such a
+  * way as to make it clear that's what's going on.
+  */
+-static inline void * __must_check ERR_CAST(const void *ptr)
++static inline void * __must_check ERR_CAST(__force const void *ptr)
+ {
+ 	/* cast away the const */
+ 	return (void *) ptr;
+ }
+ 
+-static inline int __must_check PTR_RET(const void *ptr)
++static inline int __must_check PTR_RET(__force const void *ptr)
+ {
+ 	if (IS_ERR(ptr))
+ 		return PTR_ERR(ptr);

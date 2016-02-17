@@ -1,0 +1,49 @@
+From f766093ecb647f5a87bfa456715abbbccee547ce Mon Sep 17 00:00:00 2001
+From: Javi Merino <javi.merino@arm.com>
+Date: Thu, 16 Apr 2015 12:43:45 -0700
+Subject: [PATCH] kernel.h: implement DIV_ROUND_CLOSEST_ULL
+
+We have grown a number of different implementations of
+DIV_ROUND_CLOSEST_ULL throughout the kernel.  Move the i915 one to
+kernel.h so that it can be reused.
+
+Signed-off-by: Javi Merino <javi.merino@arm.com>
+Reviewed-by: Jeff Epler <jepler@unpythonic.net>
+Cc: Jani Nikula <jani.nikula@linux.intel.com>
+Cc: David Airlie <airlied@linux.ie>
+Cc: Guenter Roeck <linux@roeck-us.net>
+Acked-by: Daniel Vetter <daniel.vetter@ffwll.ch>
+Cc: "Rafael J. Wysocki" <rafael.j.wysocki@intel.com>
+Cc: Alex Elder <elder@linaro.org>
+Cc: Antti Palosaari <crope@iki.fi>
+Cc: Javi Merino <javi.merino@arm.com>
+Cc: Mauro Carvalho Chehab <mchehab@osg.samsung.com>
+Cc: Mel Gorman <mgorman@suse.de>
+Cc: Mike Turquette <mturquette@linaro.org>
+Cc: Stephen Boyd <sboyd@codeaurora.org>
+Cc: Stephen Hemminger <shemminger@linux-foundation.org>
+Signed-off-by: Andrew Morton <akpm@linux-foundation.org>
+Signed-off-by: Linus Torvalds <torvalds@linux-foundation.org>
+diff --git a/include/linux/kernel.h b/include/linux/kernel.h
+index 341551c..cb51199 100644
+--- a/include/linux/kernel.h
++++ b/include/linux/kernel.h
+@@ -103,6 +103,18 @@
+ 		(((__x) - ((__d) / 2)) / (__d));	\
+ }							\
+ )
++/*
++ * Same as above but for u64 dividends. divisor must be a 32-bit
++ * number.
++ */
++#define DIV_ROUND_CLOSEST_ULL(x, divisor)(		\
++{							\
++	typeof(divisor) __d = divisor;			\
++	unsigned long long _tmp = (x) + (__d) / 2;	\
++	do_div(_tmp, __d);				\
++	_tmp;						\
++}							\
++)
+ 
+ /*
+  * Multiplies an integer by a fraction, while avoiding unnecessary

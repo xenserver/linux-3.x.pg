@@ -1,0 +1,49 @@
+From 39f1f78d53b9bcbca91967380c5f0f2305a5c55f Mon Sep 17 00:00:00 2001
+From: Al Viro <viro@zeniv.linux.org.uk>
+Date: Tue, 6 May 2014 14:02:53 -0400
+Subject: [PATCH] nick kvfree() from apparmor
+
+too many places open-code it
+
+Signed-off-by: Al Viro <viro@zeniv.linux.org.uk>
+diff --git a/include/linux/mm.h b/include/linux/mm.h
+index 721d3af..f867e34 100644
+--- a/include/linux/mm.h
++++ b/include/linux/mm.h
+@@ -326,6 +326,8 @@ static inline int is_vmalloc_or_module_addr(const void *x)
+ }
+ #endif
+ 
++extern void kvfree(const void *addr);
++
+ static inline void compound_lock(struct page *page)
+ {
+ #ifdef CONFIG_TRANSPARENT_HUGEPAGE
+diff --git a/mm/util.c b/mm/util.c
+index 0b17252..e2c6e77 100644
+--- a/mm/util.c
++++ b/mm/util.c
+@@ -8,6 +8,7 @@
+ #include <linux/swap.h>
+ #include <linux/swapops.h>
+ #include <asm/uaccess.h>
++#include <linux/vmalloc.h>
+ 
+ #include "internal.h"
+ 
+@@ -381,6 +382,15 @@ unsigned long vm_mmap(struct file *file, unsigned long addr,
+ }
+ EXPORT_SYMBOL(vm_mmap);
+ 
++void kvfree(const void *addr)
++{
++	if (is_vmalloc_addr(addr))
++		vfree(addr);
++	else
++		kfree(addr);
++}
++EXPORT_SYMBOL(kvfree);
++
+ struct address_space *page_mapping(struct page *page)
+ {
+ 	struct address_space *mapping = page->mapping;

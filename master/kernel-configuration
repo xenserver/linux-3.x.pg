@@ -1,6 +1,6 @@
 diff --git a/buildconfigs/linux-defconfig_xen_x86_64 b/buildconfigs/linux-defconfig_xen_x86_64
 new file mode 100644
-index 0000000..fb374d5
+index 0000000..d90fa29
 --- /dev/null
 +++ b/buildconfigs/linux-defconfig_xen_x86_64
 @@ -0,0 +1,3846 @@
@@ -3281,7 +3281,7 @@ index 0000000..fb374d5
 +CONFIG_TMPFS_XATTR=y
 +CONFIG_HUGETLBFS=y
 +CONFIG_HUGETLB_PAGE=y
-+CONFIG_CONFIGFS_FS=m
++CONFIG_CONFIGFS_FS=y
 +CONFIG_MISC_FILESYSTEMS=y
 +# CONFIG_ADFS_FS is not set
 +# CONFIG_AFFS_FS is not set
@@ -3609,7 +3609,7 @@ index 0000000..fb374d5
 +CONFIG_KEYS=y
 +CONFIG_TRUSTED_KEYS=m
 +CONFIG_ENCRYPTED_KEYS=m
-+# CONFIG_KEYS_DEBUG_PROC_KEYS is not set
++CONFIG_KEYS_DEBUG_PROC_KEYS=y
 +# CONFIG_SECURITY_DMESG_RESTRICT is not set
 +CONFIG_SECURITY=y
 +CONFIG_SECURITYFS=y
