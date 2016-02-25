@@ -6,13 +6,13 @@ Use GIT macros instead of HG ones
 
 diff --git a/mk/Makefile b/mk/Makefile
 new file mode 100644
-index 0000000..d9aa78b
+index 0000000..5b7d4f8
 --- /dev/null
 +++ b/mk/Makefile
 @@ -0,0 +1,169 @@
 +USE_BRANDING := yes
 +IMPORT_BRANDING := yes
-+REPONAME=linux-3.x
++REPONAME=$(shell echo "$$PWD" | awk -F/ '{print $$3}')
 +include /b/common.mk
 +include /b/rpmbuild.mk
 +
@@ -400,10 +400,10 @@ index 0000000..f8ae816
 +./lib/modules/*/kernel/drivers/net/ethernet/brocade/bna/bna.ko
 diff --git a/mk/kernel.spec.in b/mk/kernel.spec.in
 new file mode 100644
-index 0000000..c559b4e
+index 0000000..5b34934
 --- /dev/null
 +++ b/mk/kernel.spec.in
-@@ -0,0 +1,303 @@
+@@ -0,0 +1,302 @@
 +# -*- rpm-spec -*-
 +
 +# The full kernel uname version
@@ -493,7 +493,6 @@ index 0000000..c559b4e
 +Group: Development/System
 +Obsoletes: glibc-kernheaders
 +Provides: kernel-headers = %{uname}
-+Conflicts: kernel-headers < %{uname}
 +
 +%description headers
 +This package provides the C header files that specify the interface
