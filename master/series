@@ -109,6 +109,8 @@ CA-165060-CIFS-Enable-files-greater-than-2GB.patch
 CIFS-O_DIRECT-opens-should-work-on-directio-mounts.patch
 # ac8344c4c0bf74c7efaf962cf2a6404331678ce4 (3.13.rc1)
 drop-irq-count-param-from-restore_msi_irqs.patch
+# c6bde215acfd637708142ae671843b6f0eadbc6d (3.13-rc1)
+0001-PCI-Add-pci_upstream_bridge.patch
 # 32e475d76a3e40879cd9ee4f69b19615062280d7 (3.13-rc3)
 0001-sched-Expose-preempt_schedule_irq.patch
 # 518d00b7498c5894be94545848d55e5b9c55749e (v3.13-rc8) in nullblk_3_13.patch
@@ -232,6 +234,8 @@ nullblk_3_13.patch
 0001-sched-preempt-mm-fault-Count-pagefault_disable-level.patch
 # 7196ac113a4f38b7ca1a3282fd9edf328bd22287 (v4.1-rc6)
 0003-Fix-to-check-Unique-id-and-FileType-when-client-refe.patch
+# c56d4450eb6886225a5a0bb231ad2cea9f03284a (v4.4-rc1)
+0001-PCI-Turn-off-Request-Attributes-to-avoid-Chelsio-T5-.patch
 
 # Backport component subsystem. 
 # 2a41e6070dd7ef539d0f3b1652b4839d04378e11 (3.14-rc1)

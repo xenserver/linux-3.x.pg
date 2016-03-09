@@ -1,0 +1,40 @@
+From c6bde215acfd637708142ae671843b6f0eadbc6d Mon Sep 17 00:00:00 2001
+From: Bjorn Helgaas <bhelgaas@google.com>
+Date: Wed, 6 Nov 2013 10:11:48 -0700
+Subject: [PATCH] PCI: Add pci_upstream_bridge()
+
+This adds a pci_upstream_bridge() interface to find the PCI-to-PCI bridge
+upstream from a device.  This is typically just "dev->bus->self", but in
+the case of a VF on a virtual bus, we have to start from the corresponding
+PF.  Returns NULL if there is no upstream PCI bridge, i.e., if the device
+is on a root bus.
+
+Signed-off-by: Bjorn Helgaas <bhelgaas@google.com>
+Acked-by: Yinghai Lu <yinghai@kernel.org>
+---
+ include/linux/pci.h | 9 +++++++++
+ 1 file changed, 9 insertions(+)
+
+diff --git a/include/linux/pci.h b/include/linux/pci.h
+index d3a888a..835ec7b 100644
+--- a/include/linux/pci.h
++++ b/include/linux/pci.h
+@@ -480,6 +480,15 @@ static inline bool pci_is_root_bus(struct pci_bus *pbus)
+ 	return !(pbus->parent);
+ }
+ 
++static inline struct pci_dev *pci_upstream_bridge(struct pci_dev *dev)
++{
++	dev = pci_physfn(dev);
++	if (pci_is_root_bus(dev->bus))
++		return NULL;
++
++	return dev->bus->self;
++}
++
+ #ifdef CONFIG_PCI_MSI
+ static inline bool pci_dev_msi_enabled(struct pci_dev *pci_dev)
+ {
+-- 
+2.4.3
+
