@@ -1,5 +1,5 @@
 diff --git a/arch/x86/include/asm/xen/hypercall.h b/arch/x86/include/asm/xen/hypercall.h
-index b9a5200..57a7409 100644
+index ed335cb..08520a5 100644
 --- a/arch/x86/include/asm/xen/hypercall.h
 +++ b/arch/x86/include/asm/xen/hypercall.h
 @@ -47,6 +47,7 @@
@@ -356,20 +356,18 @@ index 98eef08..6eca385 100644
 -		  NULL);
 +		  pci_xen_pv_iommu_late_init);
 diff --git a/arch/x86/xen/xen-head.S b/arch/x86/xen/xen-head.S
-index 7faed58..7d3d315 100644
+index 7faed58..8df5ef1 100644
 --- a/arch/x86/xen/xen-head.S
 +++ b/arch/x86/xen/xen-head.S
-@@ -72,7 +72,9 @@ NEXT_HYPERCALL(hvm_op)
- NEXT_HYPERCALL(sysctl)
- NEXT_HYPERCALL(domctl)
- NEXT_HYPERCALL(kexec_op)
--NEXT_HYPERCALL(tmem_op) /* 38 */
-+NEXT_HYPERCALL(tmem_op)
-+NEXT_HYPERCALL(xc_reserved_op)
-+NEXT_HYPERCALL(iommu_op) /* 40 */
- ENTRY(xen_hypercall_rsvr)
- 	.skip 320
- NEXT_HYPERCALL(mca) /* 48 */
+@@ -82,6 +82,8 @@ NEXT_HYPERCALL(arch_3)
+ NEXT_HYPERCALL(arch_4)
+ NEXT_HYPERCALL(arch_5)
+ NEXT_HYPERCALL(arch_6)
++NEXT_HYPERCALL(arch_7)
++NEXT_HYPERCALL(iommu_op) /* 56 */
+ 	.balign PAGE_SIZE
+ .popsection
+ 
 diff --git a/drivers/xen/Makefile b/drivers/xen/Makefile
 index 57d91f4..8427ca4 100644
 --- a/drivers/xen/Makefile
@@ -774,7 +772,7 @@ index 0000000..0cc4ecc
 + * End:
 + */
 diff --git a/include/xen/interface/xen.h b/include/xen/interface/xen.h
-index 5caab46..932186c 100644
+index 679ef1d..627e5c5 100644
 --- a/include/xen/interface/xen.h
 +++ b/include/xen/interface/xen.h
 @@ -60,6 +60,7 @@
