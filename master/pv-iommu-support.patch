@@ -24,10 +24,10 @@ index ed335cb..08520a5 100644
  			     unsigned long flags)
  {
 diff --git a/arch/x86/xen/p2m.c b/arch/x86/xen/p2m.c
-index 605abb4..9688258 100644
+index 9932704..57c3066 100644
 --- a/arch/x86/xen/p2m.c
 +++ b/arch/x86/xen/p2m.c
-@@ -177,6 +177,9 @@
+@@ -178,6 +178,9 @@
  #include "multicalls.h"
  #include "xen-ops.h"
  
@@ -36,8 +36,8 @@ index 605abb4..9688258 100644
 +
  unsigned long xen_max_p2m_pfn __read_mostly;
  
- #define P2M_PER_PAGE		(PAGE_SIZE / sizeof(unsigned long))
-@@ -922,7 +925,6 @@ bool set_phys_to_machine(unsigned long pfn, unsigned long mfn)
+ /* Placeholders for holes in the address space */
+@@ -913,7 +916,6 @@ bool set_phys_to_machine(unsigned long pfn, unsigned long mfn)
  		if (!__set_phys_to_machine(pfn, mfn))
  			return false;
  	}
@@ -772,17 +772,17 @@ index 0000000..0cc4ecc
 + * End:
 + */
 diff --git a/include/xen/interface/xen.h b/include/xen/interface/xen.h
-index 679ef1d..627e5c5 100644
+index 679ef1d..856a0aa 100644
 --- a/include/xen/interface/xen.h
 +++ b/include/xen/interface/xen.h
-@@ -60,6 +60,7 @@
- #define __HYPERVISOR_domctl               36
- #define __HYPERVISOR_kexec_op             37
- #define __HYPERVISOR_tmem_op              38
-+#define __HYPERVISOR_iommu_op             41
+@@ -71,6 +71,7 @@
+ #define __HYPERVISOR_arch_6               54
+ #define __HYPERVISOR_arch_7               55
  
- /* Architecture-specific hypercall definitions. */
- #define __HYPERVISOR_arch_0               48
++#define __HYPERVISOR_iommu_op             56
+ /*
+  * VIRTUAL INTERRUPTS
+  *
 diff --git a/include/xen/ioemu.h b/include/xen/ioemu.h
 index 95eb4e7..21ca898 100644
 --- a/include/xen/ioemu.h
