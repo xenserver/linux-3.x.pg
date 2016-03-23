@@ -6,10 +6,10 @@ Use GIT macros instead of HG ones
 
 diff --git a/mk/Makefile b/mk/Makefile
 new file mode 100644
-index 0000000..5b7d4f8
+index 0000000..490eb5c
 --- /dev/null
 +++ b/mk/Makefile
-@@ -0,0 +1,169 @@
+@@ -0,0 +1,175 @@
 +USE_BRANDING := yes
 +IMPORT_BRANDING := yes
 +REPONAME=$(shell echo "$$PWD" | awk -F/ '{print $$3}')
@@ -35,6 +35,7 @@ index 0000000..5b7d4f8
 +PKG_VERSION := $(KERNEL_VERSION).$(KERNEL_PATCHLEVEL).$(KERNEL_STABLE_SUBLEVEL)
 +PKG_RELEASE := $(XS_RELEASE)
 +ARCHS := $(DOMAIN0_ARCH_OPTIMIZED)
++RPM_EXTRA_RPMBUILD_OPTIONS += --define "kernel_version $(LINUX_KABI_VERSION)"
 +
 +SOURCES = $(RPM_SOURCESDIR)/linux-$(PKG_VERSION)-$(PKG_RELEASE).tar.bz2 \
 +	  $(ARCHS:%=$(RPM_SOURCESDIR)/kernel-%.config) \
@@ -68,7 +69,7 @@ index 0000000..5b7d4f8
 +$(RPM_SOURCESDIR)/macros.kernel: ../mk/macros.kernel $(RPM_DIRECTORIES)
 +	cp -f $< $@
 +
-+$(RPM_SPECSDIR)/kernel.spec: kernel.spec.in $(RPM_DIRECTORIES)
++$(RPM_SPECSDIR)/kernel.spec: kernel.spec.in macros.kernel $(RPM_DIRECTORIES)
 +	echo "Version: $(PKG_VERSION) Release: $(PKG_RELEASE)"; \
 +	$(call brand,kernel.spec.in) | \
 +	sed -e s\,@REPO_VERSION@,$(REPO_VERSION),g   \
@@ -76,7 +77,12 @@ index 0000000..5b7d4f8
 +	    -e s\,@XS_RELEASE@,$(XS_RELEASE),g       \
 +	    -e s\,@PKG_VERSION@,$(PKG_VERSION),g    \
 +	    -e s\,@PKG_RELEASE@,$(PKG_RELEASE),g    \
-+	> $@
++	> $@.1
++# Need to use macros.kernel within the specfile but can't because it is
++# packaged within this package. Instead, include it manually.
++	sed 's/%regenerate_initrd_/%define regenerate_initrd_/g' macros.kernel > $@.0
++	cat $@.0 $@.1 > $@
++	rm $@.[0-9]*
 +
 +$(SRPM): $(SOURCES)
 +	mkdir -p $(RPM_SRPMSDIR)
@@ -400,10 +406,10 @@ index 0000000..f8ae816
 +./lib/modules/*/kernel/drivers/net/ethernet/brocade/bna/bna.ko
 diff --git a/mk/kernel.spec.in b/mk/kernel.spec.in
 new file mode 100644
-index 0000000..5b34934
+index 0000000..68f5b52
 --- /dev/null
 +++ b/mk/kernel.spec.in
-@@ -0,0 +1,302 @@
+@@ -0,0 +1,306 @@
 +# -*- rpm-spec -*-
 +
 +# The full kernel uname version
@@ -652,12 +658,13 @@ index 0000000..5b34934
 +rm -rf $RPM_BUILD_ROOT
 +
 +%post
++%{regenerate_initrd_post}
 +short_uname=$(echo %{uname} | awk -F '[.]' '{print $1 "." $2}')
 +
 +if [ -e /boot/vmlinuz-$short_uname-xen ]; then
-+  /sbin/new-kernel-pkg --update --mkinitrd --depmod %{uname}
++  /sbin/new-kernel-pkg --update --depmod %{uname}
 +else
-+  /sbin/new-kernel-pkg --install --make-default --mkinitrd --depmod %{uname}
++  /sbin/new-kernel-pkg --install --make-default --depmod %{uname}
 +fi
 +
 +ln -sf vmlinuz-%{uname} /boot/vmlinuz-$short_uname-xen
@@ -667,6 +674,9 @@ index 0000000..5b34934
 +if [ "$1" = "0" ]; then
 +  /sbin/new-kernel-pkg --remove --rminitrd --rmmoddep %{uname}
 +fi
++
++%posttrans
++%{regenerate_initrd_posttrans}
 +
 +%triggerin -- xen-hypervisor
 +new-kernel-pkg --install %{uname}
