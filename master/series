@@ -240,6 +240,8 @@ nullblk_3_13.patch
 0003-Fix-to-check-Unique-id-and-FileType-when-client-refe.patch
 # c56d4450eb6886225a5a0bb231ad2cea9f03284a (v4.4-rc1)
 0001-PCI-Turn-off-Request-Attributes-to-avoid-Chelsio-T5-.patch
+# b7a584598aea7ca73140cb87b40319944dd3393f (4.6-rc1)
+0001-x86-iopl-64-Properly-context-switch-IOPL-on-Xen-PV.patch
 
 # Backport component subsystem. 
 # 2a41e6070dd7ef539d0f3b1652b4839d04378e11 (3.14-rc1)
