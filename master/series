@@ -758,6 +758,7 @@ intel-gvt-g-enable-out-of-tree-compile.patch
 
 # PV-IOMMU support
 pv-iommu-support.patch
+kexec-reserve-crashkernel-region.patch
 
 #
 # Debugging/hacks

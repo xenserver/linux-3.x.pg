@@ -1,0 +1,72 @@
+xen/setup: Reserve the crashkernel region
+
+Reserve the crashkernel region in the E820. This prevents oustanding DMA
+operations overwriting the crashkernel region when the IOMMU is disabled
+during kexec. Normally, the IOMMU would not be used for dom0, but it is
+used for PV-IOMMU.
+
+Signed-off-by: Ross Lagerwall <ross.lagerwall@citrix.com>
+
+diff --git a/arch/x86/xen/setup.c b/arch/x86/xen/setup.c
+index 3eb621a..889a065 100644
+--- a/arch/x86/xen/setup.c
++++ b/arch/x86/xen/setup.c
+@@ -24,6 +24,7 @@
+ #include <xen/xen.h>
+ #include <xen/page.h>
+ #include <xen/interface/callback.h>
++#include <xen/interface/kexec.h>
+ #include <xen/interface/memory.h>
+ #include <xen/interface/physdev.h>
+ #include <xen/features.h>
+@@ -602,12 +603,27 @@ char * __init xen_memory_setup(void)
+ 	 * a patch in the future.
+ 	 */
+ 	if (xen_initial_domain()) {
++		xen_kexec_range_t range = { KEXEC_RANGE_MA_CRASH, 0 };
++
+ 		xen_ignore_unusable(map, memmap.nr_entries);
+ 		/* Reserve 0.5 MiB to 1 MiB region so iBFT can be found */
+ 		map[memmap.nr_entries].addr = 0x80000;
+ 		map[memmap.nr_entries].size = 0x80000;
+ 		map[memmap.nr_entries].type = E820_RESERVED;
+ 		memmap.nr_entries++;
++
++		/*
++		 * Reserve the crashkernel region to prevent outstanding DMA
++		 * ops overwriting the crashkernel after the IOMMU is disabled
++		 * while kexecing.
++		 */
++		rc = HYPERVISOR_kexec_op(KEXEC_CMD_kexec_get_range, &range);
++		if (rc == 0) {
++			map[memmap.nr_entries].addr = range.start;
++			map[memmap.nr_entries].size = range.size;
++			map[memmap.nr_entries].type = E820_RESERVED;
++			memmap.nr_entries++;
++		}
+ 	}
+ 
+ 	/* Make sure the Xen-supplied memory map is well-ordered. */
+diff --git a/include/xen/interface/kexec.h b/include/xen/interface/kexec.h
+index 76ea0d4..14e9c38 100644
+--- a/include/xen/interface/kexec.h
++++ b/include/xen/interface/kexec.h
+@@ -2,8 +2,18 @@
+ #define _XEN_KEXEC_H
+ 
+ #define KEXEC_CMD_kexec                    0
++#define KEXEC_CMD_kexec_get_range          3
+ typedef struct xen_kexec_exec {
+ 	int type;
+ } xen_kexec_exec_t;
+ 
++#define KEXEC_RANGE_MA_CRASH      0 /* machine address and size of crash area */
++
++typedef struct xen_kexec_range {
++	int range;
++	int nr;
++	unsigned long size;
++	unsigned long start;
++} xen_kexec_range_t;
++
+ #endif
