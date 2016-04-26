@@ -706,6 +706,7 @@ backport-rhel7.2-gfs2.patch
 
 # PCI
 0001-PCI-update-VPD-size-with-correct-length.patch
+no-flr-quirk.patch
 
 # CIFS read caching patches
 0004-Check-uniqueid-for-SMB2-and-return-ESTALE-if-necessa.patch

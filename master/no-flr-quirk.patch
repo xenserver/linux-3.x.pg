@@ -1,0 +1,73 @@
+pci: Add a quirk for devices with broken FLR reset
+
+Some devices advertise FLReset+ but do not support it. Add a quirk for
+some devices to fallback to an alternate reset method.
+
+Signed-off-by: Ross Lagerwall <ross.lagerwall@citrix.com>
+
+diff --git a/drivers/pci/pci.c b/drivers/pci/pci.c
+index 87d6a25..f120519 100644
+--- a/drivers/pci/pci.c
++++ b/drivers/pci/pci.c
+@@ -3203,6 +3203,9 @@ static int pcie_flr(struct pci_dev *dev, int probe)
+ {
+ 	u32 cap;
+ 
++	if (dev->dev_flags & PCI_DEV_FLAGS_NO_FLR_RESET)
++		return -ENOTTY;
++
+ 	pcie_capability_read_dword(dev, PCI_EXP_DEVCAP, &cap);
+ 	if (!(cap & PCI_EXP_DEVCAP_FLR))
+ 		return -ENOTTY;
+diff --git a/drivers/pci/quirks.c b/drivers/pci/quirks.c
+index 1885811..d1a0c63 100644
+--- a/drivers/pci/quirks.c
++++ b/drivers/pci/quirks.c
+@@ -72,6 +72,18 @@ static void quirk_no_pm_reset(struct pci_dev *dev)
+ DECLARE_PCI_FIXUP_CLASS_HEADER(PCI_VENDOR_ID_ATI, PCI_ANY_ID,
+ 			       PCI_CLASS_DISPLAY_VGA, 0, quirk_no_pm_reset);
+ 
++static void quirk_no_flr_reset(struct pci_dev *dev)
++{
++	dev->dev_flags |= PCI_DEV_FLAGS_NO_FLR_RESET;
++}
++
++DECLARE_PCI_FIXUP_CLASS_HEADER(PCI_VENDOR_ID_LSI_LOGIC,
++		               PCI_DEVICE_ID_LSI_SAS3008,
++			       PCI_CLASS_STORAGE_SAS, 8, quirk_no_flr_reset);
++DECLARE_PCI_FIXUP_CLASS_HEADER(PCI_VENDOR_ID_LSI_LOGIC,
++		               PCI_DEVICE_ID_LSI_MEGARAID_3108,
++			       PCI_CLASS_STORAGE_SAS, 8, quirk_no_flr_reset);
++
+ /* Deal with broken BIOS'es that neglect to enable passive release,
+    which can cause problems in combination with the 82441FX/PPro MTRRs */
+ static void quirk_passive_release(struct pci_dev *dev)
+diff --git a/include/linux/pci.h b/include/linux/pci.h
+index 4daf2f6..6e75bf2 100644
+--- a/include/linux/pci.h
++++ b/include/linux/pci.h
+@@ -172,6 +172,8 @@ enum pci_dev_flags {
+ 	PCI_DEV_FLAGS_ASSIGNED = (__force pci_dev_flags_t) 4,
+ 	/* Do not use PM reset even if device advertises NoSoftRst- */
+ 	PCI_DEV_FLAGS_NO_PM_RESET = (__force pci_dev_flags_t) 6,
++	/* Do not use FLR reset even if device advertises FLReset+ */
++	PCI_DEV_FLAGS_NO_FLR_RESET = (__force pci_dev_flags_t) 8,
+ };
+ 
+ enum pci_irq_reroute_variant {
+diff --git a/include/linux/pci_ids.h b/include/linux/pci_ids.h
+index 6c7bb35..f63ecad 100644
+--- a/include/linux/pci_ids.h
++++ b/include/linux/pci_ids.h
+@@ -210,6 +210,8 @@
+ #define PCI_DEVICE_ID_LSI_SAS1066E	0x005A
+ #define PCI_DEVICE_ID_LSI_SAS1068E	0x0058
+ #define PCI_DEVICE_ID_LSI_SAS1078	0x0060
++#define PCI_DEVICE_ID_LSI_SAS3008       0x0097
++#define PCI_DEVICE_ID_LSI_MEGARAID_3108 0x005d
+ 
+ #define PCI_VENDOR_ID_ATI		0x1002
+ /* Mach64 */
+-- 
+2.4.3
+
