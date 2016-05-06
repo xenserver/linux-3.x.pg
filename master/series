@@ -655,6 +655,7 @@ fifo_page_fix.patch
 # Event channels
 0001-xen-events-don-t-bind-non-percpu-VIRQs-with-percpu-c.patch
 0001-xen-evtchn-dynamically-grow-pending-event-channel-ri.patch
+0002-xen-evtchn-fix-ring-resize-when-binding-new-events.patch
 
 # pciback
 0001-pci-export-pci_probe_reset_function.patch
