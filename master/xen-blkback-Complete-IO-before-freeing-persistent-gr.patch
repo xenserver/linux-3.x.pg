@@ -1,0 +1,69 @@
+From d6a27fe5771a30bf28b92f4f93a1d3713684defc Mon Sep 17 00:00:00 2001
+From: Ross Lagerwall <ross.lagerwall@citrix.com>
+Date: Thu, 19 May 2016 15:34:08 +0100
+Subject: [PATCH 1/2] xen/blkback: Complete IO before freeing persistent grants
+
+Wait for pending IO to complete before freeing persistent grants to
+avoid a use-after-free when the device is disconnected while IO is
+in-flight.
+
+This can be reproduced by running an IO workload in a guest a
+force-killing the domain.
+
+Signed-off-by: Ross Lagerwall <ross.lagerwall@citrix.com>
+---
+ drivers/block/xen-blkback/blkback.c | 10 +++++++---
+ 1 file changed, 7 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/block/xen-blkback/blkback.c b/drivers/block/xen-blkback/blkback.c
+index b035d1d..f9230c7 100644
+--- a/drivers/block/xen-blkback/blkback.c
++++ b/drivers/block/xen-blkback/blkback.c
+@@ -121,6 +121,8 @@ struct xen_blkbk {
+ 
+ static struct xen_blkbk *blkbk;
+ 
++static void xen_blk_drain_io(struct xen_blkif *blkif, bool force);
++
+ /*
+  * Maximum number of grant pages that can be mapped in blkback.
+  * BLKIF_MAX_SEGMENTS_PER_REQUEST * RING_SIZE is the maximum number of
+@@ -523,6 +525,8 @@ int xen_blkif_schedule(void *arg)
+ 			print_stats(blkif);
+ 	}
+ 
++	xen_blk_drain_io(blkif, true);
++
+ 	/* Since we are shutting down remove all pages from the buffer */
+ 	shrink_free_pagepool(blkif, 0 /* All */);
+ 
+@@ -842,7 +846,7 @@ static int dispatch_other_io(struct xen_blkif *blkif,
+ 	return -EIO;
+ }
+ 
+-static void xen_blk_drain_io(struct xen_blkif *blkif)
++static void xen_blk_drain_io(struct xen_blkif *blkif, bool force)
+ {
+ 	atomic_set(&blkif->drain, 1);
+ 	do {
+@@ -855,7 +859,7 @@ static void xen_blk_drain_io(struct xen_blkif *blkif)
+ 
+ 		if (!atomic_read(&blkif->drain))
+ 			break;
+-	} while (!kthread_should_stop());
++	} while (force || !kthread_should_stop());
+ 	atomic_set(&blkif->drain, 0);
+ }
+ 
+@@ -1093,7 +1097,7 @@ static int dispatch_rw_block_io(struct xen_blkif *blkif,
+ 	 * issue the WRITE_FLUSH.
+ 	 */
+ 	if (drain)
+-		xen_blk_drain_io(pending_req->blkif);
++		xen_blk_drain_io(pending_req->blkif, false);
+ 
+ 	/*
+ 	 * If we have failed at this point, we need to undo the M2P override,
+-- 
+2.4.11
+

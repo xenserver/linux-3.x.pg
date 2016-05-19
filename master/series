@@ -691,6 +691,10 @@ netback-xenvif_idx_release-race-fix.patch
 0003-xen-netback-check-for-guest-Rx-req-prod-overflow.patch
 xen-netback-record-rx-queue-for-skb.patch
 
+# Blkback
+xen-blkback-Complete-IO-before-freeing-persistent-gr.patch
+xen-blkback-Don-t-use-persistent-grants.patch
+
 # nvme driver backport
 backport-nvme-driver-from-3.17.patch
 nvme-driver-fixes-to-build-3.10.patch
