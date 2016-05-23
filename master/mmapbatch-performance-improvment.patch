@@ -165,7 +165,7 @@ index 9569462..09f58e37 100644
  int xen_unmap_domain_mfn_range(struct vm_area_struct *vma,
  			       int numpgs, struct page **pages)
 diff --git a/drivers/xen/privcmd.c b/drivers/xen/privcmd.c
-index 2cfc24d..0a8b758 100644
+index 2cfc24d..e114999 100644
 --- a/drivers/xen/privcmd.c
 +++ b/drivers/xen/privcmd.c
 @@ -154,6 +154,41 @@ static int traverse_pages(unsigned nelem, size_t size,
@@ -236,7 +236,7 @@ index 2cfc24d..0a8b758 100644
  {
  	xen_pfn_t *mfnp = data;
  	struct mmap_batch_state *st = state;
-@@ -281,52 +318,73 @@ static int mmap_batch_fn(void *data, void *state)
+@@ -281,52 +318,78 @@ static int mmap_batch_fn(void *data, void *state)
  	if (xen_feature(XENFEAT_auto_translated_physmap))
  		cur_page = pages[st->index++];
  
@@ -295,10 +295,15 @@ index 2cfc24d..0a8b758 100644
  
 +	/* Skip pages before we encountered first error */
 +	if (st->first_bad_page) {
-+		if  (st->first_bad_page != data)
++		if  (st->first_bad_page != data) {
++			if (st->version == 1)
++				st->user_mfn++;
++			else
++				st->user_err++;
 +			return 0;
-+		else
++		} else {
 +			st->first_bad_page = NULL;
++		}
 +	}
 +
 +	if (st->global_error == -ESRCH) {
@@ -334,7 +339,7 @@ index 2cfc24d..0a8b758 100644
  		if (err)
  			return __put_user(err, st->user_err++);
  		else
-@@ -435,16 +493,16 @@ static long privcmd_ioctl_mmap_batch(void __user *udata, int version)
+@@ -435,16 +498,16 @@ static long privcmd_ioctl_mmap_batch(void __user *udata, int version)
  		}
  	}
  
