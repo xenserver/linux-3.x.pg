@@ -1,0 +1,65 @@
+diff --git a/drivers/video/fbmem.c b/drivers/video/fbmem.c
+index 098bfc6..4ffcf3c 100644
+--- a/drivers/video/fbmem.c
++++ b/drivers/video/fbmem.c
+@@ -1558,10 +1558,10 @@ static bool fb_do_apertures_overlap(struct apertures_struct *gena,
+ static int do_unregister_framebuffer(struct fb_info *fb_info);
+ 
+ #define VGA_FB_PHYS 0xA0000
+-static void do_remove_conflicting_framebuffers(struct apertures_struct *a,
+-				     const char *name, bool primary)
++static int do_remove_conflicting_framebuffers(struct apertures_struct *a,
++                                              const char *name, bool primary)
+ {
+-	int i;
++	int i, ret;
+ 
+ 	/* check all firmware fbs and kick off if the base addr overlaps */
+ 	for (i = 0 ; i < FB_MAX; i++) {
+@@ -1580,9 +1580,13 @@ static void do_remove_conflicting_framebuffers(struct apertures_struct *a,
+ 			printk(KERN_INFO "fb: conflicting fb hw usage "
+ 			       "%s vs %s - removing generic driver\n",
+ 			       name, registered_fb[i]->fix.id);
+-			do_unregister_framebuffer(registered_fb[i]);
++			ret = do_unregister_framebuffer(registered_fb[i]);
++                        if (ret)
++                                return ret;
+ 		}
+ 	}
++
++        return 0;
+ }
+ 
+ static int do_register_framebuffer(struct fb_info *fb_info)
+@@ -1714,12 +1718,16 @@ int unlink_framebuffer(struct fb_info *fb_info)
+ }
+ EXPORT_SYMBOL(unlink_framebuffer);
+ 
+-void remove_conflicting_framebuffers(struct apertures_struct *a,
++int remove_conflicting_framebuffers(struct apertures_struct *a,
+ 				     const char *name, bool primary)
+ {
++	int ret;
++
+ 	mutex_lock(&registration_lock);
+-	do_remove_conflicting_framebuffers(a, name, primary);
++	ret = do_remove_conflicting_framebuffers(a, name, primary);
+ 	mutex_unlock(&registration_lock);
++
++	return ret;
+ }
+ EXPORT_SYMBOL(remove_conflicting_framebuffers);
+ 
+diff --git a/include/linux/fb.h b/include/linux/fb.h
+index d49c60f..ff1ffd1 100644
+--- a/include/linux/fb.h
++++ b/include/linux/fb.h
+@@ -613,7 +613,7 @@ extern ssize_t fb_sys_write(struct fb_info *info, const char __user *buf,
+ extern int register_framebuffer(struct fb_info *fb_info);
+ extern int unregister_framebuffer(struct fb_info *fb_info);
+ extern int unlink_framebuffer(struct fb_info *fb_info);
+-extern void remove_conflicting_framebuffers(struct apertures_struct *a,
++extern int remove_conflicting_framebuffers(struct apertures_struct *a,
+ 				const char *name, bool primary);
+ extern int fb_prepare_logo(struct fb_info *fb_info, int rotate);
+ extern int fb_show_logo(struct fb_info *fb_info, int rotate);

@@ -1,0 +1,41 @@
+diff --git a/drivers/gpu/drm/Kconfig b/drivers/gpu/drm/Kconfig
+index c4bf9a1..567f95a 100644
+--- a/drivers/gpu/drm/Kconfig
++++ b/drivers/gpu/drm/Kconfig
+@@ -22,7 +22,7 @@ menuconfig DRM
+ 	  (/dev/agpgart) support if it is available for your platform.
+ 
+ config DRM_MIPI_DSI
+-	bool
++	tristate
+ 	depends on DRM
+ 
+ config DRM_KMS_HELPER
+diff --git a/drivers/gpu/drm/drm_backport.c b/drivers/gpu/drm/drm_backport.c
+index bb2d7d1..ce7e6fd 100644
+--- a/drivers/gpu/drm/drm_backport.c
++++ b/drivers/gpu/drm/drm_backport.c
+@@ -147,6 +147,7 @@ struct device_node *of_get_next_available_child(const struct device_node *node,
+ {
+ 	return NULL;
+ }
++EXPORT_SYMBOL(of_get_next_available_child);
+ 
+ struct property *of_find_property(const struct device_node *np,
+ 				  const char *name,
+@@ -154,6 +155,7 @@ struct property *of_find_property(const struct device_node *np,
+ {
+ 	return NULL;
+ }
++EXPORT_SYMBOL(of_find_property);
+ 
+ int of_property_read_u32_array(const struct device_node *np,
+ 					     const char *propname,
+@@ -161,6 +163,7 @@ int of_property_read_u32_array(const struct device_node *np,
+ {
+ 	return -ENOSYS;
+ }
++EXPORT_SYMBOL(of_property_read_u32_array);
+ 
+ #undef mempool_resize
+ 

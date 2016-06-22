@@ -758,10 +758,6 @@ CA-137716-fix-bond-slb-softlockup-while-tx.patch
 # In-kernel device emulator support
 xen-ioemu-inject-msi.patch
 
-# Intel GVT-g support patches
-intel-gvt-g-kernel-support.patch
-intel-gvt-g-enable-out-of-tree-compile.patch
-
 # PV-IOMMU support
 pv-iommu-support.patch
 kexec-reserve-crashkernel-region.patch
@@ -770,6 +766,40 @@ kexec-reserve-crashkernel-region.patch
 # Debugging/hacks
 #
 0001-xen-oprofile-Patch-from-Michael-Petullo.patch
+
+#
+# Back-port 4.5 DRM
+#
+# On the face of it, this set appears to be redundant because the next
+# set back-ports an older (4.3) DRM. However, Intel have stated that
+# their intention is to re-base on the 4.5 DRM so the patches are
+# structured this way to make it easy to accommodate this change.
+#
+update-to-drm-intel-840c81e9
+CONFIG_DMA_SHARED_BUFFER-new.patch
+0001-async-export-current_is_async.patch
+0001-mm-Export-nr_swap_pages.patch
+fix-fbmem.patch
+fix-intel-gtt.patch
+fix-pci-quirks.patch
+fix-vga_default_device.patch
+
+#
+# Incrementally back-port 4.3 DRM
+#
+update-to-drm-intel-87074657
+0001-drm-i915-skl-Add-SKL-GT4-PCI-IDs.patch
+update-skylake-stepping-info
+CONFIG_DMA_SHARED_BUFFER-update.patch
+
+#
+# Further GVT-g DRM patches
+#
+drm-compat.patch
+build-mipi-dsi-as-a-module.patch
+
+intel-gvt-g-kernel-support.patch
+intel-gvt-g-enable-out-of-tree-compile.patch
 
 #
 # Kernel Configuration.

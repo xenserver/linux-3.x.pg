@@ -1,0 +1,23 @@
+diff --git a/drivers/video/efifb.c b/drivers/video/efifb.c
+index 50fe668..a98fed2 100644
+--- a/drivers/video/efifb.c
++++ b/drivers/video/efifb.c
+@@ -300,18 +300,6 @@ static struct fb_ops efifb_ops = {
+ 	.fb_imageblit	= cfb_imageblit,
+ };
+ 
+-struct pci_dev *vga_default_device(void)
+-{
+-	return default_vga;
+-}
+-
+-EXPORT_SYMBOL_GPL(vga_default_device);
+-
+-void vga_set_default_device(struct pci_dev *pdev)
+-{
+-	default_vga = pdev;
+-}
+-
+ static int __init efifb_setup(char *options)
+ {
+ 	char *this_opt;

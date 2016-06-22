@@ -1,0 +1,2205 @@
+diff --git a/drivers/base/Makefile b/drivers/base/Makefile
+index f49c8cc..59d5f57 100644
+--- a/drivers/base/Makefile
++++ b/drivers/base/Makefile
+@@ -10,7 +10,7 @@ obj-$(CONFIG_CMA) += dma-contiguous.o
+ obj-y			+= power/
+ obj-$(CONFIG_HAS_DMA)	+= dma-mapping.o
+ obj-$(CONFIG_HAVE_GENERIC_DMA_COHERENT) += dma-coherent.o
+-obj-$(CONFIG_DMA_SHARED_BUFFER) += dma-buf.o
++obj-$(CONFIG_DMA_SHARED_BUFFER) += dma-buf.o reservation.o fence.o
+ obj-$(CONFIG_ISA)	+= isa.o
+ obj-$(CONFIG_FW_LOADER)	+= firmware_class.o
+ obj-$(CONFIG_NUMA)	+= node.o
+diff --git a/drivers/base/dma-buf.c b/drivers/base/dma-buf.c
+index 08fe897..1feae46 100644
+--- a/drivers/base/dma-buf.c
++++ b/drivers/base/dma-buf.c
+@@ -25,10 +25,13 @@
+ #include <linux/fs.h>
+ #include <linux/slab.h>
+ #include <linux/dma-buf.h>
++#include <linux/fence.h>
+ #include <linux/anon_inodes.h>
+ #include <linux/export.h>
+ #include <linux/debugfs.h>
+ #include <linux/seq_file.h>
++#include <linux/poll.h>
++#include <linux/reservation.h>
+ 
+ static inline int is_dma_buf_file(struct file *);
+ 
+@@ -50,12 +53,25 @@ static int dma_buf_release(struct inode *inode, struct file *file)
+ 
+ 	BUG_ON(dmabuf->vmapping_counter);
+ 
++	/*
++	 * Any fences that a dma-buf poll can wait on should be signaled
++	 * before releasing dma-buf. This is the responsibility of each
++	 * driver that uses the reservation objects.
++	 *
++	 * If you hit this BUG() it means someone dropped their ref to the
++	 * dma-buf while still having pending operation to the buffer.
++	 */
++	BUG_ON(dmabuf->cb_shared.active || dmabuf->cb_excl.active);
++
+ 	dmabuf->ops->release(dmabuf);
+ 
+ 	mutex_lock(&db_list.lock);
+ 	list_del(&dmabuf->list_node);
+ 	mutex_unlock(&db_list.lock);
+ 
++	if (dmabuf->resv == (struct reservation_object *)&dmabuf[1])
++		reservation_object_fini(dmabuf->resv);
++
+ 	kfree(dmabuf);
+ 	return 0;
+ }
+@@ -77,9 +93,167 @@ static int dma_buf_mmap_internal(struct file *file, struct vm_area_struct *vma)
+ 	return dmabuf->ops->mmap(dmabuf, vma);
+ }
+ 
++static loff_t dma_buf_llseek(struct file *file, loff_t offset, int whence)
++{
++	struct dma_buf *dmabuf;
++	loff_t base;
++
++	if (!is_dma_buf_file(file))
++		return -EBADF;
++
++	dmabuf = file->private_data;
++
++	/* only support discovering the end of the buffer,
++	   but also allow SEEK_SET to maintain the idiomatic
++	   SEEK_END(0), SEEK_CUR(0) pattern */
++	if (whence == SEEK_END)
++		base = dmabuf->size;
++	else if (whence == SEEK_SET)
++		base = 0;
++	else
++		return -EINVAL;
++
++	if (offset != 0)
++		return -EINVAL;
++
++	return base + offset;
++}
++
++static void dma_buf_poll_cb(struct fence *fence, struct fence_cb *cb)
++{
++	struct dma_buf_poll_cb_t *dcb = (struct dma_buf_poll_cb_t *)cb;
++	unsigned long flags;
++
++	spin_lock_irqsave(&dcb->poll->lock, flags);
++	wake_up_locked_poll(dcb->poll, dcb->active);
++	dcb->active = 0;
++	spin_unlock_irqrestore(&dcb->poll->lock, flags);
++}
++
++static unsigned int dma_buf_poll(struct file *file, poll_table *poll)
++{
++	struct dma_buf *dmabuf;
++	struct reservation_object *resv;
++	struct reservation_object_list *fobj;
++	struct fence *fence_excl;
++	unsigned long events;
++	unsigned shared_count, seq;
++
++	dmabuf = file->private_data;
++	if (!dmabuf || !dmabuf->resv)
++		return POLLERR;
++
++	resv = dmabuf->resv;
++
++	poll_wait(file, &dmabuf->poll, poll);
++
++	events = poll_requested_events(poll) & (POLLIN | POLLOUT);
++	if (!events)
++		return 0;
++
++retry:
++	seq = read_seqcount_begin(&resv->seq);
++	rcu_read_lock();
++
++	fobj = rcu_dereference(resv->fence);
++	if (fobj)
++		shared_count = fobj->shared_count;
++	else
++		shared_count = 0;
++	fence_excl = rcu_dereference(resv->fence_excl);
++	if (read_seqcount_retry(&resv->seq, seq)) {
++		rcu_read_unlock();
++		goto retry;
++	}
++
++	if (fence_excl && (!(events & POLLOUT) || shared_count == 0)) {
++		struct dma_buf_poll_cb_t *dcb = &dmabuf->cb_excl;
++		unsigned long pevents = POLLIN;
++
++		if (shared_count == 0)
++			pevents |= POLLOUT;
++
++		spin_lock_irq(&dmabuf->poll.lock);
++		if (dcb->active) {
++			dcb->active |= pevents;
++			events &= ~pevents;
++		} else
++			dcb->active = pevents;
++		spin_unlock_irq(&dmabuf->poll.lock);
++
++		if (events & pevents) {
++			if (!fence_get_rcu(fence_excl)) {
++				/* force a recheck */
++				events &= ~pevents;
++				dma_buf_poll_cb(NULL, &dcb->cb);
++			} else if (!fence_add_callback(fence_excl, &dcb->cb,
++						       dma_buf_poll_cb)) {
++				events &= ~pevents;
++				fence_put(fence_excl);
++			} else {
++				/*
++				 * No callback queued, wake up any additional
++				 * waiters.
++				 */
++				fence_put(fence_excl);
++				dma_buf_poll_cb(NULL, &dcb->cb);
++			}
++		}
++	}
++
++	if ((events & POLLOUT) && shared_count > 0) {
++		struct dma_buf_poll_cb_t *dcb = &dmabuf->cb_shared;
++		int i;
++
++		/* Only queue a new callback if no event has fired yet */
++		spin_lock_irq(&dmabuf->poll.lock);
++		if (dcb->active)
++			events &= ~POLLOUT;
++		else
++			dcb->active = POLLOUT;
++		spin_unlock_irq(&dmabuf->poll.lock);
++
++		if (!(events & POLLOUT))
++			goto out;
++
++		for (i = 0; i < shared_count; ++i) {
++			struct fence *fence = rcu_dereference(fobj->shared[i]);
++
++			if (!fence_get_rcu(fence)) {
++				/*
++				 * fence refcount dropped to zero, this means
++				 * that fobj has been freed
++				 *
++				 * call dma_buf_poll_cb and force a recheck!
++				 */
++				events &= ~POLLOUT;
++				dma_buf_poll_cb(NULL, &dcb->cb);
++				break;
++			}
++			if (!fence_add_callback(fence, &dcb->cb,
++						dma_buf_poll_cb)) {
++				fence_put(fence);
++				events &= ~POLLOUT;
++				break;
++			}
++			fence_put(fence);
++		}
++
++		/* No callback queued, wake up any additional waiters. */
++		if (i == shared_count)
++			dma_buf_poll_cb(NULL, &dcb->cb);
++	}
++
++out:
++	rcu_read_unlock();
++	return events;
++}
++
+ static const struct file_operations dma_buf_fops = {
+ 	.release	= dma_buf_release,
+ 	.mmap		= dma_buf_mmap_internal,
++	.llseek		= dma_buf_llseek,
++	.poll		= dma_buf_poll,
+ };
+ 
+ /*
+@@ -91,49 +265,69 @@ static inline int is_dma_buf_file(struct file *file)
+ }
+ 
+ /**
+- * dma_buf_export_named - Creates a new dma_buf, and associates an anon file
++ * dma_buf_export - Creates a new dma_buf, and associates an anon file
+  * with this buffer, so it can be exported.
+  * Also connect the allocator specific data and ops to the buffer.
+  * Additionally, provide a name string for exporter; useful in debugging.
+  *
+- * @priv:	[in]	Attach private data of allocator to this buffer
+- * @ops:	[in]	Attach allocator-defined dma buf ops to the new buffer.
+- * @size:	[in]	Size of the buffer
+- * @flags:	[in]	mode flags for the file.
+- * @exp_name:	[in]	name of the exporting module - useful for debugging.
++ * @exp_info:	[in]	holds all the export related information provided
++ *			by the exporter. see struct dma_buf_export_info
++ *			for further details.
+  *
+  * Returns, on success, a newly created dma_buf object, which wraps the
+  * supplied private data and operations for dma_buf_ops. On either missing
+  * ops, or error in allocating struct dma_buf, will return negative error.
+  *
+  */
+-struct dma_buf *dma_buf_export_named(void *priv, const struct dma_buf_ops *ops,
+-				size_t size, int flags, const char *exp_name)
++struct dma_buf *dma_buf_export(const struct dma_buf_export_info *exp_info)
+ {
+ 	struct dma_buf *dmabuf;
++	struct reservation_object *resv = exp_info->resv;
+ 	struct file *file;
+-
+-	if (WARN_ON(!priv || !ops
+-			  || !ops->map_dma_buf
+-			  || !ops->unmap_dma_buf
+-			  || !ops->release
+-			  || !ops->kmap_atomic
+-			  || !ops->kmap
+-			  || !ops->mmap)) {
++	size_t alloc_size = sizeof(struct dma_buf);
++	if (!exp_info->resv)
++		alloc_size += sizeof(struct reservation_object);
++	else
++		/* prevent &dma_buf[1] == dma_buf->resv */
++		alloc_size += 1;
++
++	if (WARN_ON(!exp_info->priv
++			  || !exp_info->ops
++			  || !exp_info->ops->map_dma_buf
++			  || !exp_info->ops->unmap_dma_buf
++			  || !exp_info->ops->release
++			  || !exp_info->ops->kmap_atomic
++			  || !exp_info->ops->kmap
++			  || !exp_info->ops->mmap)) {
+ 		return ERR_PTR(-EINVAL);
+ 	}
+ 
+-	dmabuf = kzalloc(sizeof(struct dma_buf), GFP_KERNEL);
++	dmabuf = kzalloc(alloc_size, GFP_KERNEL);
+ 	if (dmabuf == NULL)
+ 		return ERR_PTR(-ENOMEM);
+ 
+-	dmabuf->priv = priv;
+-	dmabuf->ops = ops;
+-	dmabuf->size = size;
+-	dmabuf->exp_name = exp_name;
++	dmabuf->priv = exp_info->priv;
++	dmabuf->ops = exp_info->ops;
++	dmabuf->size = exp_info->size;
++	dmabuf->exp_name = exp_info->exp_name;
++	init_waitqueue_head(&dmabuf->poll);
++	dmabuf->cb_excl.poll = dmabuf->cb_shared.poll = &dmabuf->poll;
++	dmabuf->cb_excl.active = dmabuf->cb_shared.active = 0;
++
++	if (!resv) {
++		resv = (struct reservation_object *)&dmabuf[1];
++		reservation_object_init(resv);
++	}
++	dmabuf->resv = resv;
+ 
+-	file = anon_inode_getfile("dmabuf", &dma_buf_fops, dmabuf, flags);
++	file = anon_inode_getfile("dmabuf", &dma_buf_fops, dmabuf,
++					exp_info->flags);
++	if (IS_ERR(file)) {
++		kfree(dmabuf);
++		return ERR_CAST(file);
++	}
+ 
++	file->f_mode |= FMODE_LSEEK;
+ 	dmabuf->file = file;
+ 
+ 	mutex_init(&dmabuf->lock);
+@@ -145,8 +339,7 @@ struct dma_buf *dma_buf_export_named(void *priv, const struct dma_buf_ops *ops,
+ 
+ 	return dmabuf;
+ }
+-EXPORT_SYMBOL_GPL(dma_buf_export_named);
+-
++EXPORT_SYMBOL_GPL(dma_buf_export);
+ 
+ /**
+  * dma_buf_fd - returns a file descriptor for the given dma_buf
+@@ -219,9 +412,8 @@ EXPORT_SYMBOL_GPL(dma_buf_put);
+  * @dmabuf:	[in]	buffer to attach device to.
+  * @dev:	[in]	device to be attached.
+  *
+- * Returns struct dma_buf_attachment * for this attachment; may return negative
+- * error codes.
+- *
++ * Returns struct dma_buf_attachment * for this attachment; returns ERR_PTR on
++ * error.
+  */
+ struct dma_buf_attachment *dma_buf_attach(struct dma_buf *dmabuf,
+ 					  struct device *dev)
+@@ -287,9 +479,8 @@ EXPORT_SYMBOL_GPL(dma_buf_detach);
+  * @attach:	[in]	attachment whose scatterlist is to be returned
+  * @direction:	[in]	direction of DMA transfer
+  *
+- * Returns sg_table containing the scatterlist to be returned; may return NULL
+- * or ERR_PTR.
+- *
++ * Returns sg_table containing the scatterlist to be returned; returns ERR_PTR
++ * on error.
+  */
+ struct sg_table *dma_buf_map_attachment(struct dma_buf_attachment *attach,
+ 					enum dma_data_direction direction)
+@@ -302,6 +493,8 @@ struct sg_table *dma_buf_map_attachment(struct dma_buf_attachment *attach,
+ 		return ERR_PTR(-EINVAL);
+ 
+ 	sg_table = attach->dmabuf->ops->map_dma_buf(attach, direction);
++	if (!sg_table)
++		sg_table = ERR_PTR(-ENOMEM);
+ 
+ 	return sg_table;
+ }
+@@ -337,13 +530,11 @@ EXPORT_SYMBOL_GPL(dma_buf_unmap_attachment);
+  * preparations. Coherency is only guaranteed in the specified range for the
+  * specified access direction.
+  * @dmabuf:	[in]	buffer to prepare cpu access for.
+- * @start:	[in]	start of range for cpu access.
+- * @len:	[in]	length of range for cpu access.
+  * @direction:	[in]	length of range for cpu access.
+  *
+  * Can return negative error values, returns 0 on success.
+  */
+-int dma_buf_begin_cpu_access(struct dma_buf *dmabuf, size_t start, size_t len,
++int dma_buf_begin_cpu_access(struct dma_buf *dmabuf,
+ 			     enum dma_data_direction direction)
+ {
+ 	int ret = 0;
+@@ -352,7 +543,7 @@ int dma_buf_begin_cpu_access(struct dma_buf *dmabuf, size_t start, size_t len,
+ 		return -EINVAL;
+ 
+ 	if (dmabuf->ops->begin_cpu_access)
+-		ret = dmabuf->ops->begin_cpu_access(dmabuf, start, len, direction);
++		ret = dmabuf->ops->begin_cpu_access(dmabuf, direction);
+ 
+ 	return ret;
+ }
+@@ -364,19 +555,17 @@ EXPORT_SYMBOL_GPL(dma_buf_begin_cpu_access);
+  * actions. Coherency is only guaranteed in the specified range for the
+  * specified access direction.
+  * @dmabuf:	[in]	buffer to complete cpu access for.
+- * @start:	[in]	start of range for cpu access.
+- * @len:	[in]	length of range for cpu access.
+  * @direction:	[in]	length of range for cpu access.
+  *
+  * This call must always succeed.
+  */
+-void dma_buf_end_cpu_access(struct dma_buf *dmabuf, size_t start, size_t len,
++void dma_buf_end_cpu_access(struct dma_buf *dmabuf,
+ 			    enum dma_data_direction direction)
+ {
+ 	WARN_ON(!dmabuf);
+ 
+ 	if (dmabuf->ops->end_cpu_access)
+-		dmabuf->ops->end_cpu_access(dmabuf, start, len, direction);
++		dmabuf->ops->end_cpu_access(dmabuf, direction);
+ }
+ EXPORT_SYMBOL_GPL(dma_buf_end_cpu_access);
+ 
+@@ -459,7 +648,7 @@ EXPORT_SYMBOL_GPL(dma_buf_kunmap);
+  * 			dma-buf buffer.
+  *
+  * This function adjusts the passed in vma so that it points at the file of the
+- * dma_buf operation. It alsog adjusts the starting pgoff and does bounds
++ * dma_buf operation. It also adjusts the starting pgoff and does bounds
+  * checking on the size of the vma. Then it calls the exporters mmap function to
+  * set up the mapping.
+  *
+@@ -512,6 +701,8 @@ EXPORT_SYMBOL_GPL(dma_buf_mmap);
+  * These calls are optional in drivers. The intended use for them
+  * is for mapping objects linear in kernel space for high use objects.
+  * Please attempt to use kmap/kunmap before thinking about these interfaces.
++ *
++ * Returns NULL on error.
+  */
+ void *dma_buf_vmap(struct dma_buf *dmabuf)
+ {
+@@ -534,7 +725,9 @@ void *dma_buf_vmap(struct dma_buf *dmabuf)
+ 	BUG_ON(dmabuf->vmap_ptr);
+ 
+ 	ptr = dmabuf->ops->vmap(dmabuf);
+-	if (IS_ERR_OR_NULL(ptr))
++	if (WARN_ON_ONCE(IS_ERR(ptr)))
++		ptr = NULL;
++	if (!ptr)
+ 		goto out_unlock;
+ 
+ 	dmabuf->vmap_ptr = ptr;
+@@ -584,36 +777,35 @@ static int dma_buf_describe(struct seq_file *s)
+ 	if (ret)
+ 		return ret;
+ 
+-	seq_printf(s, "\nDma-buf Objects:\n");
+-	seq_printf(s, "\texp_name\tsize\tflags\tmode\tcount\n");
++	seq_puts(s, "\nDma-buf Objects:\n");
++	seq_puts(s, "size\tflags\tmode\tcount\texp_name\n");
+ 
+ 	list_for_each_entry(buf_obj, &db_list.head, list_node) {
+ 		ret = mutex_lock_interruptible(&buf_obj->lock);
+ 
+ 		if (ret) {
+-			seq_printf(s,
+-				  "\tERROR locking buffer object: skipping\n");
++			seq_puts(s,
++				 "\tERROR locking buffer object: skipping\n");
+ 			continue;
+ 		}
+ 
+-		seq_printf(s, "\t");
+-
+-		seq_printf(s, "\t%s\t%08zu\t%08x\t%08x\t%08ld\n",
+-				buf_obj->exp_name, buf_obj->size,
++		seq_printf(s, "%08zu\t%08x\t%08x\t%08ld\t%s\n",
++				buf_obj->size,
+ 				buf_obj->file->f_flags, buf_obj->file->f_mode,
+-				(long)(buf_obj->file->f_count.counter));
++				file_count(buf_obj->file),
++				buf_obj->exp_name);
+ 
+-		seq_printf(s, "\t\tAttached Devices:\n");
++		seq_puts(s, "\tAttached Devices:\n");
+ 		attach_count = 0;
+ 
+ 		list_for_each_entry(attach_obj, &buf_obj->attachments, node) {
+-			seq_printf(s, "\t\t");
++			seq_puts(s, "\t");
+ 
+-			seq_printf(s, "%s\n", attach_obj->dev->init_name);
++			seq_printf(s, "%s\n", dev_name(attach_obj->dev));
+ 			attach_count++;
+ 		}
+ 
+-		seq_printf(s, "\n\t\tTotal %d devices attached\n",
++		seq_printf(s, "Total %d devices attached\n\n",
+ 				attach_count);
+ 
+ 		count++;
+@@ -680,10 +872,7 @@ int dma_buf_debugfs_create_file(const char *name,
+ 	d = debugfs_create_file(name, S_IRUGO, dma_buf_debugfs_dir,
+ 			write, &dma_buf_debug_fops);
+ 
+-	if (IS_ERR(d))
+-		return PTR_ERR(d);
+-
+-	return 0;
++	return PTR_ERR_OR_ZERO(d);
+ }
+ #else
+ static inline int dma_buf_init_debugfs(void)
+diff --git a/drivers/base/fence.c b/drivers/base/fence.c
+new file mode 100644
+index 0000000..664f18f
+--- /dev/null
++++ b/drivers/base/fence.c
+@@ -0,0 +1,434 @@
++/*
++ * Fence mechanism for dma-buf and to allow for asynchronous dma access
++ *
++ * Copyright (C) 2012 Canonical Ltd
++ * Copyright (C) 2012 Texas Instruments
++ *
++ * Authors:
++ * Rob Clark <robdclark@gmail.com>
++ * Maarten Lankhorst <maarten.lankhorst@canonical.com>
++ *
++ * This program is free software; you can redistribute it and/or modify it
++ * under the terms of the GNU General Public License version 2 as published by
++ * the Free Software Foundation.
++ *
++ * This program is distributed in the hope that it will be useful, but WITHOUT
++ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
++ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
++ * more details.
++ */
++
++#include <linux/slab.h>
++#include <linux/export.h>
++#include <linux/atomic.h>
++#include <linux/fence.h>
++
++#define CREATE_TRACE_POINTS
++#include <trace/events/fence.h>
++
++EXPORT_TRACEPOINT_SYMBOL(fence_annotate_wait_on);
++EXPORT_TRACEPOINT_SYMBOL(fence_emit);
++
++/*
++ * fence context counter: each execution context should have its own
++ * fence context, this allows checking if fences belong to the same
++ * context or not. One device can have multiple separate contexts,
++ * and they're used if some engine can run independently of another.
++ */
++static atomic_t fence_context_counter = ATOMIC_INIT(0);
++
++/**
++ * fence_context_alloc - allocate an array of fence contexts
++ * @num:	[in]	amount of contexts to allocate
++ *
++ * This function will return the first index of the number of fences allocated.
++ * The fence context is used for setting fence->context to a unique number.
++ */
++unsigned fence_context_alloc(unsigned num)
++{
++	BUG_ON(!num);
++	return atomic_add_return(num, &fence_context_counter) - num;
++}
++EXPORT_SYMBOL(fence_context_alloc);
++
++/**
++ * fence_signal_locked - signal completion of a fence
++ * @fence: the fence to signal
++ *
++ * Signal completion for software callbacks on a fence, this will unblock
++ * fence_wait() calls and run all the callbacks added with
++ * fence_add_callback(). Can be called multiple times, but since a fence
++ * can only go from unsignaled to signaled state, it will only be effective
++ * the first time.
++ *
++ * Unlike fence_signal, this function must be called with fence->lock held.
++ */
++int fence_signal_locked(struct fence *fence)
++{
++	struct fence_cb *cur, *tmp;
++	int ret = 0;
++
++	if (WARN_ON(!fence))
++		return -EINVAL;
++
++	if (!ktime_to_ns(fence->timestamp)) {
++		fence->timestamp = ktime_get();
++		smp_mb();
++	}
++
++	if (test_and_set_bit(FENCE_FLAG_SIGNALED_BIT, &fence->flags)) {
++		ret = -EINVAL;
++
++		/*
++		 * we might have raced with the unlocked fence_signal,
++		 * still run through all callbacks
++		 */
++	} else
++		trace_fence_signaled(fence);
++
++	list_for_each_entry_safe(cur, tmp, &fence->cb_list, node) {
++		list_del_init(&cur->node);
++		cur->func(fence, cur);
++	}
++	return ret;
++}
++EXPORT_SYMBOL(fence_signal_locked);
++
++/**
++ * fence_signal - signal completion of a fence
++ * @fence: the fence to signal
++ *
++ * Signal completion for software callbacks on a fence, this will unblock
++ * fence_wait() calls and run all the callbacks added with
++ * fence_add_callback(). Can be called multiple times, but since a fence
++ * can only go from unsignaled to signaled state, it will only be effective
++ * the first time.
++ */
++int fence_signal(struct fence *fence)
++{
++	unsigned long flags;
++
++	if (!fence)
++		return -EINVAL;
++
++	if (!ktime_to_ns(fence->timestamp)) {
++		fence->timestamp = ktime_get();
++		smp_mb();
++	}
++
++	if (test_and_set_bit(FENCE_FLAG_SIGNALED_BIT, &fence->flags))
++		return -EINVAL;
++
++	trace_fence_signaled(fence);
++
++	if (test_bit(FENCE_FLAG_ENABLE_SIGNAL_BIT, &fence->flags)) {
++		struct fence_cb *cur, *tmp;
++
++		spin_lock_irqsave(fence->lock, flags);
++		list_for_each_entry_safe(cur, tmp, &fence->cb_list, node) {
++			list_del_init(&cur->node);
++			cur->func(fence, cur);
++		}
++		spin_unlock_irqrestore(fence->lock, flags);
++	}
++	return 0;
++}
++EXPORT_SYMBOL(fence_signal);
++
++/**
++ * fence_wait_timeout - sleep until the fence gets signaled
++ * or until timeout elapses
++ * @fence:	[in]	the fence to wait on
++ * @intr:	[in]	if true, do an interruptible wait
++ * @timeout:	[in]	timeout value in jiffies, or MAX_SCHEDULE_TIMEOUT
++ *
++ * Returns -ERESTARTSYS if interrupted, 0 if the wait timed out, or the
++ * remaining timeout in jiffies on success. Other error values may be
++ * returned on custom implementations.
++ *
++ * Performs a synchronous wait on this fence. It is assumed the caller
++ * directly or indirectly (buf-mgr between reservation and committing)
++ * holds a reference to the fence, otherwise the fence might be
++ * freed before return, resulting in undefined behavior.
++ */
++signed long
++fence_wait_timeout(struct fence *fence, bool intr, signed long timeout)
++{
++	signed long ret;
++
++	if (WARN_ON(timeout < 0))
++		return -EINVAL;
++
++	if (timeout == 0)
++		return fence_is_signaled(fence);
++
++	trace_fence_wait_start(fence);
++	ret = fence->ops->wait(fence, intr, timeout);
++	trace_fence_wait_end(fence);
++	return ret;
++}
++EXPORT_SYMBOL(fence_wait_timeout);
++
++void fence_release(struct kref *kref)
++{
++	struct fence *fence =
++			container_of(kref, struct fence, refcount);
++
++	trace_fence_destroy(fence);
++
++	BUG_ON(!list_empty(&fence->cb_list));
++
++	if (fence->ops->release)
++		fence->ops->release(fence);
++	else
++		fence_free(fence);
++}
++EXPORT_SYMBOL(fence_release);
++
++void fence_free(struct fence *fence)
++{
++	kfree_rcu(fence, rcu);
++}
++EXPORT_SYMBOL(fence_free);
++
++/**
++ * fence_enable_sw_signaling - enable signaling on fence
++ * @fence:	[in]	the fence to enable
++ *
++ * this will request for sw signaling to be enabled, to make the fence
++ * complete as soon as possible
++ */
++void fence_enable_sw_signaling(struct fence *fence)
++{
++	unsigned long flags;
++
++	if (!test_and_set_bit(FENCE_FLAG_ENABLE_SIGNAL_BIT, &fence->flags) &&
++	    !test_bit(FENCE_FLAG_SIGNALED_BIT, &fence->flags)) {
++		trace_fence_enable_signal(fence);
++
++		spin_lock_irqsave(fence->lock, flags);
++
++		if (!fence->ops->enable_signaling(fence))
++			fence_signal_locked(fence);
++
++		spin_unlock_irqrestore(fence->lock, flags);
++	}
++}
++EXPORT_SYMBOL(fence_enable_sw_signaling);
++
++/**
++ * fence_add_callback - add a callback to be called when the fence
++ * is signaled
++ * @fence:	[in]	the fence to wait on
++ * @cb:		[in]	the callback to register
++ * @func:	[in]	the function to call
++ *
++ * cb will be initialized by fence_add_callback, no initialization
++ * by the caller is required. Any number of callbacks can be registered
++ * to a fence, but a callback can only be registered to one fence at a time.
++ *
++ * Note that the callback can be called from an atomic context.  If
++ * fence is already signaled, this function will return -ENOENT (and
++ * *not* call the callback)
++ *
++ * Add a software callback to the fence. Same restrictions apply to
++ * refcount as it does to fence_wait, however the caller doesn't need to
++ * keep a refcount to fence afterwards: when software access is enabled,
++ * the creator of the fence is required to keep the fence alive until
++ * after it signals with fence_signal. The callback itself can be called
++ * from irq context.
++ *
++ */
++int fence_add_callback(struct fence *fence, struct fence_cb *cb,
++		       fence_func_t func)
++{
++	unsigned long flags;
++	int ret = 0;
++	bool was_set;
++
++	if (WARN_ON(!fence || !func))
++		return -EINVAL;
++
++	if (test_bit(FENCE_FLAG_SIGNALED_BIT, &fence->flags)) {
++		INIT_LIST_HEAD(&cb->node);
++		return -ENOENT;
++	}
++
++	spin_lock_irqsave(fence->lock, flags);
++
++	was_set = test_and_set_bit(FENCE_FLAG_ENABLE_SIGNAL_BIT, &fence->flags);
++
++	if (test_bit(FENCE_FLAG_SIGNALED_BIT, &fence->flags))
++		ret = -ENOENT;
++	else if (!was_set) {
++		trace_fence_enable_signal(fence);
++
++		if (!fence->ops->enable_signaling(fence)) {
++			fence_signal_locked(fence);
++			ret = -ENOENT;
++		}
++	}
++
++	if (!ret) {
++		cb->func = func;
++		list_add_tail(&cb->node, &fence->cb_list);
++	} else
++		INIT_LIST_HEAD(&cb->node);
++	spin_unlock_irqrestore(fence->lock, flags);
++
++	return ret;
++}
++EXPORT_SYMBOL(fence_add_callback);
++
++/**
++ * fence_remove_callback - remove a callback from the signaling list
++ * @fence:	[in]	the fence to wait on
++ * @cb:		[in]	the callback to remove
++ *
++ * Remove a previously queued callback from the fence. This function returns
++ * true if the callback is successfully removed, or false if the fence has
++ * already been signaled.
++ *
++ * *WARNING*:
++ * Cancelling a callback should only be done if you really know what you're
++ * doing, since deadlocks and race conditions could occur all too easily. For
++ * this reason, it should only ever be done on hardware lockup recovery,
++ * with a reference held to the fence.
++ */
++bool
++fence_remove_callback(struct fence *fence, struct fence_cb *cb)
++{
++	unsigned long flags;
++	bool ret;
++
++	spin_lock_irqsave(fence->lock, flags);
++
++	ret = !list_empty(&cb->node);
++	if (ret)
++		list_del_init(&cb->node);
++
++	spin_unlock_irqrestore(fence->lock, flags);
++
++	return ret;
++}
++EXPORT_SYMBOL(fence_remove_callback);
++
++struct default_wait_cb {
++	struct fence_cb base;
++	struct task_struct *task;
++};
++
++static void
++fence_default_wait_cb(struct fence *fence, struct fence_cb *cb)
++{
++	struct default_wait_cb *wait =
++		container_of(cb, struct default_wait_cb, base);
++
++	wake_up_state(wait->task, TASK_NORMAL);
++}
++
++/**
++ * fence_default_wait - default sleep until the fence gets signaled
++ * or until timeout elapses
++ * @fence:	[in]	the fence to wait on
++ * @intr:	[in]	if true, do an interruptible wait
++ * @timeout:	[in]	timeout value in jiffies, or MAX_SCHEDULE_TIMEOUT
++ *
++ * Returns -ERESTARTSYS if interrupted, 0 if the wait timed out, or the
++ * remaining timeout in jiffies on success.
++ */
++signed long
++fence_default_wait(struct fence *fence, bool intr, signed long timeout)
++{
++	struct default_wait_cb cb;
++	unsigned long flags;
++	signed long ret = timeout;
++	bool was_set;
++
++	if (test_bit(FENCE_FLAG_SIGNALED_BIT, &fence->flags))
++		return timeout;
++
++	spin_lock_irqsave(fence->lock, flags);
++
++	if (intr && signal_pending(current)) {
++		ret = -ERESTARTSYS;
++		goto out;
++	}
++
++	was_set = test_and_set_bit(FENCE_FLAG_ENABLE_SIGNAL_BIT, &fence->flags);
++
++	if (test_bit(FENCE_FLAG_SIGNALED_BIT, &fence->flags))
++		goto out;
++
++	if (!was_set) {
++		trace_fence_enable_signal(fence);
++
++		if (!fence->ops->enable_signaling(fence)) {
++			fence_signal_locked(fence);
++			goto out;
++		}
++	}
++
++	cb.base.func = fence_default_wait_cb;
++	cb.task = current;
++	list_add(&cb.base.node, &fence->cb_list);
++
++	while (!test_bit(FENCE_FLAG_SIGNALED_BIT, &fence->flags) && ret > 0) {
++		if (intr)
++			__set_current_state(TASK_INTERRUPTIBLE);
++		else
++			__set_current_state(TASK_UNINTERRUPTIBLE);
++		spin_unlock_irqrestore(fence->lock, flags);
++
++		ret = schedule_timeout(ret);
++
++		spin_lock_irqsave(fence->lock, flags);
++		if (ret > 0 && intr && signal_pending(current))
++			ret = -ERESTARTSYS;
++	}
++
++	if (!list_empty(&cb.base.node))
++		list_del(&cb.base.node);
++	__set_current_state(TASK_RUNNING);
++
++out:
++	spin_unlock_irqrestore(fence->lock, flags);
++	return ret;
++}
++EXPORT_SYMBOL(fence_default_wait);
++
++/**
++ * fence_init - Initialize a custom fence.
++ * @fence:	[in]	the fence to initialize
++ * @ops:	[in]	the fence_ops for operations on this fence
++ * @lock:	[in]	the irqsafe spinlock to use for locking this fence
++ * @context:	[in]	the execution context this fence is run on
++ * @seqno:	[in]	a linear increasing sequence number for this context
++ *
++ * Initializes an allocated fence, the caller doesn't have to keep its
++ * refcount after committing with this fence, but it will need to hold a
++ * refcount again if fence_ops.enable_signaling gets called. This can
++ * be used for other implementing other types of fence.
++ *
++ * context and seqno are used for easy comparison between fences, allowing
++ * to check which fence is later by simply using fence_later.
++ */
++void
++fence_init(struct fence *fence, const struct fence_ops *ops,
++	     spinlock_t *lock, unsigned context, unsigned seqno)
++{
++	BUG_ON(!lock);
++	BUG_ON(!ops || !ops->wait || !ops->enable_signaling ||
++	       !ops->get_driver_name || !ops->get_timeline_name);
++
++	kref_init(&fence->refcount);
++	fence->ops = ops;
++	INIT_LIST_HEAD(&fence->cb_list);
++	fence->lock = lock;
++	fence->context = context;
++	fence->seqno = seqno;
++	fence->flags = 0UL;
++
++	trace_fence_init(fence);
++}
++EXPORT_SYMBOL(fence_init);
+diff --git a/drivers/base/reservation.c b/drivers/base/reservation.c
+new file mode 100644
+index 0000000..39920d7
+--- /dev/null
++++ b/drivers/base/reservation.c
+@@ -0,0 +1,478 @@
++/*
++ * Copyright (C) 2012-2014 Canonical Ltd (Maarten Lankhorst)
++ *
++ * Based on bo.c which bears the following copyright notice,
++ * but is dual licensed:
++ *
++ * Copyright (c) 2006-2009 VMware, Inc., Palo Alto, CA., USA
++ * All Rights Reserved.
++ *
++ * Permission is hereby granted, free of charge, to any person obtaining a
++ * copy of this software and associated documentation files (the
++ * "Software"), to deal in the Software without restriction, including
++ * without limitation the rights to use, copy, modify, merge, publish,
++ * distribute, sub license, and/or sell copies of the Software, and to
++ * permit persons to whom the Software is furnished to do so, subject to
++ * the following conditions:
++ *
++ * The above copyright notice and this permission notice (including the
++ * next paragraph) shall be included in all copies or substantial portions
++ * of the Software.
++ *
++ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
++ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
++ * FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT. IN NO EVENT SHALL
++ * THE COPYRIGHT HOLDERS, AUTHORS AND/OR ITS SUPPLIERS BE LIABLE FOR ANY CLAIM,
++ * DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
++ * OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE
++ * USE OR OTHER DEALINGS IN THE SOFTWARE.
++ *
++ **************************************************************************/
++/*
++ * Authors: Thomas Hellstrom <thellstrom-at-vmware-dot-com>
++ */
++
++#include <linux/reservation.h>
++#include <linux/export.h>
++
++DEFINE_WW_CLASS(reservation_ww_class);
++EXPORT_SYMBOL(reservation_ww_class);
++
++struct lock_class_key reservation_seqcount_class;
++EXPORT_SYMBOL(reservation_seqcount_class);
++
++const char reservation_seqcount_string[] = "reservation_seqcount";
++EXPORT_SYMBOL(reservation_seqcount_string);
++/*
++ * Reserve space to add a shared fence to a reservation_object,
++ * must be called with obj->lock held.
++ */
++int reservation_object_reserve_shared(struct reservation_object *obj)
++{
++	struct reservation_object_list *fobj, *old;
++	u32 max;
++
++	old = reservation_object_get_list(obj);
++
++	if (old && old->shared_max) {
++		if (old->shared_count < old->shared_max) {
++			/* perform an in-place update */
++			kfree(obj->staged);
++			obj->staged = NULL;
++			return 0;
++		} else
++			max = old->shared_max * 2;
++	} else
++		max = 4;
++
++	/*
++	 * resize obj->staged or allocate if it doesn't exist,
++	 * noop if already correct size
++	 */
++	fobj = krealloc(obj->staged, offsetof(typeof(*fobj), shared[max]),
++			GFP_KERNEL);
++	if (!fobj)
++		return -ENOMEM;
++
++	obj->staged = fobj;
++	fobj->shared_max = max;
++	return 0;
++}
++EXPORT_SYMBOL(reservation_object_reserve_shared);
++
++static void
++reservation_object_add_shared_inplace(struct reservation_object *obj,
++				      struct reservation_object_list *fobj,
++				      struct fence *fence)
++{
++	u32 i;
++
++	fence_get(fence);
++
++	preempt_disable();
++	write_seqcount_begin(&obj->seq);
++
++	for (i = 0; i < fobj->shared_count; ++i) {
++		struct fence *old_fence;
++
++		old_fence = rcu_dereference_protected(fobj->shared[i],
++						reservation_object_held(obj));
++
++		if (old_fence->context == fence->context) {
++			/* memory barrier is added by write_seqcount_begin */
++			RCU_INIT_POINTER(fobj->shared[i], fence);
++			write_seqcount_end(&obj->seq);
++			preempt_enable();
++
++			fence_put(old_fence);
++			return;
++		}
++	}
++
++	/*
++	 * memory barrier is added by write_seqcount_begin,
++	 * fobj->shared_count is protected by this lock too
++	 */
++	RCU_INIT_POINTER(fobj->shared[fobj->shared_count], fence);
++	fobj->shared_count++;
++
++	write_seqcount_end(&obj->seq);
++	preempt_enable();
++}
++
++static void
++reservation_object_add_shared_replace(struct reservation_object *obj,
++				      struct reservation_object_list *old,
++				      struct reservation_object_list *fobj,
++				      struct fence *fence)
++{
++	unsigned i;
++	struct fence *old_fence = NULL;
++
++	fence_get(fence);
++
++	if (!old) {
++		RCU_INIT_POINTER(fobj->shared[0], fence);
++		fobj->shared_count = 1;
++		goto done;
++	}
++
++	/*
++	 * no need to bump fence refcounts, rcu_read access
++	 * requires the use of kref_get_unless_zero, and the
++	 * references from the old struct are carried over to
++	 * the new.
++	 */
++	fobj->shared_count = old->shared_count;
++
++	for (i = 0; i < old->shared_count; ++i) {
++		struct fence *check;
++
++		check = rcu_dereference_protected(old->shared[i],
++						reservation_object_held(obj));
++
++		if (!old_fence && check->context == fence->context) {
++			old_fence = check;
++			RCU_INIT_POINTER(fobj->shared[i], fence);
++		} else
++			RCU_INIT_POINTER(fobj->shared[i], check);
++	}
++	if (!old_fence) {
++		RCU_INIT_POINTER(fobj->shared[fobj->shared_count], fence);
++		fobj->shared_count++;
++	}
++
++done:
++	preempt_disable();
++	write_seqcount_begin(&obj->seq);
++	/*
++	 * RCU_INIT_POINTER can be used here,
++	 * seqcount provides the necessary barriers
++	 */
++	RCU_INIT_POINTER(obj->fence, fobj);
++	write_seqcount_end(&obj->seq);
++	preempt_enable();
++
++	if (old)
++		kfree_rcu(old, rcu);
++
++	if (old_fence)
++		fence_put(old_fence);
++}
++
++/*
++ * Add a fence to a shared slot, obj->lock must be held, and
++ * reservation_object_reserve_shared_fence has been called.
++ */
++void reservation_object_add_shared_fence(struct reservation_object *obj,
++					 struct fence *fence)
++{
++	struct reservation_object_list *old, *fobj = obj->staged;
++
++	old = reservation_object_get_list(obj);
++	obj->staged = NULL;
++
++	if (!fobj) {
++		BUG_ON(old->shared_count >= old->shared_max);
++		reservation_object_add_shared_inplace(obj, old, fence);
++	} else
++		reservation_object_add_shared_replace(obj, old, fobj, fence);
++}
++EXPORT_SYMBOL(reservation_object_add_shared_fence);
++
++void reservation_object_add_excl_fence(struct reservation_object *obj,
++				       struct fence *fence)
++{
++	struct fence *old_fence = reservation_object_get_excl(obj);
++	struct reservation_object_list *old;
++	u32 i = 0;
++
++	old = reservation_object_get_list(obj);
++	if (old)
++		i = old->shared_count;
++
++	if (fence)
++		fence_get(fence);
++
++	preempt_disable();
++	write_seqcount_begin(&obj->seq);
++	/* write_seqcount_begin provides the necessary memory barrier */
++	RCU_INIT_POINTER(obj->fence_excl, fence);
++	if (old)
++		old->shared_count = 0;
++	write_seqcount_end(&obj->seq);
++	preempt_enable();
++
++	/* inplace update, no shared fences */
++	while (i--)
++		fence_put(rcu_dereference_protected(old->shared[i],
++						reservation_object_held(obj)));
++
++	if (old_fence)
++		fence_put(old_fence);
++}
++EXPORT_SYMBOL(reservation_object_add_excl_fence);
++
++int reservation_object_get_fences_rcu(struct reservation_object *obj,
++				      struct fence **pfence_excl,
++				      unsigned *pshared_count,
++				      struct fence ***pshared)
++{
++	unsigned shared_count = 0;
++	unsigned retry = 1;
++	struct fence **shared = NULL, *fence_excl = NULL;
++	int ret = 0;
++
++	while (retry) {
++		struct reservation_object_list *fobj;
++		unsigned seq;
++
++		seq = read_seqcount_begin(&obj->seq);
++
++		rcu_read_lock();
++
++		fobj = rcu_dereference(obj->fence);
++		if (fobj) {
++			struct fence **nshared;
++			size_t sz = sizeof(*shared) * fobj->shared_max;
++
++			nshared = krealloc(shared, sz,
++					   GFP_NOWAIT | __GFP_NOWARN);
++			if (!nshared) {
++				rcu_read_unlock();
++				nshared = krealloc(shared, sz, GFP_KERNEL);
++				if (nshared) {
++					shared = nshared;
++					continue;
++				}
++
++				ret = -ENOMEM;
++				shared_count = 0;
++				break;
++			}
++			shared = nshared;
++			memcpy(shared, fobj->shared, sz);
++			shared_count = fobj->shared_count;
++		} else
++			shared_count = 0;
++		fence_excl = rcu_dereference(obj->fence_excl);
++
++		retry = read_seqcount_retry(&obj->seq, seq);
++		if (retry)
++			goto unlock;
++
++		if (!fence_excl || fence_get_rcu(fence_excl)) {
++			unsigned i;
++
++			for (i = 0; i < shared_count; ++i) {
++				if (fence_get_rcu(shared[i]))
++					continue;
++
++				/* uh oh, refcount failed, abort and retry */
++				while (i--)
++					fence_put(shared[i]);
++
++				if (fence_excl) {
++					fence_put(fence_excl);
++					fence_excl = NULL;
++				}
++
++				retry = 1;
++				break;
++			}
++		} else
++			retry = 1;
++
++unlock:
++		rcu_read_unlock();
++	}
++	*pshared_count = shared_count;
++	if (shared_count)
++		*pshared = shared;
++	else {
++		*pshared = NULL;
++		kfree(shared);
++	}
++	*pfence_excl = fence_excl;
++
++	return ret;
++}
++EXPORT_SYMBOL_GPL(reservation_object_get_fences_rcu);
++
++long reservation_object_wait_timeout_rcu(struct reservation_object *obj,
++					 bool wait_all, bool intr,
++					 unsigned long timeout)
++{
++	struct fence *fence;
++	unsigned seq, shared_count, i = 0;
++	long ret = timeout;
++
++	if (!timeout)
++		return reservation_object_test_signaled_rcu(obj, wait_all);
++
++retry:
++	fence = NULL;
++	shared_count = 0;
++	seq = read_seqcount_begin(&obj->seq);
++	rcu_read_lock();
++
++	if (wait_all) {
++		struct reservation_object_list *fobj = rcu_dereference(obj->fence);
++
++		if (fobj)
++			shared_count = fobj->shared_count;
++
++		if (read_seqcount_retry(&obj->seq, seq))
++			goto unlock_retry;
++
++		for (i = 0; i < shared_count; ++i) {
++			struct fence *lfence = rcu_dereference(fobj->shared[i]);
++
++			if (test_bit(FENCE_FLAG_SIGNALED_BIT, &lfence->flags))
++				continue;
++
++			if (!fence_get_rcu(lfence))
++				goto unlock_retry;
++
++			if (fence_is_signaled(lfence)) {
++				fence_put(lfence);
++				continue;
++			}
++
++			fence = lfence;
++			break;
++		}
++	}
++
++	if (!shared_count) {
++		struct fence *fence_excl = rcu_dereference(obj->fence_excl);
++
++		if (read_seqcount_retry(&obj->seq, seq))
++			goto unlock_retry;
++
++		if (fence_excl &&
++		    !test_bit(FENCE_FLAG_SIGNALED_BIT, &fence_excl->flags)) {
++			if (!fence_get_rcu(fence_excl))
++				goto unlock_retry;
++
++			if (fence_is_signaled(fence_excl))
++				fence_put(fence_excl);
++			else
++				fence = fence_excl;
++		}
++	}
++
++	rcu_read_unlock();
++	if (fence) {
++		ret = fence_wait_timeout(fence, intr, ret);
++		fence_put(fence);
++		if (ret > 0 && wait_all && (i + 1 < shared_count))
++			goto retry;
++	}
++	return ret;
++
++unlock_retry:
++	rcu_read_unlock();
++	goto retry;
++}
++EXPORT_SYMBOL_GPL(reservation_object_wait_timeout_rcu);
++
++
++static inline int
++reservation_object_test_signaled_single(struct fence *passed_fence)
++{
++	struct fence *fence, *lfence = passed_fence;
++	int ret = 1;
++
++	if (!test_bit(FENCE_FLAG_SIGNALED_BIT, &lfence->flags)) {
++		fence = fence_get_rcu(lfence);
++		if (!fence)
++			return -1;
++
++		ret = !!fence_is_signaled(fence);
++		fence_put(fence);
++	}
++	return ret;
++}
++
++bool reservation_object_test_signaled_rcu(struct reservation_object *obj,
++					  bool test_all)
++{
++	unsigned seq, shared_count;
++	int ret = true;
++
++retry:
++	shared_count = 0;
++	seq = read_seqcount_begin(&obj->seq);
++	rcu_read_lock();
++
++	if (test_all) {
++		unsigned i;
++
++		struct reservation_object_list *fobj = rcu_dereference(obj->fence);
++
++		if (fobj)
++			shared_count = fobj->shared_count;
++
++		if (read_seqcount_retry(&obj->seq, seq))
++			goto unlock_retry;
++
++		for (i = 0; i < shared_count; ++i) {
++			struct fence *fence = rcu_dereference(fobj->shared[i]);
++
++			ret = reservation_object_test_signaled_single(fence);
++			if (ret < 0)
++				goto unlock_retry;
++			else if (!ret)
++				break;
++		}
++
++		/*
++		 * There could be a read_seqcount_retry here, but nothing cares
++		 * about whether it's the old or newer fence pointers that are
++		 * signaled. That race could still have happened after checking
++		 * read_seqcount_retry. If you care, use ww_mutex_lock.
++		 */
++	}
++
++	if (!shared_count) {
++		struct fence *fence_excl = rcu_dereference(obj->fence_excl);
++
++		if (read_seqcount_retry(&obj->seq, seq))
++			goto unlock_retry;
++
++		if (fence_excl) {
++			ret = reservation_object_test_signaled_single(fence_excl);
++			if (ret < 0)
++				goto unlock_retry;
++		}
++	}
++
++	rcu_read_unlock();
++	return ret;
++
++unlock_retry:
++	rcu_read_unlock();
++	goto retry;
++}
++EXPORT_SYMBOL_GPL(reservation_object_test_signaled_rcu);
+diff --git a/include/linux/dma-buf.h b/include/linux/dma-buf.h
+index dfac5ed..483f01f 100644
+--- a/include/linux/dma-buf.h
++++ b/include/linux/dma-buf.h
+@@ -30,6 +30,8 @@
+ #include <linux/list.h>
+ #include <linux/dma-mapping.h>
+ #include <linux/fs.h>
++#include <linux/fence.h>
++#include <linux/wait.h>
+ 
+ struct device;
+ struct dma_buf;
+@@ -52,7 +54,7 @@ struct dma_buf_attachment;
+  * @release: release this buffer; to be called after the last dma_buf_put.
+  * @begin_cpu_access: [optional] called before cpu access to invalidate cpu
+  * 		      caches and allocate backing storage (if not yet done)
+- * 		      respectively pin the objet into memory.
++ * 		      respectively pin the object into memory.
+  * @end_cpu_access: [optional] called after cpu access to flush caches.
+  * @kmap_atomic: maps a page from the buffer into kernel address
+  * 		 space, users may not block until the subsequent unmap call.
+@@ -91,10 +93,8 @@ struct dma_buf_ops {
+ 	/* after final dma_buf_put() */
+ 	void (*release)(struct dma_buf *);
+ 
+-	int (*begin_cpu_access)(struct dma_buf *, size_t, size_t,
+-				enum dma_data_direction);
+-	void (*end_cpu_access)(struct dma_buf *, size_t, size_t,
+-			       enum dma_data_direction);
++	int (*begin_cpu_access)(struct dma_buf *, enum dma_data_direction);
++	void (*end_cpu_access)(struct dma_buf *, enum dma_data_direction);
+ 	void *(*kmap_atomic)(struct dma_buf *, unsigned long);
+ 	void (*kunmap_atomic)(struct dma_buf *, unsigned long, void *);
+ 	void *(*kmap)(struct dma_buf *, unsigned long);
+@@ -115,6 +115,7 @@ struct dma_buf_ops {
+  * @exp_name: name of the exporter; useful for debugging.
+  * @list_node: node for dma_buf accounting and debugging.
+  * @priv: exporter specific private data for this buffer object.
++ * @resv: reservation object linked to this dma-buf
+  */
+ struct dma_buf {
+ 	size_t size;
+@@ -128,6 +129,17 @@ struct dma_buf {
+ 	const char *exp_name;
+ 	struct list_head list_node;
+ 	void *priv;
++	struct reservation_object *resv;
++
++	/* poll support */
++	wait_queue_head_t poll;
++
++	struct dma_buf_poll_cb_t {
++		struct fence_cb cb;
++		wait_queue_head_t *poll;
++
++		unsigned long active;
++	} cb_excl, cb_shared;
+ };
+ 
+ /**
+@@ -149,6 +161,33 @@ struct dma_buf_attachment {
+ };
+ 
+ /**
++ * struct dma_buf_export_info - holds information needed to export a dma_buf
++ * @exp_name:	name of the exporting module - useful for debugging.
++ * @ops:	Attach allocator-defined dma buf ops to the new buffer
++ * @size:	Size of the buffer
++ * @flags:	mode flags for the file
++ * @resv:	reservation-object, NULL to allocate default one
++ * @priv:	Attach private data of allocator to this buffer
++ *
++ * This structure holds the information required to export the buffer. Used
++ * with dma_buf_export() only.
++ */
++struct dma_buf_export_info {
++	const char *exp_name;
++	const struct dma_buf_ops *ops;
++	size_t size;
++	int flags;
++	struct reservation_object *resv;
++	void *priv;
++};
++
++/**
++ * helper macro for exporters; zeros and fills in most common values
++ */
++#define DEFINE_DMA_BUF_EXPORT_INFO(a)	\
++	struct dma_buf_export_info a = { .exp_name = KBUILD_MODNAME }
++
++/**
+  * get_dma_buf - convenience wrapper for get_file.
+  * @dmabuf:	[in]	pointer to dma_buf
+  *
+@@ -167,11 +206,7 @@ struct dma_buf_attachment *dma_buf_attach(struct dma_buf *dmabuf,
+ void dma_buf_detach(struct dma_buf *dmabuf,
+ 				struct dma_buf_attachment *dmabuf_attach);
+ 
+-struct dma_buf *dma_buf_export_named(void *priv, const struct dma_buf_ops *ops,
+-			       size_t size, int flags, const char *);
+-
+-#define dma_buf_export(priv, ops, size, flags)	\
+-	dma_buf_export_named(priv, ops, size, flags, __FILE__)
++struct dma_buf *dma_buf_export(const struct dma_buf_export_info *exp_info);
+ 
+ int dma_buf_fd(struct dma_buf *dmabuf, int flags);
+ struct dma_buf *dma_buf_get(int fd);
+@@ -181,9 +216,9 @@ struct sg_table *dma_buf_map_attachment(struct dma_buf_attachment *,
+ 					enum dma_data_direction);
+ void dma_buf_unmap_attachment(struct dma_buf_attachment *, struct sg_table *,
+ 				enum dma_data_direction);
+-int dma_buf_begin_cpu_access(struct dma_buf *dma_buf, size_t start, size_t len,
++int dma_buf_begin_cpu_access(struct dma_buf *dma_buf,
+ 			     enum dma_data_direction dir);
+-void dma_buf_end_cpu_access(struct dma_buf *dma_buf, size_t start, size_t len,
++void dma_buf_end_cpu_access(struct dma_buf *dma_buf,
+ 			    enum dma_data_direction dir);
+ void *dma_buf_kmap_atomic(struct dma_buf *, unsigned long);
+ void dma_buf_kunmap_atomic(struct dma_buf *, unsigned long, void *);
+diff --git a/include/linux/fence.h b/include/linux/fence.h
+new file mode 100644
+index 0000000..39efee1
+--- /dev/null
++++ b/include/linux/fence.h
+@@ -0,0 +1,360 @@
++/*
++ * Fence mechanism for dma-buf to allow for asynchronous dma access
++ *
++ * Copyright (C) 2012 Canonical Ltd
++ * Copyright (C) 2012 Texas Instruments
++ *
++ * Authors:
++ * Rob Clark <robdclark@gmail.com>
++ * Maarten Lankhorst <maarten.lankhorst@canonical.com>
++ *
++ * This program is free software; you can redistribute it and/or modify it
++ * under the terms of the GNU General Public License version 2 as published by
++ * the Free Software Foundation.
++ *
++ * This program is distributed in the hope that it will be useful, but WITHOUT
++ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
++ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
++ * more details.
++ */
++
++#ifndef __LINUX_FENCE_H
++#define __LINUX_FENCE_H
++
++#include <linux/err.h>
++#include <linux/wait.h>
++#include <linux/list.h>
++#include <linux/bitops.h>
++#include <linux/kref.h>
++#include <linux/sched.h>
++#include <linux/printk.h>
++#include <linux/rcupdate.h>
++
++struct fence;
++struct fence_ops;
++struct fence_cb;
++
++/**
++ * struct fence - software synchronization primitive
++ * @refcount: refcount for this fence
++ * @ops: fence_ops associated with this fence
++ * @rcu: used for releasing fence with kfree_rcu
++ * @cb_list: list of all callbacks to call
++ * @lock: spin_lock_irqsave used for locking
++ * @context: execution context this fence belongs to, returned by
++ *           fence_context_alloc()
++ * @seqno: the sequence number of this fence inside the execution context,
++ * can be compared to decide which fence would be signaled later.
++ * @flags: A mask of FENCE_FLAG_* defined below
++ * @timestamp: Timestamp when the fence was signaled.
++ * @status: Optional, only valid if < 0, must be set before calling
++ * fence_signal, indicates that the fence has completed with an error.
++ *
++ * the flags member must be manipulated and read using the appropriate
++ * atomic ops (bit_*), so taking the spinlock will not be needed most
++ * of the time.
++ *
++ * FENCE_FLAG_SIGNALED_BIT - fence is already signaled
++ * FENCE_FLAG_ENABLE_SIGNAL_BIT - enable_signaling might have been called*
++ * FENCE_FLAG_USER_BITS - start of the unused bits, can be used by the
++ * implementer of the fence for its own purposes. Can be used in different
++ * ways by different fence implementers, so do not rely on this.
++ *
++ * *) Since atomic bitops are used, this is not guaranteed to be the case.
++ * Particularly, if the bit was set, but fence_signal was called right
++ * before this bit was set, it would have been able to set the
++ * FENCE_FLAG_SIGNALED_BIT, before enable_signaling was called.
++ * Adding a check for FENCE_FLAG_SIGNALED_BIT after setting
++ * FENCE_FLAG_ENABLE_SIGNAL_BIT closes this race, and makes sure that
++ * after fence_signal was called, any enable_signaling call will have either
++ * been completed, or never called at all.
++ */
++struct fence {
++	struct kref refcount;
++	const struct fence_ops *ops;
++	struct rcu_head rcu;
++	struct list_head cb_list;
++	spinlock_t *lock;
++	unsigned context, seqno;
++	unsigned long flags;
++	ktime_t timestamp;
++	int status;
++};
++
++enum fence_flag_bits {
++	FENCE_FLAG_SIGNALED_BIT,
++	FENCE_FLAG_ENABLE_SIGNAL_BIT,
++	FENCE_FLAG_USER_BITS, /* must always be last member */
++};
++
++typedef void (*fence_func_t)(struct fence *fence, struct fence_cb *cb);
++
++/**
++ * struct fence_cb - callback for fence_add_callback
++ * @node: used by fence_add_callback to append this struct to fence::cb_list
++ * @func: fence_func_t to call
++ *
++ * This struct will be initialized by fence_add_callback, additional
++ * data can be passed along by embedding fence_cb in another struct.
++ */
++struct fence_cb {
++	struct list_head node;
++	fence_func_t func;
++};
++
++/**
++ * struct fence_ops - operations implemented for fence
++ * @get_driver_name: returns the driver name.
++ * @get_timeline_name: return the name of the context this fence belongs to.
++ * @enable_signaling: enable software signaling of fence.
++ * @signaled: [optional] peek whether the fence is signaled, can be null.
++ * @wait: custom wait implementation, or fence_default_wait.
++ * @release: [optional] called on destruction of fence, can be null
++ * @fill_driver_data: [optional] callback to fill in free-form debug info
++ * Returns amount of bytes filled, or -errno.
++ * @fence_value_str: [optional] fills in the value of the fence as a string
++ * @timeline_value_str: [optional] fills in the current value of the timeline
++ * as a string
++ *
++ * Notes on enable_signaling:
++ * For fence implementations that have the capability for hw->hw
++ * signaling, they can implement this op to enable the necessary
++ * irqs, or insert commands into cmdstream, etc.  This is called
++ * in the first wait() or add_callback() path to let the fence
++ * implementation know that there is another driver waiting on
++ * the signal (ie. hw->sw case).
++ *
++ * This function can be called called from atomic context, but not
++ * from irq context, so normal spinlocks can be used.
++ *
++ * A return value of false indicates the fence already passed,
++ * or some failure occurred that made it impossible to enable
++ * signaling. True indicates successful enabling.
++ *
++ * fence->status may be set in enable_signaling, but only when false is
++ * returned.
++ *
++ * Calling fence_signal before enable_signaling is called allows
++ * for a tiny race window in which enable_signaling is called during,
++ * before, or after fence_signal. To fight this, it is recommended
++ * that before enable_signaling returns true an extra reference is
++ * taken on the fence, to be released when the fence is signaled.
++ * This will mean fence_signal will still be called twice, but
++ * the second time will be a noop since it was already signaled.
++ *
++ * Notes on signaled:
++ * May set fence->status if returning true.
++ *
++ * Notes on wait:
++ * Must not be NULL, set to fence_default_wait for default implementation.
++ * the fence_default_wait implementation should work for any fence, as long
++ * as enable_signaling works correctly.
++ *
++ * Must return -ERESTARTSYS if the wait is intr = true and the wait was
++ * interrupted, and remaining jiffies if fence has signaled, or 0 if wait
++ * timed out. Can also return other error values on custom implementations,
++ * which should be treated as if the fence is signaled. For example a hardware
++ * lockup could be reported like that.
++ *
++ * Notes on release:
++ * Can be NULL, this function allows additional commands to run on
++ * destruction of the fence. Can be called from irq context.
++ * If pointer is set to NULL, kfree will get called instead.
++ */
++
++struct fence_ops {
++	const char * (*get_driver_name)(struct fence *fence);
++	const char * (*get_timeline_name)(struct fence *fence);
++	bool (*enable_signaling)(struct fence *fence);
++	bool (*signaled)(struct fence *fence);
++	signed long (*wait)(struct fence *fence, bool intr, signed long timeout);
++	void (*release)(struct fence *fence);
++
++	int (*fill_driver_data)(struct fence *fence, void *data, int size);
++	void (*fence_value_str)(struct fence *fence, char *str, int size);
++	void (*timeline_value_str)(struct fence *fence, char *str, int size);
++};
++
++void fence_init(struct fence *fence, const struct fence_ops *ops,
++		spinlock_t *lock, unsigned context, unsigned seqno);
++
++void fence_release(struct kref *kref);
++void fence_free(struct fence *fence);
++
++/**
++ * fence_get - increases refcount of the fence
++ * @fence:	[in]	fence to increase refcount of
++ *
++ * Returns the same fence, with refcount increased by 1.
++ */
++static inline struct fence *fence_get(struct fence *fence)
++{
++	if (fence)
++		kref_get(&fence->refcount);
++	return fence;
++}
++
++/**
++ * fence_get_rcu - get a fence from a reservation_object_list with rcu read lock
++ * @fence:	[in]	fence to increase refcount of
++ *
++ * Function returns NULL if no refcount could be obtained, or the fence.
++ */
++static inline struct fence *fence_get_rcu(struct fence *fence)
++{
++	if (kref_get_unless_zero(&fence->refcount))
++		return fence;
++	else
++		return NULL;
++}
++
++/**
++ * fence_put - decreases refcount of the fence
++ * @fence:	[in]	fence to reduce refcount of
++ */
++static inline void fence_put(struct fence *fence)
++{
++	if (fence)
++		kref_put(&fence->refcount, fence_release);
++}
++
++int fence_signal(struct fence *fence);
++int fence_signal_locked(struct fence *fence);
++signed long fence_default_wait(struct fence *fence, bool intr, signed long timeout);
++int fence_add_callback(struct fence *fence, struct fence_cb *cb,
++		       fence_func_t func);
++bool fence_remove_callback(struct fence *fence, struct fence_cb *cb);
++void fence_enable_sw_signaling(struct fence *fence);
++
++/**
++ * fence_is_signaled_locked - Return an indication if the fence is signaled yet.
++ * @fence:	[in]	the fence to check
++ *
++ * Returns true if the fence was already signaled, false if not. Since this
++ * function doesn't enable signaling, it is not guaranteed to ever return
++ * true if fence_add_callback, fence_wait or fence_enable_sw_signaling
++ * haven't been called before.
++ *
++ * This function requires fence->lock to be held.
++ */
++static inline bool
++fence_is_signaled_locked(struct fence *fence)
++{
++	if (test_bit(FENCE_FLAG_SIGNALED_BIT, &fence->flags))
++		return true;
++
++	if (fence->ops->signaled && fence->ops->signaled(fence)) {
++		fence_signal_locked(fence);
++		return true;
++	}
++
++	return false;
++}
++
++/**
++ * fence_is_signaled - Return an indication if the fence is signaled yet.
++ * @fence:	[in]	the fence to check
++ *
++ * Returns true if the fence was already signaled, false if not. Since this
++ * function doesn't enable signaling, it is not guaranteed to ever return
++ * true if fence_add_callback, fence_wait or fence_enable_sw_signaling
++ * haven't been called before.
++ *
++ * It's recommended for seqno fences to call fence_signal when the
++ * operation is complete, it makes it possible to prevent issues from
++ * wraparound between time of issue and time of use by checking the return
++ * value of this function before calling hardware-specific wait instructions.
++ */
++static inline bool
++fence_is_signaled(struct fence *fence)
++{
++	if (test_bit(FENCE_FLAG_SIGNALED_BIT, &fence->flags))
++		return true;
++
++	if (fence->ops->signaled && fence->ops->signaled(fence)) {
++		fence_signal(fence);
++		return true;
++	}
++
++	return false;
++}
++
++/**
++ * fence_later - return the chronologically later fence
++ * @f1:	[in]	the first fence from the same context
++ * @f2:	[in]	the second fence from the same context
++ *
++ * Returns NULL if both fences are signaled, otherwise the fence that would be
++ * signaled last. Both fences must be from the same context, since a seqno is
++ * not re-used across contexts.
++ */
++static inline struct fence *fence_later(struct fence *f1, struct fence *f2)
++{
++	if (WARN_ON(f1->context != f2->context))
++		return NULL;
++
++	/*
++	 * can't check just FENCE_FLAG_SIGNALED_BIT here, it may never have been
++	 * set if enable_signaling wasn't called, and enabling that here is
++	 * overkill.
++	 */
++	if (f2->seqno - f1->seqno <= INT_MAX)
++		return fence_is_signaled(f2) ? NULL : f2;
++	else
++		return fence_is_signaled(f1) ? NULL : f1;
++}
++
++signed long fence_wait_timeout(struct fence *, bool intr, signed long timeout);
++
++
++/**
++ * fence_wait - sleep until the fence gets signaled
++ * @fence:	[in]	the fence to wait on
++ * @intr:	[in]	if true, do an interruptible wait
++ *
++ * This function will return -ERESTARTSYS if interrupted by a signal,
++ * or 0 if the fence was signaled. Other error values may be
++ * returned on custom implementations.
++ *
++ * Performs a synchronous wait on this fence. It is assumed the caller
++ * directly or indirectly holds a reference to the fence, otherwise the
++ * fence might be freed before return, resulting in undefined behavior.
++ */
++static inline signed long fence_wait(struct fence *fence, bool intr)
++{
++	signed long ret;
++
++	/* Since fence_wait_timeout cannot timeout with
++	 * MAX_SCHEDULE_TIMEOUT, only valid return values are
++	 * -ERESTARTSYS and MAX_SCHEDULE_TIMEOUT.
++	 */
++	ret = fence_wait_timeout(fence, intr, MAX_SCHEDULE_TIMEOUT);
++
++	return ret < 0 ? ret : 0;
++}
++
++unsigned fence_context_alloc(unsigned num);
++
++#define FENCE_TRACE(f, fmt, args...) \
++	do {								\
++		struct fence *__ff = (f);				\
++		if (config_enabled(CONFIG_FENCE_TRACE))			\
++			pr_info("f %u#%u: " fmt,			\
++				__ff->context, __ff->seqno, ##args);	\
++	} while (0)
++
++#define FENCE_WARN(f, fmt, args...) \
++	do {								\
++		struct fence *__ff = (f);				\
++		pr_warn("f %u#%u: " fmt, __ff->context, __ff->seqno,	\
++			 ##args);					\
++	} while (0)
++
++#define FENCE_ERR(f, fmt, args...) \
++	do {								\
++		struct fence *__ff = (f);				\
++		pr_err("f %u#%u: " fmt, __ff->context, __ff->seqno,	\
++			##args);					\
++	} while (0)
++
++#endif /* __LINUX_FENCE_H */
+diff --git a/include/linux/reservation.h b/include/linux/reservation.h
+new file mode 100644
+index 0000000..5a0b64c
+--- /dev/null
++++ b/include/linux/reservation.h
+@@ -0,0 +1,142 @@
++/*
++ * Header file for reservations for dma-buf and ttm
++ *
++ * Copyright(C) 2011 Linaro Limited. All rights reserved.
++ * Copyright (C) 2012-2013 Canonical Ltd
++ * Copyright (C) 2012 Texas Instruments
++ *
++ * Authors:
++ * Rob Clark <robdclark@gmail.com>
++ * Maarten Lankhorst <maarten.lankhorst@canonical.com>
++ * Thomas Hellstrom <thellstrom-at-vmware-dot-com>
++ *
++ * Based on bo.c which bears the following copyright notice,
++ * but is dual licensed:
++ *
++ * Copyright (c) 2006-2009 VMware, Inc., Palo Alto, CA., USA
++ * All Rights Reserved.
++ *
++ * Permission is hereby granted, free of charge, to any person obtaining a
++ * copy of this software and associated documentation files (the
++ * "Software"), to deal in the Software without restriction, including
++ * without limitation the rights to use, copy, modify, merge, publish,
++ * distribute, sub license, and/or sell copies of the Software, and to
++ * permit persons to whom the Software is furnished to do so, subject to
++ * the following conditions:
++ *
++ * The above copyright notice and this permission notice (including the
++ * next paragraph) shall be included in all copies or substantial portions
++ * of the Software.
++ *
++ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
++ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
++ * FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT. IN NO EVENT SHALL
++ * THE COPYRIGHT HOLDERS, AUTHORS AND/OR ITS SUPPLIERS BE LIABLE FOR ANY CLAIM,
++ * DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
++ * OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE
++ * USE OR OTHER DEALINGS IN THE SOFTWARE.
++ */
++#ifndef _LINUX_RESERVATION_H
++#define _LINUX_RESERVATION_H
++
++#include <linux/ww_mutex.h>
++#include <linux/fence.h>
++#include <linux/slab.h>
++#include <linux/seqlock.h>
++#include <linux/rcupdate.h>
++
++extern struct ww_class reservation_ww_class;
++extern struct lock_class_key reservation_seqcount_class;
++extern const char reservation_seqcount_string[];
++
++struct reservation_object_list {
++	struct rcu_head rcu;
++	u32 shared_count, shared_max;
++	struct fence __rcu *shared[];
++};
++
++struct reservation_object {
++	struct ww_mutex lock;
++	seqcount_t seq;
++
++	struct fence __rcu *fence_excl;
++	struct reservation_object_list __rcu *fence;
++	struct reservation_object_list *staged;
++};
++
++#define reservation_object_held(obj) lockdep_is_held(&(obj)->lock.base)
++#define reservation_object_assert_held(obj) \
++	lockdep_assert_held(&(obj)->lock.base)
++
++static inline void
++reservation_object_init(struct reservation_object *obj)
++{
++	ww_mutex_init(&obj->lock, &reservation_ww_class);
++
++	__seqcount_init(&obj->seq, reservation_seqcount_string, &reservation_seqcount_class);
++	RCU_INIT_POINTER(obj->fence, NULL);
++	RCU_INIT_POINTER(obj->fence_excl, NULL);
++	obj->staged = NULL;
++}
++
++static inline void
++reservation_object_fini(struct reservation_object *obj)
++{
++	int i;
++	struct reservation_object_list *fobj;
++	struct fence *excl;
++
++	/*
++	 * This object should be dead and all references must have
++	 * been released to it, so no need to be protected with rcu.
++	 */
++	excl = rcu_dereference_protected(obj->fence_excl, 1);
++	if (excl)
++		fence_put(excl);
++
++	fobj = rcu_dereference_protected(obj->fence, 1);
++	if (fobj) {
++		for (i = 0; i < fobj->shared_count; ++i)
++			fence_put(rcu_dereference_protected(fobj->shared[i], 1));
++
++		kfree(fobj);
++	}
++	kfree(obj->staged);
++
++	ww_mutex_destroy(&obj->lock);
++}
++
++static inline struct reservation_object_list *
++reservation_object_get_list(struct reservation_object *obj)
++{
++	return rcu_dereference_protected(obj->fence,
++					 reservation_object_held(obj));
++}
++
++static inline struct fence *
++reservation_object_get_excl(struct reservation_object *obj)
++{
++	return rcu_dereference_protected(obj->fence_excl,
++					 reservation_object_held(obj));
++}
++
++int reservation_object_reserve_shared(struct reservation_object *obj);
++void reservation_object_add_shared_fence(struct reservation_object *obj,
++					 struct fence *fence);
++
++void reservation_object_add_excl_fence(struct reservation_object *obj,
++				       struct fence *fence);
++
++int reservation_object_get_fences_rcu(struct reservation_object *obj,
++				      struct fence **pfence_excl,
++				      unsigned *pshared_count,
++				      struct fence ***pshared);
++
++long reservation_object_wait_timeout_rcu(struct reservation_object *obj,
++					 bool wait_all, bool intr,
++					 unsigned long timeout);
++
++bool reservation_object_test_signaled_rcu(struct reservation_object *obj,
++					  bool test_all);
++
++#endif /* _LINUX_RESERVATION_H */
+diff --git a/include/linux/seqlock.h b/include/linux/seqlock.h
+index 1829905..eb84e40 100644
+--- a/include/linux/seqlock.h
++++ b/include/linux/seqlock.h
+@@ -43,6 +43,12 @@ typedef struct seqcount {
+ #define SEQCNT_ZERO { 0 }
+ #define seqcount_init(x)	do { *(x) = (seqcount_t) SEQCNT_ZERO; } while (0)
+ 
++static inline void __seqcount_init(seqcount_t *s, const char *name,
++					  struct lock_class_key *key)
++{
++	s->sequence = 0;
++}
++
+ /**
+  * __read_seqcount_begin - begin a seq-read critical section (without barrier)
+  * @s: pointer to seqcount_t
+diff --git a/include/trace/events/fence.h b/include/trace/events/fence.h
+new file mode 100644
+index 0000000..98feb1b
+--- /dev/null
++++ b/include/trace/events/fence.h
+@@ -0,0 +1,128 @@
++#undef TRACE_SYSTEM
++#define TRACE_SYSTEM fence
++
++#if !defined(_TRACE_FENCE_H) || defined(TRACE_HEADER_MULTI_READ)
++#define _TRACE_FENCE_H
++
++#include <linux/tracepoint.h>
++
++struct fence;
++
++TRACE_EVENT(fence_annotate_wait_on,
++
++	/* fence: the fence waiting on f1, f1: the fence to be waited on. */
++	TP_PROTO(struct fence *fence, struct fence *f1),
++
++	TP_ARGS(fence, f1),
++
++	TP_STRUCT__entry(
++		__string(driver, fence->ops->get_driver_name(fence))
++		__string(timeline, fence->ops->get_driver_name(fence))
++		__field(unsigned int, context)
++		__field(unsigned int, seqno)
++
++		__string(waiting_driver, f1->ops->get_driver_name(f1))
++		__string(waiting_timeline, f1->ops->get_timeline_name(f1))
++		__field(unsigned int, waiting_context)
++		__field(unsigned int, waiting_seqno)
++	),
++
++	TP_fast_assign(
++		__assign_str(driver, fence->ops->get_driver_name(fence))
++		__assign_str(timeline, fence->ops->get_timeline_name(fence))
++		__entry->context = fence->context;
++		__entry->seqno = fence->seqno;
++
++		__assign_str(waiting_driver, f1->ops->get_driver_name(f1))
++		__assign_str(waiting_timeline, f1->ops->get_timeline_name(f1))
++		__entry->waiting_context = f1->context;
++		__entry->waiting_seqno = f1->seqno;
++
++	),
++
++	TP_printk("driver=%s timeline=%s context=%u seqno=%u "	\
++		  "waits on driver=%s timeline=%s context=%u seqno=%u",
++		  __get_str(driver), __get_str(timeline), __entry->context,
++		  __entry->seqno,
++		  __get_str(waiting_driver), __get_str(waiting_timeline),
++		  __entry->waiting_context, __entry->waiting_seqno)
++);
++
++DECLARE_EVENT_CLASS(fence,
++
++	TP_PROTO(struct fence *fence),
++
++	TP_ARGS(fence),
++
++	TP_STRUCT__entry(
++		__string(driver, fence->ops->get_driver_name(fence))
++		__string(timeline, fence->ops->get_timeline_name(fence))
++		__field(unsigned int, context)
++		__field(unsigned int, seqno)
++	),
++
++	TP_fast_assign(
++		__assign_str(driver, fence->ops->get_driver_name(fence))
++		__assign_str(timeline, fence->ops->get_timeline_name(fence))
++		__entry->context = fence->context;
++		__entry->seqno = fence->seqno;
++	),
++
++	TP_printk("driver=%s timeline=%s context=%u seqno=%u",
++		  __get_str(driver), __get_str(timeline), __entry->context,
++		  __entry->seqno)
++);
++
++DEFINE_EVENT(fence, fence_emit,
++
++	TP_PROTO(struct fence *fence),
++
++	TP_ARGS(fence)
++);
++
++DEFINE_EVENT(fence, fence_init,
++
++	TP_PROTO(struct fence *fence),
++
++	TP_ARGS(fence)
++);
++
++DEFINE_EVENT(fence, fence_destroy,
++
++	TP_PROTO(struct fence *fence),
++
++	TP_ARGS(fence)
++);
++
++DEFINE_EVENT(fence, fence_enable_signal,
++
++	TP_PROTO(struct fence *fence),
++
++	TP_ARGS(fence)
++);
++
++DEFINE_EVENT(fence, fence_signaled,
++
++	TP_PROTO(struct fence *fence),
++
++	TP_ARGS(fence)
++);
++
++DEFINE_EVENT(fence, fence_wait_start,
++
++	TP_PROTO(struct fence *fence),
++
++	TP_ARGS(fence)
++);
++
++DEFINE_EVENT(fence, fence_wait_end,
++
++	TP_PROTO(struct fence *fence),
++
++	TP_ARGS(fence)
++);
++
++#endif /*  _TRACE_FENCE_H */
++
++/* This part must be outside protection */
++#include <trace/define_trace.h>
