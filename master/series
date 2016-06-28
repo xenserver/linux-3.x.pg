@@ -775,28 +775,32 @@ kexec-reserve-crashkernel-region.patch
 # their intention is to re-base on the 4.5 DRM so the patches are
 # structured this way to make it easy to accommodate this change.
 #
-update-to-drm-intel-840c81e9
+update-to-drm-intel-840c81e9 #+drm
+fix-intel-gtt.patch #+drm
+fix-pci-quirks.patch #+drm
+fix-vga_default_device.patch #+drm
+fix-fbmem.patch
 CONFIG_DMA_SHARED_BUFFER-new.patch
 0001-async-export-current_is_async.patch
 0001-mm-Export-nr_swap_pages.patch
-fix-fbmem.patch
-fix-intel-gtt.patch
-fix-pci-quirks.patch
-fix-vga_default_device.patch
 
 #
 # Incrementally back-port 4.3 DRM
 #
-update-to-drm-intel-87074657
-0001-drm-i915-skl-Add-SKL-GT4-PCI-IDs.patch
-update-skylake-stepping-info
+update-to-drm-intel-87074657 #+drm
+0001-drm-i915-skl-Add-SKL-GT4-PCI-IDs.patch #+drm
+update-skylake-stepping-info #+drm
 CONFIG_DMA_SHARED_BUFFER-update.patch
 
 #
 # Further GVT-g DRM patches
 #
-drm-compat.patch
-build-mipi-dsi-as-a-module.patch
+drm-compat.patch #+drm
+build-mipi-dsi-as-a-module.patch #+drm
+
+#
+# Compatibility patch necessary if 'drm' is guarded
+drm-backport.patch #-drm
 
 intel-gvt-g-kernel-support.patch
 intel-gvt-g-enable-out-of-tree-compile.patch
@@ -805,4 +809,5 @@ intel-gvt-g-enable-out-of-tree-compile.patch
 # Kernel Configuration.
 #
 kernel-configuration
+drm-configuration #+drm
 abi-version

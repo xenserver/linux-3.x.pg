@@ -1,0 +1,636 @@
+diff --git a/drivers/gpu/drm/Makefile b/drivers/gpu/drm/Makefile
+index 1c9f243..f743ebe 100644
+--- a/drivers/gpu/drm/Makefile
++++ b/drivers/gpu/drm/Makefile
+@@ -2,6 +2,9 @@
+ # Makefile for the drm device driver.  This driver provides support for the
+ # Direct Rendering Infrastructure (DRI) in XFree86 4.1.0 and higher.
+ 
++ccflags-y := -include drm/drm_backport.h
++obj-y += drm_backport.o
++
+ ccflags-y := -Iinclude/drm
+ 
+ drm-y       :=	drm_auth.o drm_buffer.o drm_bufs.o drm_cache.o \
+diff --git a/drivers/gpu/drm/drm_backport.c b/drivers/gpu/drm/drm_backport.c
+new file mode 100644
+index 0000000..ce7e6fd
+--- /dev/null
++++ b/drivers/gpu/drm/drm_backport.c
+@@ -0,0 +1,198 @@
++/*
++ * Copyright (C) 2015 Red Hat
++ *
++ * This file is subject to the terms and conditions of the GNU General Public
++ * License v2. See the file COPYING in the main directory of this archive for
++ * more details.
++ */
++
++#include <drm/drm_backport.h>
++
++/*
++ * shrinker
++ */
++
++#undef shrinker
++#undef register_shrinker
++#undef unregister_shrinker
++
++static int shrinker2_shrink(struct shrinker *shrinker, struct shrink_control *sc)
++{
++	struct shrinker2 *s2 = container_of(shrinker, struct shrinker2, compat);
++	int count;
++
++	s2->scan_objects(s2, sc);
++	count = s2->count_objects(s2, sc);
++	shrinker->seeks = s2->seeks;
++
++	return count;
++}
++
++int register_shrinker2(struct shrinker2 *s2)
++{
++	s2->compat.shrink = shrinker2_shrink;
++	s2->compat.seeks = s2->seeks;
++	register_shrinker(&s2->compat);
++	return 0;
++}
++EXPORT_SYMBOL(register_shrinker2);
++
++void unregister_shrinker2(struct shrinker2 *s2)
++{
++	unregister_shrinker(&s2->compat);
++}
++EXPORT_SYMBOL(unregister_shrinker2);
++
++struct workqueue_struct *system_power_efficient_wq __read_mostly;
++EXPORT_SYMBOL_GPL(system_power_efficient_wq);
++
++/**
++ * acpi_evaluate_dsm - evaluate device's _DSM method
++ * @handle: ACPI device handle
++ * @uuid: UUID of requested functions, should be 16 bytes
++ * @rev: revision number of requested function
++ * @func: requested function number
++ * @argv4: the function specific parameter
++ *
++ * Evaluate device's _DSM method with specified UUID, revision id and
++ * function number. Caller needs to free the returned object.
++ *
++ * Though ACPI defines the fourth parameter for _DSM should be a package,
++ * some old BIOSes do expect a buffer or an integer etc.
++ */
++union acpi_object *
++acpi_evaluate_dsm(acpi_handle handle, const u8 *uuid, int rev, int func,
++		  union acpi_object *argv4)
++{
++	acpi_status ret;
++	struct acpi_buffer buf = {ACPI_ALLOCATE_BUFFER, NULL};
++	union acpi_object params[4];
++	struct acpi_object_list input = {
++		.count = 4,
++		.pointer = params,
++	};
++
++	params[0].type = ACPI_TYPE_BUFFER;
++	params[0].buffer.length = 16;
++	params[0].buffer.pointer = (char *)uuid;
++	params[1].type = ACPI_TYPE_INTEGER;
++	params[1].integer.value = rev;
++	params[2].type = ACPI_TYPE_INTEGER;
++	params[2].integer.value = func;
++	if (argv4) {
++		params[3] = *argv4;
++	} else {
++		params[3].type = ACPI_TYPE_PACKAGE;
++		params[3].package.count = 0;
++		params[3].package.elements = NULL;
++	}
++
++	ret = acpi_evaluate_object(handle, "_DSM", &input, &buf);
++	if (ACPI_SUCCESS(ret))
++		return (union acpi_object *)buf.pointer;
++
++	if (ret != AE_NOT_FOUND)
++		acpi_handle_warn(handle,
++				"failed to evaluate _DSM (0x%x)\n", ret);
++
++	return NULL;
++}
++EXPORT_SYMBOL(acpi_evaluate_dsm);
++
++/**
++ * acpi_check_dsm - check if _DSM method supports requested functions.
++ * @handle: ACPI device handle
++ * @uuid: UUID of requested functions, should be 16 bytes at least
++ * @rev: revision number of requested functions
++ * @funcs: bitmap of requested functions
++ *
++ * Evaluate device's _DSM method to check whether it supports requested
++ * functions. Currently only support 64 functions at maximum, should be
++ * enough for now.
++ */
++bool acpi_check_dsm(acpi_handle handle, const u8 *uuid, int rev, u64 funcs)
++{
++	int i;
++	u64 mask = 0;
++	union acpi_object *obj;
++
++	if (funcs == 0)
++		return false;
++
++	obj = acpi_evaluate_dsm(handle, uuid, rev, 0, NULL);
++	if (!obj)
++		return false;
++
++	/* For compatibility, old BIOSes may return an integer */
++	if (obj->type == ACPI_TYPE_INTEGER)
++		mask = obj->integer.value;
++	else if (obj->type == ACPI_TYPE_BUFFER)
++		for (i = 0; i < obj->buffer.length && i < 8; i++)
++			mask |= (((u8)obj->buffer.pointer[i]) << (i * 8));
++	ACPI_FREE(obj);
++
++	/*
++	 * Bit 0 indicates whether there's support for any functions other than
++	 * function 0 for the specified UUID and revision.
++	 */
++	if ((mask & 0x1) && (mask & funcs) == funcs)
++		return true;
++
++	return false;
++}
++EXPORT_SYMBOL(acpi_check_dsm);
++
++struct device_node *of_get_next_available_child(const struct device_node *node,
++	struct device_node *prev)
++{
++	return NULL;
++}
++EXPORT_SYMBOL(of_get_next_available_child);
++
++struct property *of_find_property(const struct device_node *np,
++				  const char *name,
++				  int *lenp)
++{
++	return NULL;
++}
++EXPORT_SYMBOL(of_find_property);
++
++int of_property_read_u32_array(const struct device_node *np,
++					     const char *propname,
++					     u32 *out_values, size_t sz)
++{
++	return -ENOSYS;
++}
++EXPORT_SYMBOL(of_property_read_u32_array);
++
++#undef mempool_resize
++
++int mempool_resize2(mempool_t *pool, int new_min_nr)
++{
++	return mempool_resize(pool, new_min_nr, GFP_KERNEL);
++}
++EXPORT_SYMBOL(mempool_resize2);
++
++#undef cn_netlink_send
++
++int cn_netlink_send2(struct cn_msg *msg, u32 portid, u32 __group,
++		     gfp_t gfp_mask)
++{
++	return cn_netlink_send(msg, __group, gfp_mask);
++}
++EXPORT_SYMBOL(cn_netlink_send2);
++
++static int __init drm_backport_init(void)
++{
++	system_power_efficient_wq = create_workqueue("events_power_efficient");
++	return 0;
++}
++
++module_init(drm_backport_init);
++
++static void __exit drm_backport_exit(void)
++{
++	destroy_workqueue(system_power_efficient_wq);
++}
++
++module_exit(drm_backport_exit);
+diff --git a/include/drm/drm_backport.h b/include/drm/drm_backport.h
+new file mode 100644
+index 0000000..e3d795c
+--- /dev/null
++++ b/include/drm/drm_backport.h
+@@ -0,0 +1,412 @@
++/*
++ * Copyright (C) 2013 Red Hat
++ *
++ * This file is subject to the terms and conditions of the GNU General Public
++ * License v2. See the file COPYING in the main directory of this archive for
++ * more details.
++ */
++
++#ifndef DRM_BACKPORT_H_
++#define DRM_BACKPORT_H_
++
++#include <linux/hrtimer.h>
++
++static inline u64 ktime_get_raw_ns(void)
++{
++	struct timespec now;
++	getrawmonotonic(&now);
++	return timespec_to_ns(&now);
++}
++
++/**
++ * ktime_mono_to_real - Convert monotonic time to clock realtime
++ */
++static inline ktime_t ktime_mono_to_real(ktime_t mono)
++{
++	return ktime_sub(mono, ktime_get_monotonic_offset());
++}
++
++static inline s64 ktime_ms_delta(const ktime_t later, const ktime_t earlier)
++{
++	return ktime_to_ms(ktime_sub(later, earlier));
++}
++
++/*
++ *
++ */
++
++/**
++ * list_last_entry - get the last element from a list
++ * @ptr:	the list head to take the element from.
++ * @type:	the type of the struct this is embedded in.
++ * @member:	the name of the list_struct within the struct.
++ *
++ * Note, that list is expected to be not empty.
++ */
++#define list_last_entry(ptr, type, member) \
++	list_entry((ptr)->prev, type, member)
++
++
++#define module_param_named_unsafe(name, value, type, perm)		\
++	module_param_named(name, value, type, perm)
++
++#define module_param_unsafe(value, type, perm)		\
++	module_param(value, type, perm)
++
++/*
++ *
++ */
++
++#include <linux/mm.h>
++
++#define SHRINK_STOP (~0UL)
++/*
++ * A callback you can register to apply pressure to ageable caches.
++ *
++ * @count_objects should return the number of freeable items in the cache. If
++ * there are no objects to free or the number of freeable items cannot be
++ * determined, it should return 0. No deadlock checks should be done during the
++ * count callback - the shrinker relies on aggregating scan counts that couldn't
++ * be executed due to potential deadlocks to be run at a later call when the
++ * deadlock condition is no longer pending.
++ *
++ * @scan_objects will only be called if @count_objects returned a non-zero
++ * value for the number of freeable objects. The callout should scan the cache
++ * and attempt to free items from the cache. It should then return the number
++ * of objects freed during the scan, or SHRINK_STOP if progress cannot be made
++ * due to potential deadlocks. If SHRINK_STOP is returned, then no further
++ * attempts to call the @scan_objects will be made from the current reclaim
++ * context.
++ *
++ * @flags determine the shrinker abilities, like numa awareness
++ */
++struct shrinker2 {
++	unsigned long (*count_objects)(struct shrinker2 *,
++				       struct shrink_control *sc);
++	unsigned long (*scan_objects)(struct shrinker2 *,
++				      struct shrink_control *sc);
++
++	int seeks;	/* seeks to recreate an obj */
++	long batch;	/* reclaim batch size, 0 = default */
++	unsigned long flags;
++
++	/* These are for internal use */
++	struct list_head list;
++	/* objs pending delete, per node */
++	atomic_long_t *nr_deferred;
++
++	/* compat: */
++	struct shrinker compat;
++};
++int register_shrinker2(struct shrinker2 *shrinker);
++void unregister_shrinker2(struct shrinker2 *shrinker);
++
++#define shrinker            shrinker2
++#define register_shrinker   register_shrinker2
++#define unregister_shrinker unregister_shrinker2
++
++/*
++ *
++ */
++
++extern struct workqueue_struct *system_power_efficient_wq;
++
++/*
++ *
++ */
++
++enum vga_switcheroo_handler_flags_t {
++       VGA_SWITCHEROO_CAN_SWITCH_DDC   = (1 << 0),
++       VGA_SWITCHEROO_NEEDS_EDP_CONFIG = (1 << 1),
++};
++
++static inline enum vga_switcheroo_handler_flags_t vga_switcheroo_handler_flags(void) { return 0; }
++static inline int vga_switcheroo_lock_ddc(struct pci_dev *pdev) { return -ENODEV; }
++static inline int vga_switcheroo_unlock_ddc(struct pci_dev *pdev) { return -ENODEV; }
++
++/*
++ *
++ */
++
++#include <linux/rculist.h>
++
++/**
++ * hlist_add_behind_rcu
++ * @n: the new element to add to the hash list.
++ * @prev: the existing element to add the new element after.
++ *
++ * Description:
++ * Adds the specified element to the specified hlist
++ * after the specified node while permitting racing traversals.
++ *
++ * The caller must take whatever precautions are necessary
++ * (such as holding appropriate locks) to avoid racing
++ * with another list-mutation primitive, such as hlist_add_head_rcu()
++ * or hlist_del_rcu(), running on this same list.
++ * However, it is perfectly legal to run concurrently with
++ * the _rcu list-traversal primitives, such as
++ * hlist_for_each_entry_rcu(), used to prevent memory-consistency
++ * problems on Alpha CPUs.
++ */
++static inline void hlist_add_behind_rcu(struct hlist_node *n,
++                                       struct hlist_node *prev)
++{
++	hlist_add_after_rcu(prev, n);
++}
++
++/*
++ *
++ */
++
++#define CONFIG_OF
++
++#include <linux/of.h>
++
++/*
++ * 
++ */
++
++#include <linux/pagemap.h>
++
++/* Restricts the given gfp_mask to what the mapping allows. */
++static inline gfp_t mapping_gfp_constraint(struct address_space *mapping,
++		gfp_t gfp_mask)
++{
++	return mapping_gfp_mask(mapping) & gfp_mask;
++}
++
++/*
++ *
++ */
++
++#include <asm/mtrr.h>
++
++static inline int arch_phys_wc_index(int handle)
++{
++	return phys_wc_to_mtrr_index(handle);
++}
++
++enum {
++	/* See memremap() kernel-doc for usage description... */
++	MEMREMAP_WB = 1 << 0,
++	MEMREMAP_WT = 1 << 1,
++};
++
++static inline void *memremap(resource_size_t offset, size_t size,
++			     unsigned long flags)
++{
++	if (flags & MEMREMAP_WB)
++		return ioremap_cache(offset, size);
++
++	if (flags & MEMREMAP_WT)
++		return ioremap_nocache(offset, size);
++
++	return ioremap(offset, size);
++}
++
++static inline void memunmap(void *addr)
++{
++	iounmap(addr);
++}
++
++/*
++ *
++ */
++
++static inline u64 div64_u64_rem(u64 dividend, u64 divisor, u64 *remainder)
++{
++	*remainder = dividend % divisor;
++	return dividend / divisor;
++}
++
++/*
++ * 
++ */
++
++static inline __s64 sign_extend64(__u64 value, int index)
++{
++	__u8 shift = 63 - index;
++	return (__s64)(value << shift) >> shift;
++}
++
++/*
++ *
++ */
++
++#define cpu_relax_lowlatency() cpu_relax()
++
++/*
++ *
++ */
++
++#define __GFP_RECLAIM __GFP_WAIT
++
++/*
++ * 
++ */
++
++#include <linux/acpi.h>
++
++bool acpi_check_dsm(acpi_handle handle, const u8 *uuid, int rev, u64 funcs);
++union acpi_object *acpi_evaluate_dsm(acpi_handle handle, const u8 *uuid,
++			int rev, int func, union acpi_object *argv4);
++
++static inline union acpi_object *
++acpi_evaluate_dsm_typed(acpi_handle handle, const u8 *uuid, int rev, int func,
++			union acpi_object *argv4, acpi_object_type type)
++{
++	union acpi_object *obj;
++
++	obj = acpi_evaluate_dsm(handle, uuid, rev, func, argv4);
++	if (obj && obj->type != type) {
++		ACPI_FREE(obj);
++		obj = NULL;
++	}
++
++	return obj;
++}
++
++/*
++ *
++ */
++
++#define GPIOD_FLAGS_BIT_DIR_SET		BIT(0)
++#define GPIOD_FLAGS_BIT_DIR_OUT		BIT(1)
++#define GPIOD_FLAGS_BIT_DIR_VAL		BIT(2)
++
++enum gpiod_flags {
++	GPIOD_ASIS	= 0,
++	GPIOD_IN	= GPIOD_FLAGS_BIT_DIR_SET,
++	GPIOD_OUT_LOW	= GPIOD_FLAGS_BIT_DIR_SET | GPIOD_FLAGS_BIT_DIR_OUT,
++	GPIOD_OUT_HIGH	= GPIOD_FLAGS_BIT_DIR_SET | GPIOD_FLAGS_BIT_DIR_OUT |
++			  GPIOD_FLAGS_BIT_DIR_VAL,
++};
++
++static inline struct gpio_desc *__must_check gpiod_get(struct device *dev,
++						       const char *con_id,
++						       enum gpiod_flags flags)
++{
++	return ERR_PTR(-ENOSYS);
++}
++
++static inline void gpiod_put(struct gpio_desc *desc)
++{
++	might_sleep();
++
++	/* GPIO can never have been requested */
++	WARN_ON(1);
++}
++
++static inline void gpiod_set_value_cansleep(struct gpio_desc *desc, int value)
++{
++	/* GPIO can never have been requested */
++	WARN_ON(1);
++}
++
++/*
++ * 
++ */
++
++#include <linux/pwm.h>
++
++static inline unsigned int pwm_get_duty_cycle(const struct pwm_device *pwm)
++{
++	return 0;
++}
++
++/*
++ *
++ */
++
++#ifndef pr_fmt
++#define pr_fmt(fmt) fmt
++#endif
++
++/*
++ *
++ */
++
++#include <linux/swap.h>
++
++/*
++ *
++ */
++
++#include <linux/async.h>
++
++/*
++ *
++ */
++
++#define smp_mb__before_atomic() smp_mb()
++
++/*
++ *
++ */
++
++enum acpi_backlight_type {
++	acpi_backlight_undef = -1,
++	acpi_backlight_none = 0,
++	acpi_backlight_video,
++	acpi_backlight_vendor,
++	acpi_backlight_native,
++};
++
++static inline enum acpi_backlight_type acpi_video_get_backlight_type(void)
++{
++	return acpi_backlight_vendor;
++}
++
++/*
++ *
++ */
++
++static inline unsigned long long rdtsc(void)
++{
++	DECLARE_ARGS(val, low, high);
++
++	asm volatile("rdtsc" : EAX_EDX_RET(val, low, high));
++
++	return EAX_EDX_VAL(val, low, high);
++}
++
++
++static inline unsigned long long rdtsc_ordered(void)
++{
++	rdtsc_barrier();
++
++	return rdtsc();
++} 
++
++/*
++ *
++ */
++
++static inline void __iomem *acpi_os_ioremap(acpi_physical_address phys,
++					    acpi_size size)
++{
++       return ioremap_cache(phys, size);
++}
++
++/*
++ *
++ */
++
++#include <linux/mempool.h>
++
++int mempool_resize2(mempool_t *pool, int new_min_nr);
++
++#define mempool_resize mempool_resize2
++
++/*
++ *
++ */
++
++#include <linux/connector.h>
++
++int cn_netlink_send2(struct cn_msg *msg, u32 portid, u32 __group,
++		     gfp_t gfp_mask);
++
++#define cn_netlink_send cn_netlink_send2
++
++#endif /* DRM_BACKPORT_H_ */
