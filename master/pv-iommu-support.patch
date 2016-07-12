@@ -24,7 +24,7 @@ index ed335cb..08520a5 100644
  			     unsigned long flags)
  {
 diff --git a/arch/x86/xen/p2m.c b/arch/x86/xen/p2m.c
-index 9932704..57c3066 100644
+index 9932704..57c3066ce 100644
 --- a/arch/x86/xen/p2m.c
 +++ b/arch/x86/xen/p2m.c
 @@ -178,6 +178,9 @@
@@ -381,7 +381,7 @@ index 57d91f4..8427ca4 100644
  obj-$(CONFIG_XEN_PCIDEV_BACKEND)	+= xen-pciback/
  obj-$(CONFIG_XEN_PRIVCMD)		+= xen-privcmd.o
 diff --git a/drivers/xen/balloon.c b/drivers/xen/balloon.c
-index 898ece4..b059054 100644
+index 898ece41..d20718c 100644
 --- a/drivers/xen/balloon.c
 +++ b/drivers/xen/balloon.c
 @@ -69,6 +69,10 @@
@@ -395,16 +395,60 @@ index 898ece4..b059054 100644
  /*
   * balloon_process() state:
   *
-@@ -396,6 +400,8 @@ static enum bp_state increase_reservation(unsigned long nr_pages)
- 		pfn = page_to_pfn(page);
+@@ -320,6 +324,15 @@ static enum bp_state reserve_additional_memory(void)
+ 
+ static void xen_online_page(struct page *page)
+ {
++#ifdef CONFIG_XEN_HAVE_PVMMU
++	/*
++	 * Clear any existing IOMMU mappings of the BFN (== PFN) for
++	 * this page, so the correct IOMMU mapping can be created when
++	 * the page is returned.
++	 */
++	if (pv_iommu_1_to_1_offset)
++		xen_iommu_unmap_page(page_to_pfn(page));
++#endif
+ 	__online_page_set_limits(page);
+ 
+ 	mutex_lock(&balloon_mutex);
+@@ -390,6 +403,8 @@ static enum bp_state increase_reservation(unsigned long nr_pages)
+ 		return BP_EAGAIN;
+ 
+ 	for (i = 0; i < rc; i++) {
++		int ret;
++
+ 		page = balloon_retrieve(false);
+ 		BUG_ON(page == NULL);
+ 
+@@ -397,10 +412,26 @@ static enum bp_state increase_reservation(unsigned long nr_pages)
  
  		set_phys_to_machine(pfn, frame_list[i]);
-+		if (pv_iommu_1_to_1_offset)
-+			xen_iommu_map_page(pfn, frame_list[i]);
  
++		/*
++		 * Update the IOMMU mapping for this BFN (== PFN) now
++		 * that we have the new MFN.
++		 *
++		 * If this fails, leak the page as its not safe to use
++		 * it (any DMA will go somewhere unexpected causing
++		 * memory corruption).
++		 */
++		if (pv_iommu_1_to_1_offset) {
++			ret = xen_iommu_map_page(pfn, frame_list[i]);
++			if (ret < 0) {
++				pr_err("leaking pfn %lx (iommu map failed: %d)\n",
++				       pfn, ret);
++				continue;
++			}
++		}
++
  #ifdef CONFIG_XEN_HAVE_PVMMU
  		/* Link back into the page tables if not highmem. */
-@@ -466,6 +472,8 @@ static enum bp_state decrease_reservation(unsigned long nr_pages, gfp_t gfp)
+ 		if (xen_pv_domain() && !PageHighMem(page)) {
+-			int ret;
+ 			ret = HYPERVISOR_update_va_mapping(
+ 				(unsigned long)__va(pfn << PAGE_SHIFT),
+ 				mfn_pte(frame_list[i], PAGE_KERNEL),
+@@ -466,6 +497,8 @@ static enum bp_state decrease_reservation(unsigned long nr_pages, gfp_t gfp)
  #endif
  		if (!xen_feature(XENFEAT_auto_translated_physmap)) {
  			__set_phys_to_machine(pfn, INVALID_P2M_ENTRY);
