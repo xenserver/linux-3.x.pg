@@ -407,10 +407,10 @@ index 0000000..f8ae816
 +./lib/modules/*/kernel/drivers/net/ethernet/brocade/bna/bna.ko
 diff --git a/mk/kernel.spec.in b/mk/kernel.spec.in
 new file mode 100644
-index 0000000..68f5b52
+index 0000000..9d6c92b
 --- /dev/null
 +++ b/mk/kernel.spec.in
-@@ -0,0 +1,306 @@
+@@ -0,0 +1,309 @@
 +# -*- rpm-spec -*-
 +
 +# The full kernel uname version
@@ -670,6 +670,9 @@ index 0000000..68f5b52
 +
 +ln -sf vmlinuz-%{uname} /boot/vmlinuz-$short_uname-xen
 +ln -sf initrd-%{uname}.img /boot/initrd-$short_uname-xen.img
++
++mkdir -p %{_rundir}/reboot-required.d/%{name}
++touch %{_rundir}/reboot-required.d/%{name}/%{version}-%{release}
 +
 +%preun
 +if [ "$1" = "0" ]; then
