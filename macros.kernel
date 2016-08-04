@@ -1,0 +1,17 @@
+%regenerate_initrd_post() \
+touch %{_localstatedir}/lib/rpm-state/regenerate-initrd-%{kernel_version} \
+%{nil}
+
+%regenerate_initrd_postun() \
+if [ $1 -eq 0 ]; then \
+    mkinitrd -f /boot/initrd-%{kernel_version}.img %{kernel_version} \
+else \
+    touch %{_localstatedir}/lib/rpm-state/regenerate-initrd-%{kernel_version} \
+fi \
+%{nil}
+
+%regenerate_initrd_posttrans() \
+if [ -e %{_localstatedir}/lib/rpm-state/regenerate-initrd-%{kernel_version} ]; then \
+    rm %{_localstatedir}/lib/rpm-state/regenerate-initrd-%{kernel_version} \
+    mkinitrd -f /boot/initrd-%{kernel_version}.img %{kernel_version} \
+fi \
