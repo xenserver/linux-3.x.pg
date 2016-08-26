@@ -242,6 +242,12 @@ nullblk_3_13.patch
 0001-PCI-Turn-off-Request-Attributes-to-avoid-Chelsio-T5-.patch
 # b7a584598aea7ca73140cb87b40319944dd3393f (4.6-rc1)
 0001-x86-iopl-64-Properly-context-switch-IOPL-on-Xen-PV.patch
+# 9eb45d5cc541142896f5fe7896d824c1091197c9 (4.6-rc1)
+0001-PCI-Update-VPD-definitions.patch
+# c5563887a96912f84efe5c1322bfbc4f9a30e882 (4.6-rc1)
+0002-PCI-Use-bitfield-instead-of-bool-for-struct-pci_vpd_.patch
+# 104daa71b39614343929e1982170d5fcb0569bb5 (4.6-rc1)
+0003-PCI-Determine-actual-VPD-size-on-first-access.patch
 
 # Backport component subsystem. 
 # 2a41e6070dd7ef539d0f3b1652b4839d04378e11 (3.14-rc1)
@@ -711,7 +717,6 @@ backport-rhel7.2-gfs2.patch
 0001-efivarfs-Ensure-VariableName-is-NULL-terminated.patch
 
 # PCI
-0001-PCI-update-VPD-size-with-correct-length.patch
 no-flr-quirk.patch
 
 # CIFS read caching patches

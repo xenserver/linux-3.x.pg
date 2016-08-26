@@ -1,0 +1,81 @@
+From 9eb45d5cc541142896f5fe7896d824c1091197c9 Mon Sep 17 00:00:00 2001
+From: Hannes Reinecke <hare@suse.de>
+Date: Mon, 15 Feb 2016 09:41:59 +0100
+Subject: [PATCH 1/1] PCI: Update VPD definitions
+
+The 'end' tag is actually 0x0f; it's the representation as a small resource
+data type tag that's 0x78 (i.e., shifted by 3).  Correct PCI_VPD_STIN_END
+and PCI_VPD_SRDT_END accordingly.
+
+Also, add helper functions to extract the resource data type tags for both
+large and small resource data types.
+
+[bhelgaas: changelog]
+Tested-by: Shane Seymour <shane.seymour@hpe.com>
+Tested-by: Babu Moger <babu.moger@oracle.com>
+Signed-off-by: Hannes Reinecke <hare@suse.com>
+Signed-off-by: Bjorn Helgaas <bhelgaas@google.com>
+Cc: Alexander Duyck <alexander.duyck@gmail.com>
+---
+ include/linux/pci.h | 27 +++++++++++++++++++++++++--
+ 1 file changed, 25 insertions(+), 2 deletions(-)
+
+diff --git a/include/linux/pci.h b/include/linux/pci.h
+index 27df4a6..49ad85c 100644
+--- a/include/linux/pci.h
++++ b/include/linux/pci.h
+@@ -1834,12 +1834,13 @@ bool pci_acs_path_enabled(struct pci_dev *start,
+ #define PCI_VPD_LRDT_RW_DATA		PCI_VPD_LRDT_ID(PCI_VPD_LTIN_RW_DATA)
+ 
+ /* Small Resource Data Type Tag Item Names */
+-#define PCI_VPD_STIN_END		0x78	/* End */
++#define PCI_VPD_STIN_END		0x0f	/* End */
+ 
+-#define PCI_VPD_SRDT_END		PCI_VPD_STIN_END
++#define PCI_VPD_SRDT_END		(PCI_VPD_STIN_END << 3)
+ 
+ #define PCI_VPD_SRDT_TIN_MASK		0x78
+ #define PCI_VPD_SRDT_LEN_MASK		0x07
++#define PCI_VPD_LRDT_TIN_MASK		0x7f
+ 
+ #define PCI_VPD_LRDT_TAG_SIZE		3
+ #define PCI_VPD_SRDT_TAG_SIZE		1
+@@ -1863,6 +1864,17 @@ static inline u16 pci_vpd_lrdt_size(const u8 *lrdt)
+ }
+ 
+ /**
++ * pci_vpd_lrdt_tag - Extracts the Large Resource Data Type Tag Item
++ * @lrdt: Pointer to the beginning of the Large Resource Data Type tag
++ *
++ * Returns the extracted Large Resource Data Type Tag item.
++ */
++static inline u16 pci_vpd_lrdt_tag(const u8 *lrdt)
++{
++    return (u16)(lrdt[0] & PCI_VPD_LRDT_TIN_MASK);
++}
++
++/**
+  * pci_vpd_srdt_size - Extracts the Small Resource Data Type length
+  * @lrdt: Pointer to the beginning of the Small Resource Data Type tag
+  *
+@@ -1874,6 +1886,17 @@ static inline u8 pci_vpd_srdt_size(const u8 *srdt)
+ }
+ 
+ /**
++ * pci_vpd_srdt_tag - Extracts the Small Resource Data Type Tag Item
++ * @lrdt: Pointer to the beginning of the Small Resource Data Type tag
++ *
++ * Returns the extracted Small Resource Data Type Tag Item.
++ */
++static inline u8 pci_vpd_srdt_tag(const u8 *srdt)
++{
++	return ((*srdt) & PCI_VPD_SRDT_TIN_MASK) >> 3;
++}
++
++/**
+  * pci_vpd_info_field_size - Extracts the information field length
+  * @lrdt: Pointer to the beginning of an information field header
+  *
+-- 
+2.1.4
+
