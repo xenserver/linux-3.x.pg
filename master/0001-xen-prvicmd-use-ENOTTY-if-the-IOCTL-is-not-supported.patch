@@ -1,0 +1,29 @@
+From 890c7b591f106c3240524a1ede93f55e4adb539f Mon Sep 17 00:00:00 2001
+From: David Vrabel <david.vrabel@citrix.com>
+Date: Wed, 3 Aug 2016 11:34:28 +0100
+Subject: [PATCH] xen/prvicmd: use ENOTTY if the IOCTL is not supported
+
+The standard return value for ioctl(2) where the cmd is not supported
+is ENOTTY, not EINVAL.
+
+Signed-off-by: David Vrabel <david.vrabel@citrix.com>
+---
+ drivers/xen/privcmd.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/xen/privcmd.c b/drivers/xen/privcmd.c
+index 702040f..ac76bc4 100644
+--- a/drivers/xen/privcmd.c
++++ b/drivers/xen/privcmd.c
+@@ -572,7 +572,7 @@ static long privcmd_ioctl(struct file *file,
+ 		break;
+ 
+ 	default:
+-		ret = -EINVAL;
++		ret = -ENOTTY;
+ 		break;
+ 	}
+ 
+-- 
+2.1.4
+

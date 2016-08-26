@@ -663,8 +663,9 @@ fifo_page_fix.patch
 pciback-disable-root-port-aer.patch
 pciback-mask-root-port-comp-timeout.patch
 
-# Preemptible privcmd hypercalls
+# privcmd
 0001-x86-xen-allow-privcmd-hypercalls-to-be-preempted.patch
+0001-xen-prvicmd-use-ENOTTY-if-the-IOCTL-is-not-supported.patch
 
 # Grant table
 xen-gntdev-grant-copy.patch
