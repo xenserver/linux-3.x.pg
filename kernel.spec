@@ -71,7 +71,7 @@ Requires(pre): %{kernel_prereq}
 Conflicts: %{kernel_dot_org_conflicts}
 Conflicts: %{package_conflicts}
 
-Source0: http://hg.uk.xensource.com/git/carbon/trunk-ring0/linux-3.x.git/snapshot/refs/heads/master#/linux-3.x.tar.bz2
+Source0: http://hg.uk.xensource.com/git/carbon/%{branch}/linux-3.x.git/snapshot/refs/heads/master#/linux-3.x.tar.bz2
 Source1: macros.kernel
 
 %description
